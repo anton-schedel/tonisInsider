@@ -1,0 +1,54 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { parseArticle } from "./article.ts";
+import type { ArticleRef } from "../types.ts";
+
+const fx = (name: string) => readFileSync(join(import.meta.dirname, "..", "__fixtures__", name), "utf8");
+const NOW = new Date("2026-10-07T09:00:00Z");
+const ref = (id: number, headline = "List headline"): ArticleRef => ({
+  id, url: `https://www.ligainsider.de/x_1/y-${id}/`, headline, newsType: "verletzung",
+});
+
+describe("parseArticle", () => {
+  it("parses a player article", () => {
+    const a = parseArticle(fx("article-kobel.html"), ref(418778), "bundesliga", NOW);
+    expect(a.headline).toBe("Kobel kann sich langfristigen BVB-Verbleib vorstellen");
+    expect(a.listHeadline).toBe("List headline");
+    expect(a.player).toEqual({ id: 9357, slug: "gregor-kobel", name: "Gregor Kobel" });
+    expect(a.club).toEqual({ id: 14, slug: "borussia-dortmund", name: "Borussia Dortmund" });
+    expect(a.author).toBe("Robin Meise");
+    expect(a.publishedAt).toBe("2026-10-07T07:32:00.000Z");
+    expect(a.source?.name).toBe("bild.de");
+    expect(a.source?.url).toMatch(/^https:\/\/www\.bild\.de\//);
+    expect(a.newsType).toBe("verletzung");
+    expect(a.category).toBe("bundesliga");
+    expect(a.fetchedAt).toBe(NOW.toISOString());
+  });
+
+  it("keeps the full body with formatting but without the ad slot", () => {
+    const a = parseArticle(fx("article-kobel.html"), ref(418778), "bundesliga", NOW);
+    expect(a.bodyHtml.startsWith("<p>Gregor Kobel kann sich gut vorstellen")).toBe(true);
+    expect(a.bodyHtml).toContain("<i>Sport Bild</i>");
+    expect(a.bodyHtml).toContain("Waldemar Anton und Julian Ryerson");
+    expect(a.bodyHtml).not.toContain("ad_oop");
+    expect(a.bodyHtml).not.toContain("DURCHSCHNITTSNOTE");
+    expect(a.bodyHtml.match(/<p>/g)).toHaveLength(4);
+  });
+
+  it("does not treat the LigaInsider editorial account as a player", () => {
+    const a = parseArticle(fx("article-pk-termine.html"), ref(418731), "bundesliga", NOW);
+    expect(a.headline).toBe("5. Spieltag: Die PK-Termine in der Übersicht");
+    expect(a.player).toBeUndefined();
+    expect(a.club).toBeUndefined();
+    expect(a.bodyHtml).toContain("<h3>Die PK-Termine in der Übersicht</h3>");
+    expect(a.bodyHtml).toContain('<a href="https://www.youtube.com/');
+  });
+
+  it("returns an empty body and date for a page that is not an article (validation catches it)", () => {
+    const a = parseArticle("<html><body>Wartung</body></html>", ref(1, "X"), "bundesliga", NOW);
+    expect(a.bodyHtml).toBe("");
+    expect(a.publishedAt).toBe("");
+    expect(a.headline).toBe("X");
+  });
+});
