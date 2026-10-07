@@ -1,4 +1,11 @@
 .superpowers/
 node_modules/
 dist/
+.astro/
 .DS_Store
+
+# Scraped content never goes into git (public repo).
+store/
+public/img/
+public/data/
+scraper/__fixtures__/
