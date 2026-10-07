@@ -1,0 +1,19 @@
+---
+import type { NewsType } from "../../scraper/types.ts";
+
+interface Props { type: NewsType }
+const STYLES: Record<NewsType, { label: string; tone: "red" | "yellow" | "green" } | undefined> = {
+  verletzung: { label: "Verletzung", tone: "red" },
+  angeschlagen: { label: "Angeschlagen", tone: "yellow" },
+  aufbautraining: { label: "Aufbautraining", tone: "green" },
+  fit: { label: "Fit", tone: "green" },
+  sonstiges: undefined,
+};
+const style = STYLES[Astro.props.type];
+---
+{style && (
+  <span
+    class="rounded-full px-[7px] py-[2px] text-[10.5px] font-semibold"
+    style={`background:var(--${style.tone}-bg);color:var(--${style.tone}-fg)`}
+  >{style.label}</span>
+)}

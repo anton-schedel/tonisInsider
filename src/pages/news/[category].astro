@@ -1,0 +1,15 @@
+---
+import Base from "../../layouts/Base.astro";
+import NewsTabs from "../../components/NewsTabs.astro";
+import NewsFeed from "../../components/NewsFeed.astro";
+import { articles } from "../../lib/data.ts";
+
+export function getStaticPaths() {
+  return [{ params: { category: "bundesliga" } }, { params: { category: "testspiele" } }];
+}
+const category = Astro.params.category as "bundesliga" | "testspiele";
+---
+<Base title="News" tab="news">
+  <NewsTabs active={category} />
+  <NewsFeed articles={articles(category)} />
+</Base>

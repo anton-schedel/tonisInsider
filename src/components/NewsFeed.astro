@@ -1,0 +1,21 @@
+---
+import type { Article } from "../../scraper/types.ts";
+import ArticleRow from "./ArticleRow.astro";
+import { groupByDay } from "../lib/data.ts";
+import { dayLabel } from "../lib/format.ts";
+
+interface Props { articles: Article[] }
+const now = new Date();
+const groups = groupByDay(Astro.props.articles);
+---
+{groups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
+{groups.map((g) => (
+  <section class="mb-2">
+    <h2 class="sticky top-0 z-10 bg-bg/90 py-2 text-xs font-semibold tracking-wide text-muted uppercase backdrop-blur">
+      {dayLabel(g.first, now)}
+    </h2>
+    <div class="divide-y divide-hairline">
+      {g.items.map((a) => <ArticleRow article={a} />)}
+    </div>
+  </section>
+))}

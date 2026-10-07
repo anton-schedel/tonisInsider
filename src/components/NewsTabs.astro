@@ -1,0 +1,16 @@
+---
+interface Props { active: "alle" | "bundesliga" | "testspiele" }
+const items = [
+  { id: "alle", href: "/", label: "Alle" },
+  { id: "bundesliga", href: "/news/bundesliga/", label: "Bundesliga" },
+  { id: "testspiele", href: "/news/testspiele/", label: "Testspiele" },
+] as const;
+---
+<nav class="mb-3 flex rounded-[10px] bg-surface p-[2px] text-[13px] font-semibold">
+  {items.map((i) => (
+    <a
+      href={i.href}
+      class:list={["flex-1 rounded-lg py-1.5 text-center", Astro.props.active === i.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}
+    >{i.label}</a>
+  ))}
+</nav>

@@ -1,0 +1,40 @@
+---
+import Base from "../../layouts/Base.astro";
+import Avatar from "../../components/Avatar.astro";
+import StatusPill from "../../components/StatusPill.astro";
+import { articles } from "../../lib/data.ts";
+import { fullDate } from "../../lib/format.ts";
+import type { Article } from "../../../scraper/types.ts";
+
+export function getStaticPaths() {
+  return articles().map((article) => ({ params: { id: String(article.id) }, props: { article } }));
+}
+const { article: a } = Astro.props as { article: Article };
+const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
+---
+<Base title={a.headline} tab="news" back={{ href: "/", label: "News" }} hideHeading>
+  <article class="pt-2">
+    {(a.player || a.club) && (
+      <div class="mb-4 flex items-center gap-3">
+        <Avatar src={a.player?.photo ?? a.club?.crest} name={a.player?.name ?? a.club!.name} size={44} />
+        <div class="text-xs leading-snug text-muted">
+          {a.player && <b class="block text-sm text-fg">{a.player.name}</b>}
+          {a.club && (clubLineupHref ? <a href={clubLineupHref} class="underline-offset-2 hover:underline">{a.club.name}</a> : a.club.name)}
+        </div>
+        <span class="ml-auto"><StatusPill type={a.newsType} /></span>
+      </div>
+    )}
+    <h1 class="mb-2 text-[26px] leading-[1.15] font-bold tracking-[-0.025em]">{a.headline}</h1>
+    <p class="mb-6 text-xs text-muted">
+      {fullDate(a.publishedAt)} Uhr{a.author && ` · ${a.author}`}{a.source && " · Quelle: "}
+      {a.source && (a.source.url ? <a href={a.source.url} target="_blank" rel="noopener noreferrer" class="underline">{a.source.name}</a> : a.source.name)}
+    </p>
+    <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
+    <a
+      href={a.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="mt-6 inline-flex rounded-full bg-surface px-4 py-2 text-sm font-medium"
+    >Original auf ligainsider.de ↗</a>
+  </article>
+</Base>
