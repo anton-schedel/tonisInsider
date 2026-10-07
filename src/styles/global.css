@@ -64,6 +64,12 @@ html {
 .prose-body h3 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.6em 0 0.6em; }
 .prose-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
+/* Comments (rendered client-side by Comments.astro). */
+[data-comments-list] > .comment { padding: 14px 0; border-top: 1px solid var(--hairline); }
+[data-comments-list] > .comment:first-child { border-top: 0; padding-top: 0; }
+.poll-fill { background: var(--hairline); }
+.poll-fill.is-best { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+
 /* ---------- Motion ---------- */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(6px); }
@@ -73,6 +79,14 @@ html {
   from { opacity: 0; transform: scale(0.6); }
   to { opacity: 1; transform: none; }
 }
+
+/* Page navigation (view transitions): the rest of the page, incl. the tab bar, swaps instantly;
+   the old content is gone at once and only the new content fades in. No cross-fade, no morph. */
+.page { view-transition-name: page; }
+::view-transition-old(root), ::view-transition-new(root), ::view-transition-group(page) { animation: none; }
+::view-transition-old(page) { display: none; }
+::view-transition-new(page) { animation: fade-in 180ms ease-out both; }
+@keyframes fade-in { from { opacity: 0; } }
 
 /* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
 /* Only on a fresh page load, not on in-app navigation (the page fade already covers that). */
@@ -85,6 +99,22 @@ html:not([data-navigated]) .enter {
   animation-delay: calc(var(--i, 0) * 60ms);
 }
 
+/* Lineup: tap a player with an alternative to flip to the alternative and back. */
+.swap { -webkit-tap-highlight-color: transparent; cursor: pointer; }
+.swap-face {
+  grid-area: 1 / 1;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease;
+}
+.swap-alt, .swap[aria-pressed="true"] .swap-face:not(.swap-alt) { opacity: 0; transform: rotateY(90deg) scale(0.9); pointer-events: none; }
+.swap[aria-pressed="true"] .swap-alt { opacity: 1; transform: none; }
+.swap-hint {
+  position: absolute; left: -2px; bottom: -2px;
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 9999px;
+  background: var(--yellow-dot); color: #000; font-size: 11px; font-weight: 700;
+  border: 2px solid #fff;
+}
+
 /* Native-feeling tap feedback. */
 .press {
   transition: transform 160ms ease, opacity 160ms ease;
@@ -95,5 +125,7 @@ html:not([data-navigated]) .enter {
 
 @media (prefers-reduced-motion: reduce) {
   .enter, .pop { animation: none; }
+  ::view-transition-new(page) { animation: none; }
+  .swap-face { transition: none; }
   .press, .press:active { transition: none; transform: none; }
 }

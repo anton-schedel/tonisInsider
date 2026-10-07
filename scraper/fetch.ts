@@ -9,7 +9,7 @@ export type Fetcher = {
   binary(url: string): Promise<Uint8Array>;
 };
 
-const USER_AGENT =
+export const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

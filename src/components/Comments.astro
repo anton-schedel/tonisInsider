@@ -1,0 +1,106 @@
+---
+interface Props { articleId: number; url: string }
+const { articleId, url } = Astro.props;
+---
+<!-- Loaded live from LigaInsider (via /api/comments/<id>/, cached 2 min), so it's always current. -->
+<section class="mt-10" data-comments={articleId}>
+  <h2 class="mb-4 flex items-baseline gap-2 text-[20px] font-bold tracking-[-0.02em]">
+    Kommentare <span class="text-[15px] font-semibold text-muted" data-comments-count></span>
+  </h2>
+  <p class="text-sm text-muted" data-comments-status>Kommentare werden geladen …</p>
+  <ul class="flex flex-col" data-comments-list></ul>
+  <a
+    href={url}
+    target="_blank"
+    rel="noopener noreferrer"
+    class="mt-4 hidden text-sm text-accent"
+    data-comments-more
+  >Alle Kommentare auf ligainsider.de ↗</a>
+</section>
+
+<script>
+  import type { Comment, Comments } from "../lib/comments.ts";
+  import { ago, initials } from "../lib/format.ts";
+
+  // Builds DOM with textContent only: comment text is untrusted and never parsed as HTML.
+  function h(tag: string, cls = "", text?: string) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function renderComment(c: Comment, now: Date, reply = false): HTMLElement {
+    const li = h("li", reply ? "comment comment-reply" : "comment");
+    const head = h("div", "flex items-center gap-2.5");
+    const size = reply ? "size-7 text-[10px]" : "size-8 text-[11px]";
+    head.append(
+      h("span", `flex ${size} shrink-0 items-center justify-center rounded-full bg-surface font-semibold text-muted`, initials(c.user) || "?"),
+      h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
+      h("span", "shrink-0 text-xs text-muted", c.date ? ago(c.date, now) : ""),
+    );
+    if (c.score) head.append(h("span", "ml-auto shrink-0 text-xs font-medium text-muted", `▲ ${c.score}`));
+    li.append(head);
+
+    const body = h("div", reply ? "pl-[38px]" : "pl-[42px]");
+    if (c.text) body.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
+    if (c.poll) {
+      const poll = h("div", "mt-2 rounded-xl bg-surface p-3");
+      poll.append(h("p", "mb-2 text-[14px] font-semibold", c.poll.question));
+      const best = Math.max(...c.poll.options.map((o) => o.pct));
+      for (const o of c.poll.options) {
+        const row = h("div", "poll-row relative mb-1.5 overflow-hidden rounded-lg px-3 py-1.5 text-[13px]");
+        const fill = h("span", "poll-fill absolute inset-y-0 left-0");
+        fill.style.width = `${o.pct}%`;
+        if (o.pct === best) fill.classList.add("is-best");
+        row.append(fill, h("span", "relative", o.label), h("span", "relative float-right font-semibold", `${o.pct}%`));
+        poll.append(row);
+      }
+      poll.append(h("p", "mt-1 text-xs text-muted", `${c.poll.total} Stimmen`));
+      body.append(poll);
+    }
+    li.append(body);
+
+    if (c.replies.length) {
+      const ul = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
+      for (const r of c.replies) ul.append(renderComment(r, now, true));
+      li.append(ul);
+    }
+    return li;
+  }
+
+  async function load() {
+    const section = document.querySelector<HTMLElement>("[data-comments]");
+    if (!section || section.dataset.loaded) return;
+    section.dataset.loaded = "1";
+    const status = section.querySelector<HTMLElement>("[data-comments-status]")!;
+    const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
+    const more = section.querySelector<HTMLElement>("[data-comments-more]")!;
+    try {
+      const res = await fetch(`/api/comments/${section.dataset.comments}/`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Comments;
+      const now = new Date();
+      section.querySelector("[data-comments-count]")!.textContent = data.total ? String(data.total) : "";
+      if (!data.comments.length) {
+        status.textContent = "Noch keine Kommentare.";
+        return;
+      }
+      status.remove();
+      for (const c of data.comments) list.append(renderComment(c, now));
+      const count = (cs: Comment[]): number => cs.reduce((n, c) => n + 1 + count(c.replies), 0);
+      const shown = count(data.comments);
+      if (data.total > shown) {
+        more.textContent = `Alle ${data.total} Kommentare auf ligainsider.de ↗`;
+        more.classList.remove("hidden");
+        more.classList.add("inline-block");
+      }
+    } catch {
+      status.textContent = "Kommentare gerade nicht erreichbar.";
+      more.classList.remove("hidden");
+      more.classList.add("inline-block");
+    }
+  }
+
+  document.addEventListener("astro:page-load", load);
+</script>

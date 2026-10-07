@@ -13,9 +13,6 @@ interface Props {
 }
 const { title, tab, back, hideHeading = false } = Astro.props;
 const updated = lastUpdate();
-// Old page disappears instantly, new page fades in once (no cross-fade, no double animation).
-const swapIn = { old: { name: "none", duration: "0s" }, new: { name: "astroFadeIn", duration: "180ms", easing: "ease-out", fillMode: "both" } };
-const pageSwap = { forwards: swapIn, backwards: swapIn };
 const tabs = [
   { id: "news", href: "/", label: "News", icon: "M4 5h16M4 12h16M4 19h10" },
   { id: "aufstellungen", href: "/aufstellungen/", label: "Aufstellungen", icon: "M12 3v18M3 12h18M7 7h10v10H7z" },
@@ -23,7 +20,7 @@ const tabs = [
 ] as const;
 ---
 <!doctype html>
-<html lang="de" transition:animation="none">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -61,6 +58,17 @@ const tabs = [
           e.newDocument.documentElement.dataset.navigated = "";
         });
         document.addEventListener("click", (e) => {
+          // Lineup: flip between a player and their alternative.
+          const swap = e.target.closest?.("[data-swap]");
+          if (swap) {
+            const on = swap.getAttribute("aria-pressed") !== "true";
+            swap.setAttribute("aria-pressed", String(on));
+            swap.querySelectorAll(".swap-face").forEach((f) => {
+              if (f.classList.contains("swap-alt") === on) f.removeAttribute("aria-hidden");
+              else f.setAttribute("aria-hidden", "true");
+            });
+            return;
+          }
           if (!e.target.closest?.("#theme-toggle")) return;
           const root = document.documentElement;
           const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
@@ -72,7 +80,8 @@ const tabs = [
     <ClientRouter />
   </head>
   <body class="min-h-dvh bg-bg font-sans text-fg">
-    <div class="mx-auto max-w-[720px] px-4 pb-28 sm:px-6" transition:animation={pageSwap} data-active-tab={tab}>
+    <!-- The page fade is defined in global.css (view-transition-name: page). -->
+    <div class="page mx-auto max-w-[720px] px-4 pb-28 sm:px-6" data-active-tab={tab}>
       <header class="flex items-end justify-between pt-6 pb-3">
         <div class="min-w-0">
           {back && (
@@ -98,9 +107,9 @@ const tabs = [
       </footer>
     </div>
     <nav class="fixed inset-x-0 bottom-0 border-t border-hairline bg-[var(--tabbar)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl" transition:persist="tabbar">
-      <div class="mx-auto flex max-w-[720px] justify-around pt-2 pb-2">
+      <div class="mx-auto grid max-w-[720px] grid-cols-3 pt-2 pb-2">
         {tabs.map((t) => (
-          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 px-4 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
+          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
             <span data-label>{t.label}</span>
           </a>

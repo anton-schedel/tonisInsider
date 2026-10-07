@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dayLabel, fullDate, initials, kickoff, kickoffDay, time } from "./format.ts";
+import { ago, dayLabel, fullDate, initials, kickoff, kickoffDay, time } from "./format.ts";
 
 const NOW = new Date("2026-10-07T09:00:00Z");
 
@@ -28,5 +28,15 @@ describe("format", () => {
     expect(initials("Gregor Kobel")).toBe("GK");
     expect(initials("N. Schlotterbeck")).toBe("NS");
     expect(initials("Kobel")).toBe("K");
+  });
+});
+
+describe("ago", () => {
+  const now = new Date("2026-10-07T12:00:00Z");
+  it("says how long ago a comment was written", () => {
+    expect(ago("2026-10-07T11:59:40Z", now)).toBe("gerade eben");
+    expect(ago("2026-10-07T11:48:00Z", now)).toBe("vor 12 Min.");
+    expect(ago("2026-10-07T09:00:00Z", now)).toBe("vor 3 Std.");
+    expect(ago("2026-10-05T09:00:00Z", now)).toBe("05.10.2026 · 11:00");
   });
 });

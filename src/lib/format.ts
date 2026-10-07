@@ -26,3 +26,12 @@ export function initials(name: string): string {
   const parts = name.replace(/\./g, "").split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
+
+/** "gerade eben" / "vor 12 Min." / "vor 3 Std.", older than a day → full date. */
+export function ago(iso: string, now: Date): string {
+  const min = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000);
+  if (min < 1) return "gerade eben";
+  if (min < 60) return `vor ${min} Min.`;
+  if (min < 24 * 60) return `vor ${Math.floor(min / 60)} Std.`;
+  return fullDate(iso);
+}
