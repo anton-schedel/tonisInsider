@@ -43,16 +43,42 @@ const tabs = [
         };
         apply(document);
         // The tab bar persists across navigations, so its highlight is updated here instead of re-rendered.
-        document.addEventListener("astro:page-load", () => {
-          const tab = document.querySelector("[data-active-tab]")?.dataset.activeTab;
+        const highlight = (tab) => {
           document.querySelectorAll("nav [data-tab]").forEach((a) => {
             a.classList.toggle("text-accent", a.dataset.tab === tab);
             a.classList.toggle("text-muted", a.dataset.tab !== tab);
           });
+        };
+        const tabFor = (path) =>
+          /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen" : /^\/(mein-team|login)\//.test(path) ? "mein-team" : "news";
+        const bar = () => document.querySelector("[data-nav-progress]");
+        let slow;
+        // Feedback at the moment of the tap: highlight the target tab now, and show a thin progress line
+        // if the page takes longer than a blink to arrive (e.g. Mein Team on mobile data).
+        document.addEventListener("astro:before-preparation", (e) => {
+          highlight(tabFor(e.to.pathname));
+          clearTimeout(slow);
+          slow = setTimeout(() => bar()?.classList.add("is-loading"), 150);
+        });
+        document.addEventListener("astro:after-preparation", () => {
+          clearTimeout(slow);
+          bar()?.classList.remove("is-loading");
+        });
+        document.addEventListener("astro:page-load", () => {
+          clearTimeout(slow);
+          bar()?.classList.remove("is-loading");
+          highlight(document.querySelector("[data-active-tab]")?.dataset.activeTab);
           // "kbin" is a non-secret flag cookie set at login (the token itself is HttpOnly).
           const label = document.querySelector('nav [data-tab="mein-team"] [data-label]');
           if (label) label.textContent = /(?:^|; )kbin=1/.test(document.cookie) ? "Mein Team" : "Login";
         });
+        // Tapping the tab of the page you're on scrolls back to the top (like iOS) instead of reloading it.
+        document.addEventListener("click", (e) => {
+          const tab = e.target.closest?.("nav [data-tab]");
+          if (!tab || new URL(tab.href).pathname !== location.pathname) return;
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        }, true);
         document.addEventListener("astro:before-swap", (e) => {
           apply(e.newDocument);
           e.newDocument.documentElement.dataset.navigated = "";
@@ -107,6 +133,7 @@ const tabs = [
       </footer>
     </div>
     <nav class="tabbar fixed inset-x-0 bottom-0 border-t border-hairline bg-[var(--tabbar)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl" transition:persist="tabbar">
+      <div class="nav-progress" data-nav-progress aria-hidden="true"></div>
       <div class="mx-auto grid max-w-[720px] grid-cols-3 pt-2 pb-2">
         {tabs.map((t) => (
           <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>

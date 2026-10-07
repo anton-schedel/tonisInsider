@@ -83,16 +83,25 @@ html {
 nav.tabbar { view-transition-name: tabbar; }
 ::view-transition-group(root),
 ::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar) { animation: none; }
-::view-transition-old(root) { animation: fade-out 90ms ease-in both; }
-::view-transition-new(root) { animation: fade-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; }
-::view-transition-group(.crest) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+::view-transition-old(root) { animation: fade-out 70ms ease-in both; }
+::view-transition-new(root) { animation: fade-rise 160ms cubic-bezier(0.2, 0.8, 0.2, 1) 40ms both; }
+/* Layers that only exist on the new page are stacked last; keep the tab bar above everything. */
+::view-transition-group(tabbar) { z-index: 10; }
+::view-transition-group(.crest) { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
 /* A crest on both pages glides; one that exists on only one side fades with the page. */
 ::view-transition-old(.crest) { animation: none; opacity: 0; }
 ::view-transition-new(.crest) { animation: none; }
-::view-transition-old(.crest):only-child { opacity: 1; animation: fade-out 90ms ease-in both; }
-::view-transition-new(.crest):only-child { animation: fade-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; }
+::view-transition-old(.crest):only-child { opacity: 1; animation: fade-out 70ms ease-in both; }
+::view-transition-new(.crest):only-child { animation: fade-rise 160ms cubic-bezier(0.2, 0.8, 0.2, 1) 40ms both; }
 @keyframes fade-out { to { opacity: 0; } }
 @keyframes fade-rise { from { opacity: 0; transform: translateY(6px); } }
+
+/* Thin line on top of the tab bar while a slow page loads. */
+.nav-progress { position: absolute; inset: 0 0 auto; height: 2px; overflow: hidden; opacity: 0; transition: opacity 150ms; }
+.nav-progress::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--fg); opacity: 0.6; transform: translateX(-100%); }
+.nav-progress.is-loading { opacity: 1; }
+.nav-progress.is-loading::after { animation: nav-progress 900ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+@keyframes nav-progress { to { transform: translateX(250%); } }
 
 /* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
 /* Only on a fresh page load, not on in-app navigation (the page fade already covers that). */
