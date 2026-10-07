@@ -63,6 +63,14 @@ describe("matchPlayer", () => {
   it("matches by full name and accents", () => {
     expect(matchPlayer(kb("Felix Nmecha"), bvb)).toMatchObject({ status: "start", ligainsider: { id: 1 } });
   });
+  it("does not match a surname against a teammate's first name", () => {
+    const withUzun: Lineup = { ...bvb, lines: [[...bvb.lines[0], lp(3, "can-uzun", "Uzun")]] };
+    expect(matchPlayer(kb("Can"), withUzun).status).toBe("bench");
+  });
+  it("refuses to guess when the club's full roster has two players with that surname", () => {
+    expect(matchPlayer(kb("Kobel"), bvb, ["Kobel", "Kobel"]).status).toBe("unknown");
+    expect(matchPlayer(kb("Kobel"), bvb, ["Kobel", "Anton"]).status).toBe("start");
+  });
   it("is unknown without a lineup", () => {
     expect(matchPlayer(kb("Kobel"), undefined).status).toBe("unknown");
   });
@@ -88,6 +96,7 @@ describe("squadNews", () => {
       article(1, { id: 9357, slug: "gregor-kobel", name: "Gregor Kobel" }, 14, "2026-10-07T07:00:00Z"),
       article(2, { id: 1812, slug: "emre-can", name: "Emre Can" }, 14, "2026-10-07T09:00:00Z"),
       article(3, { id: 5, slug: "x-can", name: "Xaver Can" }, 99, "2026-10-07T10:00:00Z"),
+      article(5, { id: 7, slug: "can-uzun", name: "Can Uzun" }, 14, "2026-10-07T12:00:00Z"),
       article(4, { id: 6, slug: "other", name: "Other Player" }, 14, "2026-10-07T11:00:00Z"),
     ]);
     expect(news.map((a) => a.id)).toEqual([2, 1]);

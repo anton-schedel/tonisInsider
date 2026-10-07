@@ -1,22 +1,25 @@
 ---
 import type { Article } from "../../scraper/types.ts";
 import Avatar from "./Avatar.astro";
+import Crest from "./Crest.astro";
 import StatusPill from "./StatusPill.astro";
 import { time } from "../lib/format.ts";
 
 interface Props { article: Article; index?: number }
 const { article: a, index = 0 } = Astro.props;
 ---
-<a href={`/artikel/${a.id}/`} class="press enter flex items-start gap-3 py-3" style={`--i:${index}`}>
+<a href={`/artikel/${a.id}/`} class="press enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`}>
   <span class="relative">
-    <Avatar src={a.player?.photo ?? a.club?.crest} name={a.player?.name ?? a.club?.name ?? "LigaInsider"} size={40} />
+    {a.player
+      ? <Avatar src={a.player.photo} name={a.player.name} size={52} />
+      : <Crest src={a.club?.crest} name={a.club?.name ?? "LigaInsider"} size={52} />}
     {a.player && a.club?.crest && (
-      <img src={a.club.crest} alt="" class="absolute -right-1 -bottom-1 size-[18px] rounded-full bg-bg object-contain p-[1px]" />
+      <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[22px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
     )}
   </span>
   <span class="min-w-0 flex-1">
-    <span class="mb-1 block text-[15px] leading-snug font-semibold tracking-[-0.01em]">{a.headline}</span>
-    <span class="flex items-center gap-1.5 text-xs text-muted">
+    <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+    <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
       <span>{a.player?.name ?? a.club?.name ?? "LigaInsider"} · {time(a.publishedAt)}</span>
     </span>

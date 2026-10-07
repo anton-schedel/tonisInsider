@@ -1,0 +1,12 @@
+---
+import Avatar from "./Avatar.astro";
+
+interface Props { src?: string; name: string; size?: number; class?: string }
+const { src, name, size = 32, class: className } = Astro.props;
+---
+{/* Club logos are shown as they are: no circle, background or padding (some crests have real corners). */}
+{src ? (
+  <img src={src} alt={name} loading="lazy" class:list={["shrink-0 object-contain", className]} style={`width:${size}px;height:${size}px`} />
+) : (
+  <Avatar name={name} size={size} class={className} />
+)}

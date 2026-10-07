@@ -28,6 +28,8 @@ const tabs = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
+    <!-- Also for Worker-rendered pages (where _headers doesn't apply): never leak our URL as Referer. -->
+    <meta name="referrer" content="same-origin" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <title>{title} · tonisInsider</title>
@@ -92,13 +94,13 @@ const tabs = [
       <slot />
       <footer class="mt-10 border-t border-hairline pt-4 text-xs text-muted">
         {updated && <p>Stand: {fullDate(updated)} Uhr</p>}
-        <p class="mt-1">Inhalte von <a class="underline" href="https://www.ligainsider.de/" target="_blank" rel="noopener noreferrer">ligainsider.de</a> · privates Projekt, nicht öffentlich.</p>
+        <p class="mt-1">Inhalte von <a class="underline" href="https://www.ligainsider.de/" target="_blank" rel="noopener noreferrer">ligainsider.de</a></p>
       </footer>
     </div>
     <nav class="fixed inset-x-0 bottom-0 border-t border-hairline bg-[var(--tabbar)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl" transition:persist="tabbar">
       <div class="mx-auto flex max-w-[720px] justify-around pt-2 pb-2">
         {tabs.map((t) => (
-          <a href={t.href} data-tab={t.id} class:list={["press flex flex-col items-center gap-0.5 px-4 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
+          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 px-4 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
             <span data-label>{t.label}</span>
           </a>

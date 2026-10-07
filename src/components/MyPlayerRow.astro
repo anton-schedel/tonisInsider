@@ -17,7 +17,7 @@ const Tag = href ? "a" : "div";
 <Tag href={href} class="press enter flex items-center gap-3 py-3" style={`--i:${index}`}>
   <span class="relative">
     <Avatar src={p.ligainsider?.photo ?? p.kickbase.image} name={name} size={44} />
-    {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -right-1 -bottom-1 size-[18px] rounded-full bg-bg object-contain p-[1px]" />}
+    {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
   </span>
   <span class="min-w-0 flex-1">
     <span class="block truncate text-[15px] font-semibold tracking-[-0.01em]">{name}</span>

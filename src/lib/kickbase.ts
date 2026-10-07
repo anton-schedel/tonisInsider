@@ -1,7 +1,7 @@
 export const KICKBASE_API = "https://api.kickbase.com";
 const TIMEOUT_MS = 8000;
 
-/** Kickbase rejected the credentials or the token (HTTP 401/403). */
+/** Kickbase rejected the credentials or the token (HTTP 401). */
 export class KickbaseAuthError extends Error {}
 /** Kickbase is unreachable or answered unexpectedly. */
 export class KickbaseUnavailableError extends Error {}
@@ -30,7 +30,8 @@ async function call<T>(fetchFn: Fetch, path: string, init: { method?: string; to
   } catch {
     throw new KickbaseUnavailableError("network error or timeout");
   }
-  if (res.status === 401 || res.status === 403) throw new KickbaseAuthError(`HTTP ${res.status}`);
+  // Only 401 means "credentials/token invalid"; a 403 can also be a WAF or rate limit and must not log users out.
+  if (res.status === 401) throw new KickbaseAuthError(`HTTP ${res.status}`);
   if (!res.ok) throw new KickbaseUnavailableError(`HTTP ${res.status}`);
   try {
     return (await res.json()) as T;
@@ -64,6 +65,12 @@ export async function squad(fetchFn: Fetch, token: string, leagueId: string): Pr
     position: ([1, 2, 3, 4].includes(p.pos) ? p.pos : 3) as KbPlayer["position"],
     image: p.pim ? `https://kickbase.b-cdn.net/${p.pim}` : undefined,
   }));
+}
+
+/** All player names of a Bundesliga club (Kickbase display names), used to detect same-surname teammates. */
+export async function teamRoster(fetchFn: Fetch, token: string, teamId: string): Promise<string[]> {
+  const r = await call<{ it?: { n: string }[] }>(fetchFn, `/v4/competitions/1/teams/${encodeURIComponent(teamId)}/teamprofile`, { token });
+  return (r.it ?? []).map((p) => p.n);
 }
 
 export async function clubTable(fetchFn: Fetch, token: string): Promise<KbTeam[]> {

@@ -48,17 +48,28 @@ export function mapClubs(table: KbTeam[], lineups: Lineup[]): Map<string, Lineup
   return map;
 }
 
+function lastWord(s: string): string {
+  return s.split(" ").pop() ?? "";
+}
+
+/** Surname-based: never matches a first name ("Can" must not match "can-uzun"). */
 function nameMatches(kickbaseName: string, candidate: Ref): boolean {
   const kb = normalize(kickbaseName);
   const name = normalize(candidate.name);
-  if (kb === name || kb === name.split(" ").pop()) return true;
-  const slug = ` ${candidate.slug.split("-").join(" ")} `;
-  return slug.includes(` ${kb} `);
+  if (kb === name || kb === lastWord(name)) return true;
+  return ` ${candidate.slug.split("-").join(" ")}`.endsWith(` ${kb}`);
 }
 
-/** Matches one Kickbase player against a club's predicted lineup and derives the start status. */
-export function matchPlayer(p: KbPlayer, lineup: Lineup | undefined): MyPlayer {
+/**
+ * Matches one Kickbase player against a club's predicted lineup and derives the start status.
+ * `roster` (all Kickbase names at that club) guards against same-surname teammates outside the lineup.
+ */
+export function matchPlayer(p: KbPlayer, lineup: Lineup | undefined, roster?: string[]): MyPlayer {
   if (!lineup) return { kickbase: p, status: "unknown" };
+  const surname = lastWord(normalize(p.name));
+  if (roster && roster.filter((n) => lastWord(normalize(n)) === surname).length > 1) {
+    return { kickbase: p, club: lineup.club, lineup, status: "unknown" };
+  }
   const starters: LineupPlayer[] = lineup.lines.flat();
   const alternatives = starters.flatMap((s) => (s.alternative ? [s.alternative] : []));
   const starterHits = starters.filter((s) => nameMatches(p.name, s));
@@ -79,8 +90,8 @@ export function matchPlayer(p: KbPlayer, lineup: Lineup | undefined): MyPlayer {
   return { ...base, status: "bench" };
 }
 
-export function matchSquad(squad: KbPlayer[], clubs: Map<string, Lineup>): MyPlayer[] {
-  return squad.map((p) => matchPlayer(p, clubs.get(p.teamId)));
+export function matchSquad(squad: KbPlayer[], clubs: Map<string, Lineup>, rosters?: Map<string, string[]>): MyPlayer[] {
+  return squad.map((p) => matchPlayer(p, clubs.get(p.teamId), rosters?.get(p.teamId)));
 }
 
 /** Articles about the squad: by matched LigaInsider id, or by name at the same club. Newest first. */
@@ -98,7 +109,7 @@ export function squadNews(players: MyPlayer[], articles: Article[]): Article[] {
       const names = a.club ? byClub.get(a.club.id) : undefined;
       if (!names) return false;
       const full = normalize(a.player.name);
-      return names.some((n) => full === n || full.split(" ").pop() === n || containsWords(full, n));
+      return names.some((n) => full === n || full.endsWith(` ${n}`));
     })
     .sort((x, y) => y.publishedAt.localeCompare(x.publishedAt));
 }

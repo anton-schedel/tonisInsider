@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, squad } from "./kickbase.ts";
+import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, squad, teamRoster } from "./kickbase.ts";
 
 type Call = { url: string; init: RequestInit };
 
@@ -24,6 +24,16 @@ describe("kickbase client", () => {
   it("throws KickbaseAuthError on 401 (wrong password or expired token)", async () => {
     await expect(login(fakeFetch(401, { err: 1 }).fn, "a", "b")).rejects.toBeInstanceOf(KickbaseAuthError);
     await expect(leagues(fakeFetch(401, {}).fn, "T")).rejects.toBeInstanceOf(KickbaseAuthError);
+  });
+
+  it("treats 403 as unavailable, not as an expired session", async () => {
+    await expect(leagues(fakeFetch(403, {}).fn, "T")).rejects.toBeInstanceOf(KickbaseUnavailableError);
+  });
+
+  it("reads a club's roster names from the team profile", async () => {
+    const r = fakeFetch(200, { tid: "3", it: [{ i: "1", n: "Kobel" }, { i: "2", n: "Anton" }] });
+    expect(await teamRoster(r.fn, "T", "3")).toEqual(["Kobel", "Anton"]);
+    expect(r.calls[0].url).toBe("https://api.kickbase.com/v4/competitions/1/teams/3/teamprofile");
   });
 
   it("throws KickbaseUnavailableError on 5xx, invalid JSON or network failure", async () => {

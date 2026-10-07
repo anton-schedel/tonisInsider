@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import Avatar from "../../components/Avatar.astro";
+import Crest from "../../components/Crest.astro";
 import StatusPill from "../../components/StatusPill.astro";
 import { articles } from "../../lib/data.ts";
 import { fullDate } from "../../lib/format.ts";
@@ -16,7 +17,9 @@ const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
   <article class="pt-2">
     {(a.player || a.club) && (
       <div class="mb-4 flex items-center gap-3">
-        <Avatar src={a.player?.photo ?? a.club?.crest} name={a.player?.name ?? a.club!.name} size={44} />
+        {a.player
+          ? <Avatar src={a.player.photo} name={a.player.name} size={44} />
+          : <Crest src={a.club?.crest} name={a.club!.name} size={44} />}
         <div class="text-xs leading-snug text-muted">
           {a.player && <b class="block text-sm text-fg">{a.player.name}</b>}
           {a.club && (clubLineupHref ? <a href={clubLineupHref} class="underline-offset-2 hover:underline">{a.club.name}</a> : a.club.name)}

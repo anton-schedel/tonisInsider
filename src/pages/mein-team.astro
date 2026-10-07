@@ -3,43 +3,79 @@ import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
 import ArticleRow from "../components/ArticleRow.astro";
 import { env } from "cloudflare:workers";
-import { clubTable, KickbaseAuthError, leagues as fetchLeagues, squad as fetchSquad, type KbLeague, type KbTeam } from "../lib/kickbase.ts";
+import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, squad as fetchSquad, teamRoster, type KbLeague, type KbTeam } from "../lib/kickbase.ts";
 import { mapClubs, matchSquad, squadNews, type MyPlayer } from "../lib/match.ts";
-import { clearSession, LEAGUE_COOKIE, TOKEN_COOKIE } from "../lib/session.ts";
+import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
 
 export const prerender = false;
 
-const token = Astro.cookies.get(TOKEN_COOKIE)?.value;
-if (!token) return Astro.redirect("/login/");
+// Personal page: never cache it anywhere (shared phones, back button, link prefetch).
+Astro.response.headers.set("Cache-Control", "private, no-store");
 
-// The club table rarely changes; keep it per Worker isolate for a day.
-const g = globalThis as unknown as { __kbTable?: { at: number; teams: KbTeam[] } };
+const key = env.CREDENTIALS_KEY;
+const doLogin = (email: string, password: string) => login(fetch, email, password);
+const DAY = 86_400_000;
+
+// Public Bundesliga data, identical for every user: cached per Worker isolate for a day (only if non-empty).
+const g = globalThis as unknown as {
+  __kbTable?: { at: number; teams: KbTeam[] };
+  __kbRosters?: Map<string, { at: number; names: string[] }>;
+};
+const rosters = (g.__kbRosters ??= new Map());
+
+async function load(token: string) {
+  const leagues = await fetchLeagues(fetch, token);
+  const picked = Astro.url.searchParams.get("league");
+  const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
+  const league = leagues.find((l) => l.id === wanted) ?? leagues[0];
+  if (!league) return { leagues, league, players: [] as MyPlayer[], news: [] as Article[] };
+  // Only an explicit choice is remembered (not prefetches or defaults).
+  if (picked && league.id === picked) {
+    Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
+  }
+  if (!g.__kbTable || Date.now() - g.__kbTable.at > DAY) {
+    const teams = await clubTable(fetch, token);
+    if (teams.length > 0) g.__kbTable = { at: Date.now(), teams };
+  }
+  const [squad, snapshot] = await Promise.all([
+    fetchSquad(fetch, token, league.id),
+    env.ASSETS.fetch(new URL("/data/snapshot.json", Astro.url))
+      .then((r: Response) => (r.ok ? (r.json() as Promise<Snapshot>) : undefined))
+      .catch(() => undefined),
+  ]);
+  const teamIds = [...new Set(squad.map((p) => p.teamId))];
+  await Promise.all(
+    teamIds
+      .filter((id) => !rosters.get(id) || Date.now() - rosters.get(id)!.at > DAY)
+      .map((id) =>
+        teamRoster(fetch, token, id)
+          .then((names) => void (names.length > 0 && rosters.set(id, { at: Date.now(), names })))
+          .catch(() => undefined),
+      ),
+  );
+  const rosterMap = new Map(teamIds.flatMap((id) => (rosters.get(id) ? [[id, rosters.get(id)!.names] as const] : [])));
+  const players = matchSquad(squad, mapClubs(g.__kbTable?.teams ?? [], snapshot?.lineups ?? []), rosterMap);
+  return { leagues, league, players, news: squadNews(players, snapshot?.articles ?? []) };
+}
 
 let error: string | undefined;
-let leagues: KbLeague[] = [];
-let league: KbLeague | undefined;
-let players: MyPlayer[] = [];
-let news: Article[] = [];
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], news: [] };
 try {
-  leagues = await fetchLeagues(fetch, token);
-  const wanted = Astro.url.searchParams.get("league") ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
-  league = leagues.find((l) => l.id === wanted) ?? leagues[0];
-  if (league) {
-    Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
-    if (!g.__kbTable || Date.now() - g.__kbTable.at > 86_400_000) {
-      g.__kbTable = { at: Date.now(), teams: await clubTable(fetch, token) };
+  // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
+  let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
+  if (!token) return Astro.redirect("/login/");
+  try {
+    data = await load(token);
+  } catch (err) {
+    if (!(err instanceof KickbaseAuthError)) throw err;
+    token = await relogin(Astro.cookies, key, doLogin);
+    if (!token) {
+      clearSession(Astro.cookies);
+      return Astro.redirect("/login/?error=expired");
     }
-    const [squad, snapshot] = await Promise.all([
-      fetchSquad(fetch, token, league.id),
-      env.ASSETS.fetch(new URL("/data/snapshot.json", Astro.url))
-        .then((r: Response) => (r.ok ? (r.json() as Promise<Snapshot>) : undefined))
-        .catch(() => undefined),
-    ]);
-    const lineups = snapshot?.lineups ?? [];
-    players = matchSquad(squad, mapClubs(g.__kbTable.teams, lineups));
-    news = squadNews(players, snapshot?.articles ?? []);
+    data = await load(token);
   }
 } catch (err) {
   if (err instanceof KickbaseAuthError) {
@@ -48,6 +84,7 @@ try {
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
+const { leagues, league, players, news } = data;
 
 const GROUPS = [
   { pos: 1, label: "Torwart" },
@@ -63,7 +100,7 @@ let index = 0;
   {leagues.length > 1 && (
     <nav class="mb-4 flex overflow-x-auto rounded-[10px] bg-surface p-[2px] text-[13px] font-semibold">
       {leagues.map((l) => (
-        <a href={`/mein-team/?league=${encodeURIComponent(l.id)}`}
+        <a href={`/mein-team/?league=${encodeURIComponent(l.id)}`} data-astro-prefetch="false"
           class:list={["flex-1 rounded-lg px-3 py-1.5 text-center whitespace-nowrap", league?.id === l.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}>{l.name}</a>
       ))}
     </nav>

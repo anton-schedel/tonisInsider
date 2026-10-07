@@ -1,6 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
-import Avatar from "../components/Avatar.astro";
+import Crest from "../components/Crest.astro";
 import { lineups } from "../lib/data.ts";
 import { toFixtures, type Fixture } from "../lib/fixtures.ts";
 import { kickoffDay, time } from "../lib/format.ts";
@@ -22,7 +22,7 @@ const side = (f: Fixture, which: "home" | "away"): { lineup?: Lineup; name: stri
           const s = side(f, which);
           const inner = (
             <>
-              <Avatar src={s.lineup?.club.crest} name={s.name} size={52} class="bg-transparent [&>img]:object-contain" />
+              <Crest src={s.lineup?.club.crest} name={s.name} size={52} />
               <span class="mt-2 line-clamp-2 text-center text-[12px] leading-tight font-semibold">{s.name}</span>
             </>
           );
