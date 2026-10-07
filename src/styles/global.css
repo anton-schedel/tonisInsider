@@ -68,8 +68,23 @@ html {
 /* Comments (rendered client-side by Comments.astro). */
 [data-comments-list] > .comment { padding: 14px 0; border-top: 1px solid var(--hairline); }
 [data-comments-list] > .comment:first-child { border-top: 0; padding-top: 0; }
-.poll-fill { background: var(--hairline); }
+.poll:not(.is-open) .poll-pct,
+.poll:not(.is-open) .poll-total { display: none; }
+.poll-fill { background: var(--hairline); transition: width 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 .poll-fill.is-best { background: color-mix(in srgb, var(--fg) 16%, transparent); }
+.poll-choice {
+  display: block; width: 100%; min-height: 44px; border: 0; cursor: pointer;
+  background: var(--bg); color: inherit; font: inherit; text-align: left; text-decoration: none;
+}
+.vote-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  width: 44px; min-height: 48px; margin-top: 2px; flex: none;
+  border-radius: 14px; background: var(--surface); color: var(--fg);
+  font-size: 12px; font-weight: 700; line-height: 1;
+}
+.vote-btn.is-on { background: var(--fg); color: var(--bg); }
+.vote-chevron { font-size: 14px; line-height: 1; }
+.vote-count:empty { display: none; }
 
 /* Chance to score, on a player photo (bottom right). */
 .goal-chance {
@@ -99,8 +114,8 @@ html {
 nav.tabbar { view-transition-name: tabbar; }
 ::view-transition-group(root),
 ::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar) { animation: none; }
-::view-transition-old(root) { animation: fade-out 70ms ease-in both; }
-::view-transition-new(root) { animation: fade-rise 160ms cubic-bezier(0.2, 0.8, 0.2, 1) 40ms both; }
+::view-transition-old(root) { animation: fade-out 50ms ease-in both; }
+::view-transition-new(root) { animation: fade-rise 140ms cubic-bezier(0.2, 0.8, 0.2, 1) 30ms both; }
 /* Layers that only exist on the new page are stacked last; keep the tab bar above everything. */
 ::view-transition-group(tabbar) { z-index: 10; }
 ::view-transition-group(.crest) { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
@@ -160,11 +175,11 @@ html:not([data-navigated]) .enter {
 
 /* Native-feeling tap feedback. */
 .press {
-  transition: transform 160ms ease, opacity 160ms ease;
+  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease, background-color 150ms ease, color 150ms ease;
   -webkit-user-select: none;
   user-select: none;
 }
-.press:active { transform: scale(0.97); opacity: 0.75; }
+.press:active { transform: scale(0.96); opacity: 0.72; }
 
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; }

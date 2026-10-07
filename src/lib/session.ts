@@ -4,7 +4,7 @@ import { seal, unseal } from "./vault.ts";
 
 /** Kickbase token. HttpOnly: page scripts can never read it. */
 export const TOKEN_COOKIE = "kb";
-/** Readable flag so the tab bar can say "Mein Team" vs "Login". Contains no secret. */
+/** Readable flag so pages can tell Kickbase is signed in. Contains no secret. */
 export const LOGGED_IN_COOKIE = "kbin";
 /** Last chosen league id. */
 export const LEAGUE_COOKIE = "kbleague";

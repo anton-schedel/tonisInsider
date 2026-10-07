@@ -6,7 +6,7 @@ import { fullDate } from "../lib/format.ts";
 
 interface Props {
   title: string;
-  tab?: "news" | "aufstellungen" | "mein-team";
+  tab?: "news" | "aufstellungen" | "mein-team" | "einstellungen";
   back?: { href: string; label: string };
   /** Hide the big page title (article pages show their own headline). */
   hideHeading?: boolean;
@@ -19,6 +19,7 @@ const tabs = [
   { id: "news", href: "/", label: "News", icon: "M4 5h16M4 12h16M4 19h10" },
   { id: "aufstellungen", href: "/aufstellungen/", label: "Aufstellungen", icon: "M12 3v18M3 12h18M7 7h10v10H7z" },
   { id: "mein-team", href: "/mein-team/", label: "Mein Team", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" },
+  { id: "einstellungen", href: "/einstellungen/", label: "Einstellungen", icon: "M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.08-1.51 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.68a1.7 1.7 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" },
 ] as const;
 ---
 <!doctype html>
@@ -52,7 +53,10 @@ const tabs = [
           });
         };
         const tabFor = (path) =>
-          /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen" : /^\/(mein-team|login)\//.test(path) ? "mein-team" : "news";
+          /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen"
+          : /^\/mein-team\//.test(path) ? "mein-team"
+          : /^\/(einstellungen|login)\//.test(path) ? "einstellungen"
+          : "news";
         const bar = () => document.querySelector("[data-nav-progress]");
         let slow;
         // Feedback at the moment of the tap: highlight the target tab now, and show a thin progress line
@@ -70,9 +74,26 @@ const tabs = [
           clearTimeout(slow);
           bar()?.classList.remove("is-loading");
           highlight(document.querySelector("[data-active-tab]")?.dataset.activeTab);
-          // "kbin" is a non-secret flag cookie set at login (the token itself is HttpOnly).
-          const label = document.querySelector('nav [data-tab="mein-team"] [data-label]');
-          if (label) label.textContent = /(?:^|; )kbin=1/.test(document.cookie) ? "Mein Team" : "Login";
+          // Settings is swapped in by the client router, so account rows and the theme choice are applied here too.
+          if (location.pathname.startsWith("/einstellungen")) {
+            const signedIn = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
+            document.querySelector("[data-kb-form]")?.classList.toggle("hidden", signedIn("kbin"));
+            document.querySelector("[data-kb-in]")?.classList.toggle("hidden", !signedIn("kbin"));
+            document.querySelector("[data-li-form]")?.classList.toggle("hidden", signedIn("liin"));
+            document.querySelector("[data-li-in]")?.classList.toggle("hidden", !signedIn("liin"));
+            const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
+            let name = raw;
+            try { name = decodeURIComponent(raw); } catch {}
+            const slot = document.querySelector("[data-li-name]");
+            if (slot) slot.textContent = name;
+            const theme = document.documentElement.dataset.theme
+              || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.querySelectorAll("[data-theme-set]").forEach((btn) => {
+              const on = btn.getAttribute("data-theme-set") === theme;
+              btn.classList.toggle("bg-fg", on);
+              btn.classList.toggle("text-bg", on);
+            });
+          }
         });
         // Tapping the tab of the page you're on scrolls back to the top (like iOS) instead of reloading it.
         document.addEventListener("click", (e) => {
@@ -97,11 +118,17 @@ const tabs = [
             });
             return;
           }
-          if (!e.target.closest?.("#theme-toggle")) return;
-          const root = document.documentElement;
-          const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-          root.dataset.theme = dark ? "light" : "dark";
-          try { localStorage.setItem("theme", root.dataset.theme); } catch {}
+          const choice = e.target.closest?.("[data-theme-set]");
+          if (!choice) return;
+          const theme = choice.getAttribute("data-theme-set");
+          if (theme !== "light" && theme !== "dark") return;
+          document.documentElement.dataset.theme = theme;
+          try { localStorage.setItem("theme", theme); } catch {}
+          document.querySelectorAll("[data-theme-set]").forEach((btn) => {
+            const on = btn.getAttribute("data-theme-set") === theme;
+            btn.classList.toggle("bg-fg", on);
+            btn.classList.toggle("text-bg", on);
+          });
         });
       }
     </script>
@@ -121,12 +148,6 @@ const tabs = [
           )}
           {!hideHeading && <h1 class="truncate text-[28px] font-bold tracking-[-0.03em]">{title}</h1>}
         </div>
-        <button
-          id="theme-toggle"
-          type="button"
-          aria-label="Hell/Dunkel umschalten"
-          class="press flex size-8 shrink-0 items-center justify-center rounded-full bg-surface text-sm"
-        >◐</button>
       </header>
       <slot />
       <footer class="mt-10 border-t border-hairline pt-4 text-xs text-muted">
@@ -140,21 +161,15 @@ const tabs = [
         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         Neue Meldungen
       </button>
-      <div class="mx-auto grid max-w-[720px] grid-cols-3 pt-2 pb-2">
+      <div class="mx-auto grid max-w-[720px] grid-cols-4 pt-1.5 pb-1.5">
         {tabs.map((t) => (
-          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
+          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 px-0.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
-            <span data-label>{t.label}</span>
+            <span data-label class="text-center">{t.label}</span>
           </a>
         ))}
       </div>
     </nav>
-    <script is:inline>
-      // Before the first paint: "Login" or "Mein Team" from the non-secret flag cookie (no label flicker).
-      document.querySelectorAll('nav [data-tab="mein-team"] [data-label]').forEach((l) => {
-        l.textContent = /(?:^|; )kbin=1/.test(document.cookie) ? "Mein Team" : "Login";
-      });
-    </script>
     <script>
       import { navigate } from "astro:transitions/client";
       import { updateAction } from "../lib/freshness.ts";

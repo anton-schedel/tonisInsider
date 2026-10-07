@@ -35,6 +35,7 @@ describe("parseComments", () => {
     expect(poll.comments[1].poll).toEqual({
       question: "Doan verkaufen und beier holen?",
       total: 47,
+      voted: false,
       votingId: 133652,
       options: [
         { label: "Ja", pct: 40, id: 339164 },

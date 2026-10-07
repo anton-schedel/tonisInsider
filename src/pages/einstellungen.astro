@@ -1,0 +1,100 @@
+---
+export const prerender = false;
+
+import Base from "../layouts/Base.astro";
+import { LI_LOGGED_IN_COOKIE, LI_NAME_COOKIE, LOGGED_IN_COOKIE, safeNext } from "../lib/session.ts";
+
+Astro.response.headers.set("Cache-Control", "private, no-store");
+
+const kickbase = Astro.cookies.get(LOGGED_IN_COOKIE)?.value === "1";
+const liga = Astro.cookies.get(LI_LOGGED_IN_COOKIE)?.value === "1";
+const rawName = Astro.cookies.get(LI_NAME_COOKIE)?.value ?? "";
+let ligaName = rawName;
+try { ligaName = decodeURIComponent(rawName); } catch { /* already plain text */ }
+const requested = Astro.url.searchParams.get("next");
+const next = requested ? safeNext(requested) : "/einstellungen/";
+const errors: Record<string, string> = {
+  credentials: "Kickbase: E-Mail oder Passwort falsch.",
+  expired: "Deine Kickbase-Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+  unavailable: "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.",
+  "li-credentials": "LigaInsider: Benutzername oder Passwort falsch.",
+  "li-unavailable": "LigaInsider ist gerade nicht erreichbar. Versuch es gleich nochmal.",
+};
+const error = errors[Astro.url.searchParams.get("error") ?? ""] ?? "";
+
+const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
+---
+<Base title="Einstellungen" tab="einstellungen">
+  <p id="login-error" class:list={["mb-4 rounded-xl px-4 py-3 text-sm font-medium", !error && "hidden"]} style="background:var(--red-bg);color:var(--red-fg)">{error}</p>
+
+  <section class="mb-8">
+    <h2 class="mb-3 text-[13px] font-semibold tracking-[0.04em] text-muted uppercase">Darstellung</h2>
+    <div class="grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1" role="group" aria-label="Darstellung">
+      <button type="button" data-theme-set="light" class="press rounded-xl py-2.5 text-[15px] font-semibold">Hell</button>
+      <button type="button" data-theme-set="dark" class="press rounded-xl py-2.5 text-[15px] font-semibold">Dunkel</button>
+    </div>
+  </section>
+
+  <section class="mb-8" id="kickbase">
+    <h2 class="mb-1 text-[13px] font-semibold tracking-[0.04em] text-muted uppercase">Kickbase</h2>
+    <div data-kb-in class:list={[!kickbase && "hidden"]}>
+      <p class="text-[15px]">Angemeldet. Dein Team bleibt unter Mein Team.</p>
+      <form method="post" action="/api/logout/" class="mt-3" data-astro-reload>
+        <input type="hidden" name="next" value="/einstellungen/" />
+        <button type="submit" class="press rounded-xl bg-surface px-4 py-3 text-[15px] font-semibold">Abmelden</button>
+      </form>
+    </div>
+    <form data-kb-form method="post" action="/api/login/" class:list={["mt-3 flex flex-col gap-3", kickbase && "hidden"]} data-astro-reload>
+      <p class="text-[15px] text-muted">Für dein Team, die Aufstellungen und die passenden News.</p>
+      <input name="email" type="email" required autocomplete="username" placeholder="Kickbase E-Mail" class={field} />
+      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class={field} />
+      <button type="submit" class="press mt-1 rounded-xl bg-fg py-3 text-[16px] font-semibold text-bg">Anmelden</button>
+    </form>
+  </section>
+
+  <section id="ligainsider">
+    <h2 class="mb-1 text-[13px] font-semibold tracking-[0.04em] text-muted uppercase">LigaInsider</h2>
+    <div data-li-in class:list={[!liga && "hidden"]}>
+      <p class="text-[15px]">Angemeldet als <b data-li-name>{ligaName}</b>.</p>
+      <form method="post" action="/api/li-logout/" class="mt-3" data-astro-reload>
+        <input type="hidden" name="next" value="/einstellungen/" />
+        <button type="submit" class="press rounded-xl bg-surface px-4 py-3 text-[15px] font-semibold">Abmelden</button>
+      </form>
+    </div>
+    <form data-li-form method="post" action="/api/li-login/" class:list={["mt-3 flex flex-col gap-3", liga && "hidden"]} data-astro-reload>
+      <p class="text-[15px] text-muted">Zum Kommentieren, Antworten, Hochvoten und für Umfragen.</p>
+      <input name="username" type="text" required autocomplete="username" placeholder="Benutzername oder E-Mail" class={field} />
+      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class={field} />
+      <input type="hidden" name="next" value={next} data-li-next />
+      <button type="submit" class="press mt-1 rounded-xl bg-fg py-3 text-[16px] font-semibold text-bg">Anmelden</button>
+    </form>
+    <p class="mt-3 text-xs text-muted">Passwörter bleiben verschlüsselt nur in deinem Browser. Auf dem Server wird nichts gespeichert. Die beiden Konten sind unabhängig.</p>
+  </section>
+
+  <script is:inline>
+    (() => {
+      const has = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
+      if (has("kbin")) {
+        document.querySelector("[data-kb-form]")?.classList.add("hidden");
+        document.querySelector("[data-kb-in]")?.classList.remove("hidden");
+      }
+      if (has("liin")) {
+        document.querySelector("[data-li-form]")?.classList.add("hidden");
+        document.querySelector("[data-li-in]")?.classList.remove("hidden");
+        const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
+        let name = raw;
+        try { name = decodeURIComponent(raw); } catch {}
+        const slot = document.querySelector("[data-li-name]");
+        if (slot) slot.textContent = name;
+      }
+
+      const theme = document.documentElement.dataset.theme
+        || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.querySelectorAll("[data-theme-set]").forEach((btn) => {
+        const on = btn.getAttribute("data-theme-set") === theme;
+        btn.classList.toggle("bg-fg", on);
+        btn.classList.toggle("text-bg", on);
+      });
+    })();
+  </script>
+</Base>

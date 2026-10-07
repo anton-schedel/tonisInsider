@@ -83,7 +83,7 @@ let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, p
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
-  if (!token) return Astro.redirect("/login/");
+  if (!token) return Astro.redirect("/einstellungen/#kickbase");
   try {
     data = await load(token);
   } catch (err) {
@@ -91,14 +91,14 @@ try {
     token = await relogin(Astro.cookies, key, doLogin);
     if (!token) {
       clearSession(Astro.cookies);
-      return Astro.redirect("/login/?error=expired");
+      return Astro.redirect("/einstellungen/?error=expired#kickbase");
     }
     data = await load(token);
   }
 } catch (err) {
   if (err instanceof KickbaseAuthError) {
     clearSession(Astro.cookies);
-    return Astro.redirect("/login/?error=expired");
+    return Astro.redirect("/einstellungen/?error=expired#kickbase");
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }

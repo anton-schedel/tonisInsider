@@ -11,6 +11,8 @@ const HEADERS = { "user-agent": USER_AGENT, "accept-language": "de-DE,de;q=0.9" 
 export type Poll = {
   question: string;
   total: number;
+  /** True once this viewer has voted. Results stay hidden until then. */
+  voted: boolean;
   /** LigaInsider voting id, present when the poll can be voted on. */
   votingId?: number;
   options: { label: string; pct: number; id?: number }[];
@@ -74,6 +76,7 @@ function parseOne($: CheerioAPI, li: Element): Comment {
           poll: {
             question: clean(pollEl.find(".poll-comment__question").text()),
             total: num(pollEl.find("[data-poll-options]").attr("data-total")),
+            voted: pollEl.find("[data-poll-options]").attr("data-voted") === "1",
             ...(votingId ? { votingId } : {}),
             options: pollEl.find(".poll-option").toArray().map((o) => {
               const id = num($(o).attr("data-option-id"));

@@ -7,7 +7,7 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const fail = (error: string, next: string) => {
-    const res = redirect(`/login/?error=${error}&next=${encodeURIComponent(next)}`, 303);
+    const res = redirect(`/einstellungen/?error=${error}&next=${encodeURIComponent(next)}`, 303);
     res.headers.set("Cache-Control", "private, no-store");
     return res;
   };

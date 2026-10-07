@@ -16,7 +16,7 @@ const handle: APIRoute = async ({ request, cookies, redirect }) => {
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");
-  if (!email || !password) return redirect("/login/?error=credentials", 303);
+  if (!email || !password) return redirect("/einstellungen/?error=credentials", 303);
   try {
     const session = await login(fetch, email, password);
     setSession(cookies, session.token, parseExpiry(session.expires));
@@ -24,6 +24,6 @@ const handle: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect("/mein-team/", 303);
   } catch (err) {
     // Never log the request body or Kickbase's response: they contain credentials/tokens.
-    return redirect(`/login/?error=${err instanceof KickbaseAuthError ? "credentials" : "unavailable"}`, 303);
+    return redirect(`/einstellungen/?error=${err instanceof KickbaseAuthError ? "credentials" : "unavailable"}`, 303);
   }
 };

@@ -30,7 +30,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     </form>
   </div>
   <p data-li-guest class="mb-6 hidden text-sm text-muted">
-    <a data-li-login href="/login/" class="font-medium text-accent">Mit LigaInsider anmelden</a>, um zu kommentieren, zu antworten und abzustimmen.
+    <a data-li-login href="/einstellungen/#ligainsider" class="font-medium text-accent">Mit LigaInsider anmelden</a>, um zu kommentieren, zu antworten und abzustimmen.
   </p>
 
   <p class="text-sm text-muted" data-comments-status>Kommentare werden geladen …</p>
@@ -62,8 +62,28 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     return /(?:^|; )liin=1/.test(document.cookie);
   }
 
+  function voteControl(c: Comment): HTMLElement {
+    const mine = c.vote === 1;
+    const label = mine && c.score ? String(c.score) : "";
+    if (!loggedIn()) {
+      const link = h("a", "vote-btn press", "▲");
+      link.setAttribute("href", `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`);
+      link.setAttribute("aria-label", "Zum Hochvoten anmelden");
+      return link;
+    }
+    const up = h("button", `vote-btn press${mine ? " is-on" : ""}`);
+    up.setAttribute("type", "button");
+    up.dataset.up = String(c.id);
+    up.dataset.vote = String(c.vote);
+    up.setAttribute("aria-label", mine ? "Deine Stimme" : "Hochvoten");
+    up.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", label));
+    return up;
+  }
+
   function renderComment(c: Comment, now: Date, reply = false): HTMLElement {
     const li = h("li", reply ? "comment comment-reply" : "comment");
+    const row = h("div", "flex items-start gap-2");
+    const main = h("div", "min-w-0 flex-1");
     const head = h("div", "flex items-center gap-2.5");
     const size = reply ? "size-7 text-[10px]" : "size-8 text-[11px]";
     head.append(
@@ -71,30 +91,18 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
       h("span", "shrink-0 text-xs text-muted", c.date ? ago(c.date, now) : ""),
     );
-    const score = h("span", "ml-auto shrink-0 text-xs font-medium text-muted", c.score ? `▲ ${c.score}` : "");
-    score.dataset.score = "";
-    if (c.score || loggedIn()) head.append(score);
-    if (loggedIn() && c.id) {
-      const up = h("button", "press shrink-0 text-xs font-semibold text-muted");
-      up.type = "button";
-      up.dataset.up = String(c.id);
-      up.dataset.vote = String(c.vote);
-      up.textContent = c.vote === 1 ? "▲" : "△";
-      up.setAttribute("aria-label", "Hochvoten");
-      head.append(up);
-    }
-    li.append(head);
-
-    const body = h("div", reply ? "pl-[38px]" : "pl-[42px]");
-    if (c.text) body.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
-    if (c.poll) body.append(renderPoll(c.poll));
+    main.append(head);
+    if (c.text) main.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
+    if (c.poll) main.append(renderPoll(c.poll));
     if (loggedIn() && c.id) {
       const replyBtn = h("button", "mt-1 text-xs font-medium text-muted", "Antworten");
       replyBtn.type = "button";
       replyBtn.dataset.reply = String(c.id);
-      body.append(replyBtn);
+      main.append(replyBtn);
     }
-    li.append(body);
+    row.append(main);
+    if (c.id) row.append(voteControl(c));
+    li.append(row);
 
     if (c.replies.length) {
       const ul = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
@@ -105,23 +113,37 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   }
 
   function renderPoll(poll: Poll): HTMLElement {
-    const box = h("div", "mt-2 rounded-xl bg-surface p-3");
+    const box = h("div", `poll mt-2 rounded-xl bg-surface p-3${poll.voted ? " is-open" : ""}`);
     box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
+    const open = poll.voted;
     const best = Math.max(...poll.options.map((o) => o.pct));
     for (const o of poll.options) {
-      const row = h(loggedIn() && poll.votingId && o.id ? "button" : "div", "poll-row relative mb-1.5 w-full overflow-hidden rounded-lg px-3 py-1.5 text-left text-[13px]");
+      const canVote = !open && loggedIn() && poll.votingId && o.id;
+      const row = h(open ? "div" : canVote ? "button" : "a", "poll-choice relative mb-1.5 w-full overflow-hidden rounded-xl px-3 py-3 text-left text-[15px]");
+      if (!open && !canVote) {
+        row.classList.add("press");
+        row.setAttribute("href", `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`);
+      }
       if (row instanceof HTMLButtonElement) {
         row.type = "button";
+        row.classList.add("press");
         row.dataset.voting = String(poll.votingId);
         row.dataset.option = String(o.id);
       }
       const fill = h("span", "poll-fill absolute inset-y-0 left-0");
-      fill.style.width = `${o.pct}%`;
-      if (o.pct === best) fill.classList.add("is-best");
-      row.append(fill, h("span", "relative", o.label), h("span", "relative float-right font-semibold", `${o.pct}%`));
+      fill.dataset.pct = String(o.pct);
+      fill.style.width = open ? `${o.pct}%` : "0";
+      if (o.pct === best && o.pct > 0) fill.classList.add("is-best");
+      row.append(fill, h("span", "relative", o.label), h("span", "poll-pct relative float-right font-semibold tabular-nums", `${o.pct}%`));
       box.append(row);
     }
-    box.append(h("p", "mt-1 text-xs text-muted", `${poll.total} Stimmen`));
+    box.append(h("p", "poll-total mt-1 text-xs text-muted", `${poll.total} Stimmen`));
+    if (!open) {
+      const reveal = h("button", "press mt-0.5 py-1 text-[13px] font-medium text-accent", "Ergebnisse anzeigen");
+      reveal.setAttribute("type", "button");
+      reveal.dataset.pollReveal = "";
+      box.append(reveal);
+    }
     return box;
   }
 
@@ -193,7 +215,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const here = `${location.pathname}${location.search}`;
     section.querySelectorAll<HTMLInputElement>("[data-li-next]").forEach((input) => { input.value = here; });
     const login = section.querySelector<HTMLAnchorElement>("[data-li-login]");
-    if (login) login.href = `/login/?next=${encodeURIComponent(location.pathname)}`;
+    if (login) login.href = `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`;
     const box = section.querySelector<HTMLElement>("[data-li-box]")!;
     const guest = section.querySelector<HTMLElement>("[data-li-guest]")!;
     if (loggedIn()) box.classList.remove("hidden");
@@ -246,6 +268,17 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
     section.querySelector<HTMLElement>("[data-comments-list]")!.addEventListener("click", async (e) => {
       const target = e.target instanceof Element ? e.target : null;
+      const reveal = target?.closest<HTMLButtonElement>("[data-poll-reveal]");
+      if (reveal) {
+        const pollEl = reveal.closest<HTMLElement>(".poll");
+        if (!pollEl) return;
+        const shown = pollEl.classList.toggle("is-open");
+        pollEl.querySelectorAll<HTMLElement>(".poll-fill").forEach((fill) => {
+          fill.style.width = shown ? `${fill.dataset.pct}%` : "0";
+        });
+        reveal.textContent = shown ? "Ergebnisse verbergen" : "Ergebnisse anzeigen";
+        return;
+      }
       const up = target?.closest<HTMLButtonElement>("[data-up]");
       const replyBtn = target?.closest<HTMLButtonElement>("[data-reply]");
       const option = target?.closest<HTMLButtonElement>("[data-option]");
