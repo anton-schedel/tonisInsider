@@ -1,0 +1,16 @@
+---
+import Base from "../../layouts/Base.astro";
+import Avatar from "../../components/Avatar.astro";
+import { lineups } from "../../lib/data.ts";
+---
+<Base title="Vereine" tab="vereine">
+  <div class="divide-y divide-hairline">
+    {lineups().map((l) => (
+      <a href={`/vereine/${l.club.slug}/`} class="flex items-center gap-3 py-3 active:opacity-60">
+        <Avatar src={l.club.crest} name={l.club.name} size={36} class="bg-transparent [&>img]:object-contain" />
+        <span class="flex-1 font-semibold">{l.club.name}</span>
+        <span class="text-muted">›</span>
+      </a>
+    ))}
+  </div>
+</Base>

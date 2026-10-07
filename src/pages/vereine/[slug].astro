@@ -1,0 +1,24 @@
+---
+import Base from "../../layouts/Base.astro";
+import Pitch from "../../components/Pitch.astro";
+import MatchHeader from "../../components/MatchHeader.astro";
+import ArticleRow from "../../components/ArticleRow.astro";
+import { clubArticles, lineups } from "../../lib/data.ts";
+import type { Lineup } from "../../../scraper/types.ts";
+
+export function getStaticPaths() {
+  return lineups().map((lineup) => ({ params: { slug: lineup.club.slug }, props: { lineup } }));
+}
+const { lineup } = Astro.props as { lineup: Lineup };
+const news = clubArticles(lineup.club.id);
+---
+<Base title={lineup.club.name} tab="vereine" back={{ href: "/vereine/", label: "Vereine" }}>
+  <h2 class="mt-2 text-xs font-semibold tracking-wide text-muted uppercase">Voraussichtliche Aufstellung</h2>
+  <MatchHeader lineup={lineup} />
+  <Pitch lineup={lineup} />
+  <h2 class="mt-6 text-xs font-semibold tracking-wide text-muted uppercase">News</h2>
+  {news.length === 0 && <p class="py-6 text-sm text-muted">Keine aktuellen News.</p>}
+  <div class="divide-y divide-hairline">
+    {news.map((a) => <ArticleRow article={a} />)}
+  </div>
+</Base>

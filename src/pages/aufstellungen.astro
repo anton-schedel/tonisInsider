@@ -1,0 +1,20 @@
+---
+import Base from "../layouts/Base.astro";
+import Pitch from "../components/Pitch.astro";
+import MatchHeader from "../components/MatchHeader.astro";
+import { lineupsByKickoff } from "../lib/data.ts";
+
+const list = lineupsByKickoff();
+const matchday = list.find((l) => l.matchday)?.matchday;
+---
+<Base title={matchday ? `${matchday}. Spieltag` : "Aufstellungen"} tab="aufstellungen">
+  {list.length === 0 && <p class="py-10 text-center text-muted">Noch keine Aufstellungen.</p>}
+  <div class="grid gap-x-4 gap-y-6 sm:grid-cols-2">
+    {list.map((l) => (
+      <a href={`/vereine/${l.club.slug}/`} class="block active:opacity-70">
+        <MatchHeader lineup={l} />
+        <Pitch lineup={l} compact />
+      </a>
+    ))}
+  </div>
+</Base>
