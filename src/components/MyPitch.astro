@@ -1,0 +1,47 @@
+---
+import type { MyPlayer, StartStatus } from "../lib/match.ts";
+import Avatar from "./Avatar.astro";
+import PitchField from "./PitchField.astro";
+import { AVATAR, slotStyle } from "../lib/pitch.ts";
+
+interface Props { lines: MyPlayer[][] }
+const { lines } = Astro.props;
+// The dot answers "will my player start?" according to LigaInsider's predicted lineup.
+const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string }> = {
+  start: { dot: "var(--green-dot)" },
+  doubtful: { dot: "var(--yellow-dot)", note: "Fraglich", noteColor: "var(--yellow-fg)" },
+  alternative: { dot: "var(--yellow-dot)", note: "Alternative", noteColor: "var(--yellow-fg)" },
+  bench: { dot: "var(--red-fg)", note: "Bank", noteColor: "var(--red-fg)" },
+  unknown: { dot: "var(--muted)" },
+};
+---
+<PitchField>
+  {lines.map((line, i) =>
+    line.map((p, j) => {
+      const tone = TONE[p.status];
+      const name = p.ligainsider?.name ?? p.kickbase.name;
+      const note = p.status === "doubtful" && p.statusLabel ? p.statusLabel : tone.note;
+      const href = p.club ? `/vereine/${p.club.slug}/` : undefined;
+      const Tag = href ? "a" : "div";
+      return (
+        <div class="absolute w-[24%]" style={slotStyle(i, lines.length, j, line.length)}>
+          <Tag href={href} class:list={["flex flex-col items-center text-center", href && "press"]}>
+            <span class="relative">
+              <Avatar src={p.ligainsider?.photo ?? p.kickbase.image} name={name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
+              <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:${tone.dot}`}></span>
+              {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -bottom-0.5 -left-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
+            </span>
+            <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{name}</span>
+            {note && <span class="line-clamp-1 text-[9.5px] leading-tight" style={`color:${tone.noteColor}`}>{note}</span>}
+          </Tag>
+        </div>
+      );
+    }),
+  )}
+  <Fragment slot="legend">
+    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Startelf</span>
+    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
+    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--red-fg)"></i>Nicht in der Startelf</span>
+    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--muted)"></i>Keine Infos</span>
+  </Fragment>
+</PitchField>

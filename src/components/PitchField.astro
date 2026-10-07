@@ -1,0 +1,15 @@
+---
+/** The pitch shared by the team pages and Mein Team; players go in the default slot (see lib/pitch.ts). */
+---
+<div
+  class="relative w-full overflow-hidden rounded-[18px]"
+  style="aspect-ratio:4 / 5.2;background:linear-gradient(var(--pitch-from),var(--pitch-to))"
+>
+  <div class="absolute inset-3 rounded-md border-[1.5px]" style="border-color:var(--pitch-line)"></div>
+  <div class="absolute inset-x-3 top-1/2 border-t-[1.5px]" style="border-color:var(--pitch-line)"></div>
+  <div class="absolute top-1/2 left-1/2 size-16 -translate-1/2 rounded-full border-[1.5px]" style="border-color:var(--pitch-line)"></div>
+  <slot />
+</div>
+<div class="flex flex-wrap justify-center gap-x-4 gap-y-1 py-3 text-[11px] text-muted">
+  <slot name="legend" />
+</div>

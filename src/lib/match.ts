@@ -113,3 +113,12 @@ export function squadNews(players: MyPlayer[], articles: Article[]): Article[] {
     })
     .sort((x, y) => y.publishedAt.localeCompare(x.publishedAt));
 }
+
+/** A Kickbase XI as pitch lines (goalkeeper first, attack last; empty lines left out) and its formation. */
+export function pitchLines(players: MyPlayer[]): { lines: MyPlayer[][]; formation: string } {
+  const by = (pos: number) => players.filter((p) => p.kickbase.position === pos);
+  return {
+    lines: [1, 2, 3, 4].map(by).filter((l) => l.length > 0),
+    formation: [2, 3, 4].map((pos) => by(pos).length).join("-"),
+  };
+}

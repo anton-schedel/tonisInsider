@@ -1,10 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
+import MyPitch from "../components/MyPitch.astro";
 import ArticleRow from "../components/ArticleRow.astro";
 import { env } from "cloudflare:workers";
-import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, squad as fetchSquad, teamRoster, type KbLeague, type KbTeam } from "../lib/kickbase.ts";
-import { mapClubs, matchSquad, squadNews, type MyPlayer } from "../lib/match.ts";
+import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
+import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../lib/match.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
@@ -30,7 +31,7 @@ async function load(token: string) {
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
   const league = leagues.find((l) => l.id === wanted) ?? leagues[0];
-  if (!league) return { leagues, league, players: [] as MyPlayer[], news: [] as Article[] };
+  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, news: [] as Article[] };
   // Only an explicit choice is remembered (not prefetches or defaults).
   if (picked && league.id === picked) {
     Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
@@ -39,12 +40,19 @@ async function load(token: string) {
     const teams = await clubTable(fetch, token);
     if (teams.length > 0) g.__kbTable = { at: Date.now(), teams };
   }
-  const [squad, snapshot] = await Promise.all([
-    fetchSquad(fetch, token, league.id),
+  // The manager's own XI and bench; if Kickbase can't deliver it, fall back to the plain squad list.
+  const eleven = (token: string, id: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[] }> =>
+    myEleven(fetch, token, id).catch((err) => {
+      if (err instanceof KickbaseAuthError) throw err;
+      return fetchSquad(fetch, token, id).then((all) => ({ starters: [], bench: all }));
+    });
+  const [{ starters, bench }, snapshot] = await Promise.all([
+    eleven(token, league.id),
     env.ASSETS.fetch(new URL("/data/snapshot.json", Astro.url))
       .then((r: Response) => (r.ok ? (r.json() as Promise<Snapshot>) : undefined))
       .catch(() => undefined),
   ]);
+  const squad = [...starters, ...bench];
   const teamIds = [...new Set(squad.map((p) => p.teamId))];
   await Promise.all(
     teamIds
@@ -57,11 +65,11 @@ async function load(token: string) {
   );
   const rosterMap = new Map(teamIds.flatMap((id) => (rosters.get(id) ? [[id, rosters.get(id)!.names] as const] : [])));
   const players = matchSquad(squad, mapClubs(g.__kbTable?.teams ?? [], snapshot?.lineups ?? []), rosterMap);
-  return { leagues, league, players, news: squadNews(players, snapshot?.articles ?? []) };
+  return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []) };
 }
 
 let error: string | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], news: [] };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, news: [] };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -84,7 +92,10 @@ try {
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
-const { leagues, league, players, news } = data;
+const { leagues, league, players, starterCount, news } = data;
+// matchSquad keeps the order: the first starterCount players are the XI.
+const pitch = pitchLines(players.slice(0, starterCount));
+const benchPlayers = players.slice(starterCount);
 
 const GROUPS = [
   { pos: 1, label: "Torwart" },
@@ -109,21 +120,45 @@ let index = 0;
   {!error && league && players.length === 0 && <p class="py-10 text-center text-muted">Keine Spieler in dieser Liga.</p>}
   {!error && !league && <p class="py-10 text-center text-muted">Du bist in keiner Kickbase-Liga.</p>}
 
-  {GROUPS.map((group) => {
-    const inGroup = players.filter((p) => p.kickbase.position === group.pos);
-    return inGroup.length > 0 && (
-      <section class="mb-3">
-        <h2 class="py-2 text-xs font-semibold tracking-wide text-muted uppercase">{group.label}</h2>
-        <div class="divide-y divide-hairline">
-          {inGroup.map((p) => <MyPlayerRow player={p} index={index++} />)}
+  {starterCount > 0 ? (
+    <>
+      <section>
+        <div class="mb-3 flex items-baseline justify-between">
+          <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
+          <span class="text-[15px] font-semibold text-muted tabular-nums">{pitch.formation}</span>
         </div>
+        <MyPitch lines={pitch.lines} />
       </section>
-    );
-  })}
+      {benchPlayers.length > 0 && (
+        <section class="mt-5">
+          <h2 class="mb-1 text-[22px] font-bold tracking-[-0.02em]">Bank</h2>
+          <div class="divide-y divide-hairline">
+            {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} />)}
+          </div>
+        </section>
+      )}
+    </>
+  ) : (
+    // No Kickbase lineup set (or not available): the squad by position.
+    GROUPS.map((group) => {
+      const inGroup = players.filter((p) => p.kickbase.position === group.pos);
+      return inGroup.length > 0 && (
+        <section class="mb-3">
+          <h2 class="pt-3 pb-1 text-[15px] font-semibold">{group.label}</h2>
+          <div class="divide-y divide-hairline">
+            {inGroup.map((p) => <MyPlayerRow player={p} index={index++} />)}
+          </div>
+        </section>
+      );
+    })
+  )}
 
   {news.length > 0 && (
-    <section class="mt-6">
-      <h2 class="py-2 text-xs font-semibold tracking-wide text-muted uppercase">News zu deinen Spielern</h2>
+    <section class="mt-7">
+      <div class="mb-1 flex items-baseline justify-between">
+        <h2 class="text-[22px] font-bold tracking-[-0.02em]">News zu deinen Spielern</h2>
+        <span class="text-[15px] font-semibold text-muted tabular-nums">{news.length}</span>
+      </div>
       <div class="divide-y divide-hairline">
         {news.map((a, i) => <ArticleRow article={a} index={i} />)}
       </div>

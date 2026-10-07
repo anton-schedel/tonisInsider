@@ -1,26 +1,17 @@
 ---
 import type { Lineup } from "../../scraper/types.ts";
 import Avatar from "./Avatar.astro";
+import PitchField from "./PitchField.astro";
+import { AVATAR, slotStyle } from "../lib/pitch.ts";
 
 interface Props { lineup: Lineup }
 const { lineup } = Astro.props;
 const rows = lineup.lines.length;
-// Goalkeeper at the bottom, attack at the top. The point marks the photo's centre;
-// names and "Alt: …" grow downwards, so every photo in a line sits at the same height.
-const top = (i: number) => (rows <= 1 ? 50 : 84 - (i * 74) / (rows - 1));
-const AVATAR = 54;
-const left = (j: number, n: number) => ((j + 1) * 100) / (n + 1);
 ---
-<div
-  class="relative w-full overflow-hidden rounded-[18px]"
-  style="aspect-ratio:4 / 5.2;background:linear-gradient(var(--pitch-from),var(--pitch-to))"
->
-  <div class="absolute inset-3 rounded-md border-[1.5px]" style="border-color:var(--pitch-line)"></div>
-  <div class="absolute inset-x-3 top-1/2 border-t-[1.5px]" style="border-color:var(--pitch-line)"></div>
-  <div class="absolute top-1/2 left-1/2 size-16 -translate-1/2 rounded-full border-[1.5px]" style="border-color:var(--pitch-line)"></div>
+<PitchField>
   {lineup.lines.map((line, i) =>
     line.map((p, j) => (
-      <div class="absolute w-[24%]" style={`top:${top(i)}%;left:${left(j, line.length)}%;transform:translate(-50%,-${AVATAR / 2}px)`}>
+      <div class="absolute w-[24%]" style={slotStyle(i, rows, j, line.length)}>
         <div>
           {p.alternative ? (
             // Tap swaps to the alternative and back (handler in Base.astro).
@@ -56,8 +47,8 @@ const left = (j: number, n: number) => ((j + 1) * 100) / (n + 1);
       </div>
     )),
   )}
-</div>
-<div class="flex justify-center gap-4 py-3 text-[11px] text-muted">
-  <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
-  <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
-</div>
+  <Fragment slot="legend">
+    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
+    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
+  </Fragment>
+</PitchField>

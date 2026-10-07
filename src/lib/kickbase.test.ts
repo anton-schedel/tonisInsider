@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, squad, teamRoster } from "./kickbase.ts";
+import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, myEleven, squad, teamRoster } from "./kickbase.ts";
 
 type Call = { url: string; init: RequestInit };
 
@@ -56,5 +56,27 @@ describe("kickbase client", () => {
 
     const t = fakeFetch(200, { it: [{ tid: "3", tn: "Dortmund" }] });
     expect(await clubTable(t.fn, "T")).toEqual([{ id: "3", name: "Dortmund" }]);
+  });
+});
+
+describe("myEleven", () => {
+  const kb = (i: string, n: string, pos: number) => ({ i, n, tid: "4", pos, pim: `content/file/${i}`, md: "2026-10-10T13:30:00Z" });
+
+  it("returns the manager's starting XI and bench", async () => {
+    const s = fakeFetch(200, { lp: [kb("1", "Zentner", 1), kb("2", "Kane", 4)], nlp: [kb("3", "Pinckert", 2)], lpc: 11 });
+    const r = await myEleven(s.fn, "T", "7");
+    expect(s.calls[0].url).toBe("https://api.kickbase.com/v4/leagues/7/teamcenter/myeleven");
+    expect(s.calls[0].init.headers).toMatchObject({ authorization: "Bearer T" });
+    expect(r.starters.map((p) => p.name)).toEqual(["Zentner", "Kane"]);
+    expect(r.starters[1]).toEqual({ id: "2", name: "Kane", teamId: "4", position: 4, image: "https://kickbase.b-cdn.net/content/file/2" });
+    expect(r.bench.map((p) => p.name)).toEqual(["Pinckert"]);
+  });
+
+  it("copes with a manager who hasn't set a lineup", async () => {
+    expect(await myEleven(fakeFetch(200, {}).fn, "T", "7")).toEqual({ starters: [], bench: [] });
+  });
+
+  it("throws KickbaseAuthError on 401", async () => {
+    await expect(myEleven(fakeFetch(401, {}).fn, "T", "7")).rejects.toBeInstanceOf(KickbaseAuthError);
   });
 });

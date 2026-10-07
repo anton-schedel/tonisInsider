@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { normalize, mapClubs, matchPlayer, matchSquad, squadNews } from "./match.ts";
+import { normalize, mapClubs, matchPlayer, matchSquad, pitchLines, squadNews } from "./match.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 import type { Article, Lineup, LineupPlayer } from "../../scraper/types.ts";
 
@@ -100,5 +100,23 @@ describe("squadNews", () => {
       article(4, { id: 6, slug: "other", name: "Other Player" }, 14, "2026-10-07T11:00:00Z"),
     ]);
     expect(news.map((a) => a.id)).toEqual([2, 1]);
+  });
+});
+
+describe("pitchLines", () => {
+  const p = (name: string, position: 1 | 2 | 3 | 4) =>
+    ({ kickbase: { id: name, name, teamId: "1", position }, status: "unknown" }) as const;
+
+  it("groups the XI into goalkeeper, defence, midfield and attack, and names the formation", () => {
+    const xi = [p("S1", 4), p("T", 1), p("A1", 2), p("M1", 3), p("A2", 2), p("S2", 4), p("A3", 2), p("A4", 2), p("M2", 3), p("M3", 3), p("M4", 3)];
+    const { lines, formation } = pitchLines(xi);
+    expect(lines.map((l) => l.map((x) => x.kickbase.name))).toEqual([["T"], ["A1", "A2", "A3", "A4"], ["M1", "M2", "M3", "M4"], ["S1", "S2"]]);
+    expect(formation).toBe("4-4-2");
+  });
+
+  it("leaves out empty lines (an incomplete lineup)", () => {
+    const { lines, formation } = pitchLines([p("T", 1), p("S1", 4)]);
+    expect(lines.map((l) => l.length)).toEqual([1, 1]);
+    expect(formation).toBe("0-0-1");
   });
 });

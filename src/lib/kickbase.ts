@@ -54,17 +54,29 @@ export async function leagues(fetchFn: Fetch, token: string): Promise<KbLeague[]
   return (r.it ?? []).map((l) => ({ id: String(l.i), name: l.n }));
 }
 
-export async function squad(fetchFn: Fetch, token: string, leagueId: string): Promise<KbPlayer[]> {
-  const r = await call<{ it?: { i: string; n: string; tid: string; pos: number; pim?: string }[] }>(
-    fetchFn, `/v4/leagues/${encodeURIComponent(leagueId)}/squad`, { token },
-  );
-  return (r.it ?? []).map((p) => ({
+type ApiPlayer = { i: string; n: string; tid: string; pos: number; pim?: string };
+
+function toPlayer(p: ApiPlayer): KbPlayer {
+  return {
     id: String(p.i),
     name: p.n,
     teamId: String(p.tid),
     position: ([1, 2, 3, 4].includes(p.pos) ? p.pos : 3) as KbPlayer["position"],
     image: p.pim ? `https://kickbase.b-cdn.net/${p.pim}` : undefined,
-  }));
+  };
+}
+
+export async function squad(fetchFn: Fetch, token: string, leagueId: string): Promise<KbPlayer[]> {
+  const r = await call<{ it?: ApiPlayer[] }>(fetchFn, `/v4/leagues/${encodeURIComponent(leagueId)}/squad`, { token });
+  return (r.it ?? []).map(toPlayer);
+}
+
+/** The manager's Kickbase lineup: starting XI (lp) and the rest of the squad (nlp). */
+export async function myEleven(fetchFn: Fetch, token: string, leagueId: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[] }> {
+  const r = await call<{ lp?: ApiPlayer[]; nlp?: ApiPlayer[] }>(
+    fetchFn, `/v4/leagues/${encodeURIComponent(leagueId)}/teamcenter/myeleven`, { token },
+  );
+  return { starters: (r.lp ?? []).map(toPlayer), bench: (r.nlp ?? []).map(toPlayer) };
 }
 
 /** All player names of a Bundesliga club (Kickbase display names), used to detect same-surname teammates. */
