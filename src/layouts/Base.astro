@@ -38,11 +38,32 @@ const tabs = [
       // Runs on first load and again after every client-side navigation (which swaps <html> attributes).
       if (!window.__themeInit) {
         window.__themeInit = true;
-        const apply = (doc) => {
+        const stored = () => {
           try {
             const t = localStorage.getItem("theme");
-            if (t === "light" || t === "dark") doc.documentElement.dataset.theme = t;
-          } catch {}
+            return t === "light" || t === "dark" ? t : "auto";
+          } catch {
+            return "auto";
+          }
+        };
+        // A forced theme also colours the browser/status bar; "auto" keeps the system-based meta tags.
+        const apply = (doc) => {
+          const t = stored();
+          if (t === "auto") delete doc.documentElement.dataset.theme;
+          else doc.documentElement.dataset.theme = t;
+          doc.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+            const own = m.getAttribute("media")?.includes("dark") ? "#000000" : "#ffffff";
+            m.setAttribute("content", t === "auto" ? own : t === "dark" ? "#000000" : "#ffffff");
+          });
+        };
+        const markTheme = () => {
+          const t = stored();
+          document.querySelectorAll("[data-theme-set]").forEach((btn) => {
+            const on = btn.getAttribute("data-theme-set") === t;
+            btn.classList.toggle("bg-fg", on);
+            btn.classList.toggle("text-bg", on);
+            btn.setAttribute("aria-pressed", String(on));
+          });
         };
         apply(document);
         // The tab bar persists across navigations, so its highlight is updated here instead of re-rendered.
@@ -86,13 +107,7 @@ const tabs = [
             try { name = decodeURIComponent(raw); } catch {}
             const slot = document.querySelector("[data-li-name]");
             if (slot) slot.textContent = name;
-            const theme = document.documentElement.dataset.theme
-              || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-            document.querySelectorAll("[data-theme-set]").forEach((btn) => {
-              const on = btn.getAttribute("data-theme-set") === theme;
-              btn.classList.toggle("bg-fg", on);
-              btn.classList.toggle("text-bg", on);
-            });
+            markTheme();
           }
         });
         // Tapping the tab of the page you're on scrolls back to the top (like iOS) instead of reloading it.
@@ -121,14 +136,13 @@ const tabs = [
           const choice = e.target.closest?.("[data-theme-set]");
           if (!choice) return;
           const theme = choice.getAttribute("data-theme-set");
-          if (theme !== "light" && theme !== "dark") return;
-          document.documentElement.dataset.theme = theme;
-          try { localStorage.setItem("theme", theme); } catch {}
-          document.querySelectorAll("[data-theme-set]").forEach((btn) => {
-            const on = btn.getAttribute("data-theme-set") === theme;
-            btn.classList.toggle("bg-fg", on);
-            btn.classList.toggle("text-bg", on);
-          });
+          if (theme !== "light" && theme !== "dark" && theme !== "auto") return;
+          try {
+            if (theme === "auto") localStorage.removeItem("theme");
+            else localStorage.setItem("theme", theme);
+          } catch {}
+          apply(document);
+          markTheme();
         });
       }
     </script>

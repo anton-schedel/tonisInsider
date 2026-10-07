@@ -23,7 +23,9 @@ const comments = commentCount(a.id);
     <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
     <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
-      <span class="min-w-0 truncate">{a.player?.name ?? a.club?.name ?? "LigaInsider"} · {time(a.publishedAt)}</span>
+      {/* The name shortens on narrow rows; the time always stays visible. */}
+      <span class="min-w-0 truncate">{a.player?.name ?? a.club?.name ?? "LigaInsider"}</span>
+      <span class="-ml-1 shrink-0 tabular-nums">· {time(a.publishedAt)}</span>
       {/* Refreshed live by the script below. Hidden while there are no comments. */}
       <span class:list={["ml-auto flex shrink-0 items-center gap-1 pl-2 tabular-nums", !comments && "hidden"]} data-comment-count={a.id} aria-label="Kommentare">
         <svg viewBox="0 0 24 24" class="size-[15px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" /></svg>
