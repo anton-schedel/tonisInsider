@@ -4,10 +4,10 @@ import Avatar from "./Avatar.astro";
 import StatusPill from "./StatusPill.astro";
 import { time } from "../lib/format.ts";
 
-interface Props { article: Article }
-const { article: a } = Astro.props;
+interface Props { article: Article; index?: number }
+const { article: a, index = 0 } = Astro.props;
 ---
-<a href={`/artikel/${a.id}/`} class="flex items-start gap-3 py-3 active:opacity-60">
+<a href={`/artikel/${a.id}/`} class="press enter flex items-start gap-3 py-3" style={`--i:${index}`}>
   <span class="relative">
     <Avatar src={a.player?.photo ?? a.club?.crest} name={a.player?.name ?? a.club?.name ?? "LigaInsider"} size={40} />
     {a.player && a.club?.crest && (

@@ -7,6 +7,7 @@ import { dayLabel } from "../lib/format.ts";
 interface Props { articles: Article[] }
 const now = new Date();
 const groups = groupByDay(Astro.props.articles);
+let index = 0;
 ---
 {groups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
@@ -15,7 +16,7 @@ const groups = groupByDay(Astro.props.articles);
       {dayLabel(g.first, now)}
     </h2>
     <div class="divide-y divide-hairline">
-      {g.items.map((a) => <ArticleRow article={a} />)}
+      {g.items.map((a) => <ArticleRow article={a} index={index++} />)}
     </div>
   </section>
 ))}

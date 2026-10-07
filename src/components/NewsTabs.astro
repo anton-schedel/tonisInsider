@@ -1,8 +1,8 @@
 ---
-interface Props { active: "alle" | "bundesliga" | "testspiele" }
+// LigaInsider's "Bundesliga" overview is their start page, so "Alle" already is the Bundesliga feed.
+interface Props { active: "alle" | "testspiele" }
 const items = [
   { id: "alle", href: "/", label: "Alle" },
-  { id: "bundesliga", href: "/news/bundesliga/", label: "Bundesliga" },
   { id: "testspiele", href: "/news/testspiele/", label: "Testspiele" },
 ] as const;
 ---
@@ -10,7 +10,7 @@ const items = [
   {items.map((i) => (
     <a
       href={i.href}
-      class:list={["flex-1 rounded-lg py-1.5 text-center", Astro.props.active === i.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}
+      class:list={["flex-1 rounded-lg py-1.5 text-center transition-colors duration-200", Astro.props.active === i.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}
     >{i.label}</a>
   ))}
 </nav>

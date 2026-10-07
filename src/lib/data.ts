@@ -42,13 +42,6 @@ export function lineups(): Lineup[] {
   return load().lineups;
 }
 
-/** Sorted by kickoff, then club name; lineups without kickoff go last. */
-export function lineupsByKickoff(): Lineup[] {
-  return [...load().lineups].sort(
-    (a, b) => (a.kickoff ?? "9999").localeCompare(b.kickoff ?? "9999") || a.club.name.localeCompare(b.club.name, "de"),
-  );
-}
-
 export function lastUpdate(): string | undefined {
   return load().state.lastChangeAt;
 }

@@ -12,13 +12,13 @@ export function getStaticPaths() {
 const { lineup } = Astro.props as { lineup: Lineup };
 const news = clubArticles(lineup.club.id);
 ---
-<Base title={lineup.club.name} tab="vereine" back={{ href: "/vereine/", label: "Vereine" }}>
+<Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Zurück" }}>
   <h2 class="mt-2 text-xs font-semibold tracking-wide text-muted uppercase">Voraussichtliche Aufstellung</h2>
   <MatchHeader lineup={lineup} />
   <Pitch lineup={lineup} />
   <h2 class="mt-6 text-xs font-semibold tracking-wide text-muted uppercase">News</h2>
   {news.length === 0 && <p class="py-6 text-sm text-muted">Keine aktuellen News.</p>}
   <div class="divide-y divide-hairline">
-    {news.map((a) => <ArticleRow article={a} />)}
+    {news.map((a, i) => <ArticleRow article={a} index={i} />)}
   </div>
 </Base>

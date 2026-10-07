@@ -10,6 +10,8 @@ export const time = (iso: string) => timeFmt.format(new Date(iso));
 export const dayKey = (iso: string) => dayKeyFmt.format(new Date(iso));
 export const kickoff = (iso: string) => kickoffFmt.format(new Date(iso)).replace(",", " ·") + " Uhr";
 export const fullDate = (iso: string) => fullFmt.format(new Date(iso)).replace(",", " ·");
+/** "Fr. 09.10." */
+export const kickoffDay = (iso: string) => dayLabelFmt.format(new Date(iso)).replace(",", "");
 
 /** "Heute · Mi., 07.10." / "Gestern · …" / "Mo., 05.10." relative to the build time. */
 export function dayLabel(iso: string, now: Date): string {

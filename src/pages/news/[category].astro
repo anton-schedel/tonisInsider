@@ -5,9 +5,9 @@ import NewsFeed from "../../components/NewsFeed.astro";
 import { articles } from "../../lib/data.ts";
 
 export function getStaticPaths() {
-  return [{ params: { category: "bundesliga" } }, { params: { category: "testspiele" } }];
+  return [{ params: { category: "testspiele" } }];
 }
-const category = Astro.params.category as "bundesliga" | "testspiele";
+const category = Astro.params.category as "testspiele";
 ---
 <Base title="News" tab="news">
   <NewsTabs active={category} />

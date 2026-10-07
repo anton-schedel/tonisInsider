@@ -1,20 +1,54 @@
 ---
 import Base from "../layouts/Base.astro";
-import Pitch from "../components/Pitch.astro";
-import MatchHeader from "../components/MatchHeader.astro";
-import { lineupsByKickoff } from "../lib/data.ts";
+import Avatar from "../components/Avatar.astro";
+import { lineups } from "../lib/data.ts";
+import { toFixtures, type Fixture } from "../lib/fixtures.ts";
+import { kickoffDay, time } from "../lib/format.ts";
+import type { Lineup } from "../../scraper/types.ts";
 
-const list = lineupsByKickoff();
-const matchday = list.find((l) => l.matchday)?.matchday;
+const all = lineups();
+const fixtures = toFixtures(all);
+const matchday = all.find((l) => l.matchday)?.matchday;
+const side = (f: Fixture, which: "home" | "away"): { lineup?: Lineup; name: string } =>
+  which === "home" ? { lineup: f.home, name: f.homeName } : { lineup: f.away, name: f.awayName };
 ---
 <Base title={matchday ? `${matchday}. Spieltag` : "Aufstellungen"} tab="aufstellungen">
-  {list.length === 0 && <p class="py-10 text-center text-muted">Noch keine Aufstellungen.</p>}
-  <div class="grid gap-x-4 gap-y-6 sm:grid-cols-2">
-    {list.map((l) => (
-      <a href={`/vereine/${l.club.slug}/`} class="block active:opacity-70">
-        <MatchHeader lineup={l} />
-        <Pitch lineup={l} compact />
-      </a>
+  <p class="-mt-1 mb-4 text-sm text-muted">Voraussichtliche Aufstellungen. Tippe auf ein Team.</p>
+  {fixtures.length === 0 && <p class="py-10 text-center text-muted">Noch keine Aufstellungen.</p>}
+  <div class="grid gap-3 sm:grid-cols-2">
+    {fixtures.map((f, i) => (
+      <div class="enter flex items-center rounded-2xl bg-surface px-2 py-4" style={`--i:${i}`}>
+        {(["home", "away"] as const).map((which) => {
+          const s = side(f, which);
+          const inner = (
+            <>
+              <Avatar src={s.lineup?.club.crest} name={s.name} size={52} class="bg-transparent [&>img]:object-contain" />
+              <span class="mt-2 line-clamp-2 text-center text-[12px] leading-tight font-semibold">{s.name}</span>
+            </>
+          );
+          return (
+            <>
+              {which === "away" && (
+                <div class="w-20 shrink-0 text-center">
+                  {f.kickoff ? (
+                    <>
+                      <p class="text-[17px] font-bold tracking-tight">{time(f.kickoff)}</p>
+                      <p class="text-[11px] text-muted">{kickoffDay(f.kickoff)}</p>
+                    </>
+                  ) : (
+                    <p class="text-sm text-muted">vs</p>
+                  )}
+                </div>
+              )}
+              {s.lineup ? (
+                <a href={`/vereine/${s.lineup.club.slug}/`} class="press flex min-w-0 flex-1 flex-col items-center px-1">{inner}</a>
+              ) : (
+                <div class="flex min-w-0 flex-1 flex-col items-center px-1 opacity-50">{inner}</div>
+              )}
+            </>
+          );
+        })}
+      </div>
     ))}
   </div>
 </Base>

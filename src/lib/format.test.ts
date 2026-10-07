@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dayLabel, fullDate, initials, kickoff, time } from "./format.ts";
+import { dayLabel, fullDate, initials, kickoff, kickoffDay, time } from "./format.ts";
 
 const NOW = new Date("2026-10-07T09:00:00Z");
 
@@ -18,6 +18,10 @@ describe("format", () => {
 
   it("formats kickoff", () => {
     expect(kickoff("2026-10-09T18:30:00.000Z")).toBe("Fr. · 09.10., 20:30 Uhr");
+  });
+
+  it("formats the short kickoff day for fixture cards", () => {
+    expect(kickoffDay("2026-10-09T18:30:00.000Z")).toBe("Fr. 09.10.");
   });
 
   it("builds initials for the photo fallback", () => {

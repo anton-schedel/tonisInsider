@@ -63,3 +63,36 @@ html {
 .prose-body p { margin: 0 0 1em; }
 .prose-body h3 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.6em 0 0.6em; }
 .prose-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- Motion ---------- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
+.enter {
+  animation: fade-up 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 35ms);
+}
+.pop {
+  animation: pop-in 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* Native-feeling tap feedback. */
+.press {
+  transition: transform 160ms ease, opacity 160ms ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.press:active { transform: scale(0.97); opacity: 0.75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .enter, .pop { animation: none; }
+  .press, .press:active { transition: none; transform: none; }
+}

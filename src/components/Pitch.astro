@@ -2,43 +2,42 @@
 import type { Lineup } from "../../scraper/types.ts";
 import Avatar from "./Avatar.astro";
 
-interface Props { lineup: Lineup; compact?: boolean }
-const { lineup, compact = false } = Astro.props;
+interface Props { lineup: Lineup }
+const { lineup } = Astro.props;
 const rows = lineup.lines.length;
 // Goalkeeper at the bottom, attack at the top. Leave room for names below the avatars.
-const top = (i: number) => (rows <= 1 ? 50 : 90 - (i * 78) / (rows - 1));
+const top = (i: number) => (rows <= 1 ? 50 : 88 - (i * 76) / (rows - 1));
 const left = (j: number, n: number) => ((j + 1) * 100) / (n + 1);
-const size = compact ? 28 : 40;
 ---
 <div
   class="relative w-full overflow-hidden rounded-[18px]"
-  style={`aspect-ratio:${compact ? "4 / 4.4" : "4 / 5"};background:linear-gradient(var(--pitch-from),var(--pitch-to))`}
+  style="aspect-ratio:4 / 5.2;background:linear-gradient(var(--pitch-from),var(--pitch-to))"
 >
   <div class="absolute inset-3 rounded-md border-[1.5px]" style="border-color:var(--pitch-line)"></div>
   <div class="absolute inset-x-3 top-1/2 border-t-[1.5px]" style="border-color:var(--pitch-line)"></div>
   <div class="absolute top-1/2 left-1/2 size-16 -translate-1/2 rounded-full border-[1.5px]" style="border-color:var(--pitch-line)"></div>
   {lineup.lines.map((line, i) =>
     line.map((p, j) => (
-      <div class="absolute flex w-[22%] -translate-1/2 flex-col items-center text-center" style={`top:${top(i)}%;left:${left(j, line.length)}%`}>
-        <span class="relative">
-          <Avatar src={p.photo} name={p.name} size={size} class="shadow-sm ring-2 ring-white/80" />
-          <span
-            class="absolute -top-0.5 -right-0.5 size-3 rounded-full border-2 border-white"
-            style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`}
-            title={p.statusLabel ?? "Gesetzt"}
-          ></span>
-        </span>
-        <span class:list={["mt-1 max-w-full truncate font-semibold", compact ? "text-[9.5px]" : "text-[11px]"]}>{p.name}</span>
-        {p.alternative && !compact && (
-          <span class="max-w-full truncate text-[9.5px]" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
-        )}
+      <div class="absolute w-[24%] -translate-1/2" style={`top:${top(i)}%;left:${left(j, line.length)}%`}>
+        <div class="pop flex flex-col items-center text-center" style={`--i:${i}`}>
+          <span class="relative">
+            <Avatar src={p.photo} name={p.name} size={54} class="shadow-md ring-2 ring-white/80" />
+            <span
+              class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white"
+              style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`}
+              title={p.statusLabel ?? "Gesetzt"}
+            ></span>
+          </span>
+          <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
+          {p.alternative && (
+            <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
+          )}
+        </div>
       </div>
     )),
   )}
 </div>
-{!compact && (
-  <div class="flex justify-center gap-4 py-3 text-[11px] text-muted">
-    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
-    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
-  </div>
-)}
+<div class="flex justify-center gap-4 py-3 text-[11px] text-muted">
+  <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
+  <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
+</div>
