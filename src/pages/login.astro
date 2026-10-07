@@ -1,0 +1,26 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Login" tab="mein-team">
+  <p class="mb-6 text-[15px] text-muted">Melde dich mit deinem Kickbase-Account an, um dein Team mit den voraussichtlichen Aufstellungen und passenden News zu sehen.</p>
+  <p id="login-error" class="mb-4 hidden rounded-xl px-4 py-3 text-sm font-medium" style="background:var(--red-bg);color:var(--red-fg)"></p>
+  <form method="post" action="/api/login/" class="flex flex-col gap-3" data-astro-reload>
+    <input name="email" type="email" required autocomplete="username" placeholder="Kickbase E-Mail"
+      class="rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+    <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort"
+      class="rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+    <button type="submit" class="press mt-2 rounded-xl py-3 text-[16px] font-semibold text-white" style="background:var(--accent)">Anmelden</button>
+  </form>
+  <p class="mt-4 text-xs text-muted">Dein Passwort wird nur an Kickbase weitergeleitet und nirgends gespeichert. Wir speichern nur das Kickbase-Login-Token in einem sicheren Cookie in deinem Browser.</p>
+  <script is:inline>
+    (() => {
+      const msg = {
+        credentials: "E-Mail oder Passwort falsch.",
+        expired: "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+        unavailable: "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.",
+      }[new URLSearchParams(location.search).get("error")];
+      const el = document.getElementById("login-error");
+      if (msg && el) { el.textContent = msg; el.classList.remove("hidden"); }
+    })();
+  </script>
+</Base>

@@ -1,0 +1,27 @@
+---
+import type { MyPlayer } from "../lib/match.ts";
+import Avatar from "./Avatar.astro";
+import StartBadge from "./StartBadge.astro";
+import { kickoffDay, time } from "../lib/format.ts";
+
+interface Props { player: MyPlayer; index?: number }
+const { player: p, index = 0 } = Astro.props;
+const name = p.ligainsider?.name ?? p.kickbase.name;
+const l = p.lineup;
+const match = l?.opponent
+  ? `${l.opponent.home ? "vs" : "@"} ${l.opponent.name}${l.kickoff ? ` · ${kickoffDay(l.kickoff)} ${time(l.kickoff)}` : ""}`
+  : undefined;
+const href = p.club ? `/vereine/${p.club.slug}/` : undefined;
+const Tag = href ? "a" : "div";
+---
+<Tag href={href} class="press enter flex items-center gap-3 py-3" style={`--i:${index}`}>
+  <span class="relative">
+    <Avatar src={p.ligainsider?.photo ?? p.kickbase.image} name={name} size={44} />
+    {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -right-1 -bottom-1 size-[18px] rounded-full bg-bg object-contain p-[1px]" />}
+  </span>
+  <span class="min-w-0 flex-1">
+    <span class="block truncate text-[15px] font-semibold tracking-[-0.01em]">{name}</span>
+    {match && <span class="block truncate text-xs text-muted">{match}</span>}
+  </span>
+  <StartBadge status={p.status} label={p.statusLabel} />
+</Tag>

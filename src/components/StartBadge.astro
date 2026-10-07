@@ -1,0 +1,20 @@
+---
+import type { StartStatus } from "../lib/match.ts";
+
+interface Props { status: StartStatus; label?: string }
+const STYLES: Record<StartStatus, { text: string; tone: "green" | "yellow" | "grey" }> = {
+  start: { text: "Startelf", tone: "green" },
+  doubtful: { text: "Fraglich", tone: "yellow" },
+  alternative: { text: "Alternative", tone: "yellow" },
+  bench: { text: "Nicht in der Startelf", tone: "grey" },
+  unknown: { text: "Unbekannt", tone: "grey" },
+};
+const { status, label } = Astro.props;
+const s = STYLES[status];
+const style = s.tone === "grey"
+  ? "background:var(--surface);color:var(--muted)"
+  : `background:var(--${s.tone}-bg);color:var(--${s.tone}-fg)`;
+---
+<span class="rounded-full px-[7px] py-[2px] text-[10.5px] font-semibold whitespace-nowrap" style={style}>
+  {s.text}{status === "doubtful" && label ? ` · ${label}` : ""}
+</span>

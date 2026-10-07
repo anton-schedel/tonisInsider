@@ -1,0 +1,99 @@
+---
+import Base from "../layouts/Base.astro";
+import MyPlayerRow from "../components/MyPlayerRow.astro";
+import ArticleRow from "../components/ArticleRow.astro";
+import { env } from "cloudflare:workers";
+import { clubTable, KickbaseAuthError, leagues as fetchLeagues, squad as fetchSquad, type KbLeague, type KbTeam } from "../lib/kickbase.ts";
+import { mapClubs, matchSquad, squadNews, type MyPlayer } from "../lib/match.ts";
+import { clearSession, LEAGUE_COOKIE, TOKEN_COOKIE } from "../lib/session.ts";
+import type { Article } from "../../scraper/types.ts";
+import type { Snapshot } from "../../scraper/snapshot.ts";
+
+export const prerender = false;
+
+const token = Astro.cookies.get(TOKEN_COOKIE)?.value;
+if (!token) return Astro.redirect("/login/");
+
+// The club table rarely changes; keep it per Worker isolate for a day.
+const g = globalThis as unknown as { __kbTable?: { at: number; teams: KbTeam[] } };
+
+let error: string | undefined;
+let leagues: KbLeague[] = [];
+let league: KbLeague | undefined;
+let players: MyPlayer[] = [];
+let news: Article[] = [];
+try {
+  leagues = await fetchLeagues(fetch, token);
+  const wanted = Astro.url.searchParams.get("league") ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
+  league = leagues.find((l) => l.id === wanted) ?? leagues[0];
+  if (league) {
+    Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
+    if (!g.__kbTable || Date.now() - g.__kbTable.at > 86_400_000) {
+      g.__kbTable = { at: Date.now(), teams: await clubTable(fetch, token) };
+    }
+    const [squad, snapshot] = await Promise.all([
+      fetchSquad(fetch, token, league.id),
+      env.ASSETS.fetch(new URL("/data/snapshot.json", Astro.url))
+        .then((r: Response) => (r.ok ? (r.json() as Promise<Snapshot>) : undefined))
+        .catch(() => undefined),
+    ]);
+    const lineups = snapshot?.lineups ?? [];
+    players = matchSquad(squad, mapClubs(g.__kbTable.teams, lineups));
+    news = squadNews(players, snapshot?.articles ?? []);
+  }
+} catch (err) {
+  if (err instanceof KickbaseAuthError) {
+    clearSession(Astro.cookies);
+    return Astro.redirect("/login/?error=expired");
+  }
+  error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
+}
+
+const GROUPS = [
+  { pos: 1, label: "Torwart" },
+  { pos: 2, label: "Abwehr" },
+  { pos: 3, label: "Mittelfeld" },
+  { pos: 4, label: "Sturm" },
+] as const;
+let index = 0;
+---
+<Base title="Mein Team" tab="mein-team">
+  {error && <p class="mb-4 rounded-xl px-4 py-3 text-sm font-medium" style="background:var(--red-bg);color:var(--red-fg)">{error}</p>}
+
+  {leagues.length > 1 && (
+    <nav class="mb-4 flex overflow-x-auto rounded-[10px] bg-surface p-[2px] text-[13px] font-semibold">
+      {leagues.map((l) => (
+        <a href={`/mein-team/?league=${encodeURIComponent(l.id)}`}
+          class:list={["flex-1 rounded-lg px-3 py-1.5 text-center whitespace-nowrap", league?.id === l.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}>{l.name}</a>
+      ))}
+    </nav>
+  )}
+
+  {!error && league && players.length === 0 && <p class="py-10 text-center text-muted">Keine Spieler in dieser Liga.</p>}
+  {!error && !league && <p class="py-10 text-center text-muted">Du bist in keiner Kickbase-Liga.</p>}
+
+  {GROUPS.map((group) => {
+    const inGroup = players.filter((p) => p.kickbase.position === group.pos);
+    return inGroup.length > 0 && (
+      <section class="mb-3">
+        <h2 class="py-2 text-xs font-semibold tracking-wide text-muted uppercase">{group.label}</h2>
+        <div class="divide-y divide-hairline">
+          {inGroup.map((p) => <MyPlayerRow player={p} index={index++} />)}
+        </div>
+      </section>
+    );
+  })}
+
+  {news.length > 0 && (
+    <section class="mt-6">
+      <h2 class="py-2 text-xs font-semibold tracking-wide text-muted uppercase">News zu deinen Spielern</h2>
+      <div class="divide-y divide-hairline">
+        {news.map((a, i) => <ArticleRow article={a} index={i} />)}
+      </div>
+    </section>
+  )}
+
+  <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>
+    <button type="submit" class="press w-full rounded-xl bg-surface py-3 text-sm font-semibold" style="color:var(--red-fg)">Abmelden</button>
+  </form>
+</Base>
