@@ -12,15 +12,55 @@ import Base from "../layouts/Base.astro";
     <button type="submit" class="press mt-2 rounded-xl bg-fg py-3 text-[16px] font-semibold text-bg">Anmelden</button>
   </form>
   <p class="mt-4 text-xs text-muted">Damit du angemeldet bleibst, werden deine Kickbase-Zugangsdaten verschlüsselt in einem sicheren Cookie in deinem Browser gespeichert. Auf dem Server wird nichts gespeichert. „Abmelden“ löscht alles.</p>
+
+  <div class="my-8 h-px bg-hairline"></div>
+
+  <div id="li-form">
+    <p class="mb-6 text-[15px] text-muted">Mit LigaInsider anmelden, um in den Kommentaren mitzuschreiben, zu antworten und Umfragen zu starten.</p>
+    <form method="post" action="/api/li-login/" class="flex flex-col gap-3" data-astro-reload>
+      <input name="username" type="text" required autocomplete="username" placeholder="LigaInsider Benutzername oder E-Mail"
+        class="rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort"
+        class="rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+      <input type="hidden" name="next" value="/" data-li-next />
+      <button type="submit" class="press mt-2 rounded-xl bg-fg py-3 text-[16px] font-semibold text-bg">Anmelden</button>
+    </form>
+    <p class="mt-4 text-xs text-muted">Dein LigaInsider-Passwort wird nur verschlüsselt in einem Cookie in deinem Browser gespeichert und zum Schreiben an LigaInsider geschickt. Auf dem Server bleibt nichts. Kommentare erscheinen auf ligainsider.de unter deinem Namen.</p>
+  </div>
+
+  <div id="li-out" class="hidden">
+    <p class="text-[15px] text-muted">Du bist bei LigaInsider angemeldet als <b class="text-fg" id="li-name"></b>.</p>
+    <form method="post" action="/api/li-logout/" class="mt-4" data-astro-reload>
+      <input type="hidden" name="next" value="/login/" />
+      <button type="submit" class="press rounded-xl bg-surface px-4 py-3 text-[15px] font-semibold">Abmelden</button>
+    </form>
+  </div>
+
   <script is:inline>
     (() => {
+      const params = new URLSearchParams(location.search);
       const msg = {
         credentials: "E-Mail oder Passwort falsch.",
         expired: "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
         unavailable: "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.",
-      }[new URLSearchParams(location.search).get("error")];
+        "li-credentials": "LigaInsider-Benutzername oder Passwort falsch.",
+        "li-unavailable": "LigaInsider ist gerade nicht erreichbar. Versuch es gleich nochmal.",
+      }[params.get("error")];
       const el = document.getElementById("login-error");
       if (msg && el) { el.textContent = msg; el.classList.remove("hidden"); }
+      const next = params.get("next");
+      if (next && next.startsWith("/") && !next.startsWith("//")) {
+        document.querySelectorAll("[data-li-next]").forEach((input) => { input.value = next; });
+      }
+      const loggedIn = /(?:^|; )liin=1/.test(document.cookie);
+      if (loggedIn) {
+        document.getElementById("li-form").classList.add("hidden");
+        document.getElementById("li-out").classList.remove("hidden");
+        const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
+        let name = raw;
+        try { name = decodeURIComponent(raw); } catch { /* keep the raw value */ }
+        document.getElementById("li-name").textContent = name;
+      }
     })();
   </script>
 </Base>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AstroCookieSetOptions } from "astro";
-import { CREDENTIALS_COOKIE, isSameOrigin, LOGGED_IN_COOKIE, parseExpiry, relogin, rememberCredentials, setSession, TOKEN_COOKIE } from "./session.ts";
+import { CREDENTIALS_COOKIE, isSameOrigin, LI_CREDENTIALS_COOKIE, LI_NAME_COOKIE, LOGGED_IN_COOKIE, parseExpiry, relogin, rememberCredentials, rememberLiga, safeNext, setLigaSession, setSession, TOKEN_COOKIE } from "./session.ts";
 import { KickbaseUnavailableError } from "./kickbase.ts";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
@@ -77,6 +77,18 @@ describe("relogin", () => {
     expect(await relogin(c, undefined, login)).toBeUndefined();
     expect(await relogin(c, KEY, login)).toBeUndefined();
     expect(c.store.has(CREDENTIALS_COOKIE)).toBe(false);
+  });
+
+  it("keeps a LigaInsider password out of the cookie and only accepts a local return path", async () => {
+    const c = jar();
+    await rememberLiga(c, KEY, "Anton", "geheim");
+    expect(c.store.get(LI_CREDENTIALS_COOKIE)!.value).not.toContain("geheim");
+    setLigaSession(c, "li_at=tok", "Anton");
+    expect(c.store.get(LI_NAME_COOKIE)?.value).toBe("Anton");
+    expect(c.store.get("lis")?.opts).toMatchObject({ httpOnly: true, secure: true });
+    expect(safeNext("/artikel/418778/")).toBe("/artikel/418778/");
+    expect(safeNext("https://evil.example")).toBe("/");
+    expect(safeNext("//evil.example")).toBe("/");
   });
 
   it("lets 'Kickbase unavailable' through so the page can show it", async () => {

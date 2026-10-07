@@ -10,6 +10,14 @@ export const LOGGED_IN_COOKIE = "kbin";
 export const LEAGUE_COOKIE = "kbleague";
 /** Encrypted Kickbase email + password (AES-GCM, key only on the Worker) for automatic re-login. */
 export const CREDENTIALS_COOKIE = "kbc";
+/** LigaInsider session cookies (HttpOnly). Same idea as the Kickbase token. */
+export const LI_SESSION_COOKIE = "lis";
+/** Encrypted LigaInsider username + password, so a dead session can be renewed. */
+export const LI_CREDENTIALS_COOKIE = "lic";
+/** Readable flag so the comment box knows someone is logged in. Contains no secret. */
+export const LI_LOGGED_IN_COOKIE = "liin";
+/** Readable display name. */
+export const LI_NAME_COOKIE = "lin";
 
 /** Browsers cap cookie lifetime at 400 days. */
 const LONG = 400 * 24 * 60 * 60;
@@ -79,4 +87,40 @@ export async function relogin(
 
 export function clearSession(cookies: CookieJar): void {
   for (const name of [TOKEN_COOKIE, LOGGED_IN_COOKIE, LEAGUE_COOKIE, CREDENTIALS_COOKIE]) cookies.delete(name, { path: "/" });
+}
+
+const liCookies = [LI_SESSION_COOKIE, LI_CREDENTIALS_COOKIE, LI_LOGGED_IN_COOKIE, LI_NAME_COOKIE];
+
+/** Only a same-site path. Anything else goes to the front page (no open redirect). */
+export function safeNext(value: string | null | undefined): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\") || value.includes("://")) return "/";
+  return value;
+}
+
+export function setLigaSession(cookies: CookieJar, cookieHeader: string, username: string): void {
+  cookies.set(LI_SESSION_COOKIE, cookieHeader, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+  cookies.set(LI_LOGGED_IN_COOKIE, "1", { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+  cookies.set(LI_NAME_COOKIE, encodeURIComponent(username), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+}
+
+export async function rememberLiga(cookies: CookieJar, key: string | undefined, username: string, password: string): Promise<void> {
+  if (!key) return;
+  const sealed = await seal(JSON.stringify({ u: username, p: password }), key);
+  cookies.set(LI_CREDENTIALS_COOKIE, sealed, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+}
+
+export type LigaCreds = { u: string; p: string };
+
+/** Stored LigaInsider username and password, or undefined when there is nothing usable. */
+export async function ligaCredentials(cookies: CookieJar, key: string | undefined): Promise<LigaCreds | undefined> {
+  const sealed = cookies.get(LI_CREDENTIALS_COOKIE)?.value;
+  if (!sealed || !key) return undefined;
+  const plain = await unseal(sealed, key);
+  let creds: LigaCreds | undefined;
+  try { creds = plain ? JSON.parse(plain) : undefined; } catch { creds = undefined; }
+  return creds?.u && creds.p ? creds : undefined;
+}
+
+export function clearLigaSession(cookies: CookieJar): void {
+  for (const name of liCookies) cookies.delete(name, { path: "/" });
 }

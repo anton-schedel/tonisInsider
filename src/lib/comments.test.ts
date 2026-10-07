@@ -20,6 +20,7 @@ describe("parseComments", () => {
       date: "2026-10-07T08:12:49.000Z",
       text: "Trotzdem 2,5M gemacht mit dem bre, absurde LSP",
       score: 6,
+      vote: 0,
     });
   });
 
@@ -34,7 +35,11 @@ describe("parseComments", () => {
     expect(poll.comments[1].poll).toEqual({
       question: "Doan verkaufen und beier holen?",
       total: 47,
-      options: [{ label: "Ja", pct: 40 }, { label: "Nein", pct: 60 }],
+      votingId: 133652,
+      options: [
+        { label: "Ja", pct: 40, id: 339164 },
+        { label: "Nein", pct: 60, id: 339165 },
+      ],
     });
   });
 
@@ -114,6 +119,15 @@ describe("commentsResponse", () => {
     const again = await commentsResponse("418776", f.fn, cache);
     expect(f.calls()).toBe(1);
     expect((await again.json()).total).toBe(8);
+  });
+
+  it("does not cache a personal (logged-in) response", async () => {
+    const { cache, store } = memoryCache();
+    const f = countingFetch(ok);
+    const res = await commentsResponse("418776", f.fn, cache, { personal: true });
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(store.size).toBe(0);
+    expect((await res.json()).total).toBe(8);
   });
 
   it("rejects ids that aren't article numbers without fetching", async () => {

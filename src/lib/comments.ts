@@ -8,7 +8,13 @@ export const COMMENTS_TTL_SECONDS = 120;
 const TIMEOUT_MS = 8000;
 const HEADERS = { "user-agent": USER_AGENT, "accept-language": "de-DE,de;q=0.9" };
 
-export type Poll = { question: string; total: number; options: { label: string; pct: number }[] };
+export type Poll = {
+  question: string;
+  total: number;
+  /** LigaInsider voting id, present when the poll can be voted on. */
+  votingId?: number;
+  options: { label: string; pct: number; id?: number }[];
+};
 export type Comment = {
   id: number;
   user: string;
@@ -17,6 +23,8 @@ export type Comment = {
   /** Plain text, never HTML. */
   text: string;
   score: number;
+  /** This viewer's vote: -1, 0 or 1. Anonymous pages are always 0. */
+  vote: number;
   poll?: Poll;
   replies: Comment[];
 };
@@ -53,21 +61,28 @@ function parseOne($: CheerioAPI, li: Element): Comment {
   const scope = box.length ? box : el;
   const pollEl = scope.find(".poll-comment").first();
   const date = new Date(el.attr("data-comment-date") ?? "");
+  const votingId = num(pollEl.find("[data-poll-options]").attr("data-voting-id"));
   return {
     id: num(el.attr("data-comment-id")),
     user: clean(scope.find('[class$="__username"]').first().text()),
     date: Number.isNaN(date.getTime()) ? "" : date.toISOString(),
     text: bodyText($, scope.find('p[class$="__text"]').first()),
     score: num(scope.find("[data-score-display]").first().text()),
+    vote: num(el.attr("data-vote-state")),
     ...(pollEl.length
       ? {
           poll: {
             question: clean(pollEl.find(".poll-comment__question").text()),
             total: num(pollEl.find("[data-poll-options]").attr("data-total")),
-            options: pollEl.find(".poll-option").toArray().map((o) => ({
-              label: clean($(o).find(".poll-option__label").text()),
-              pct: num($(o).attr("data-pct")),
-            })),
+            ...(votingId ? { votingId } : {}),
+            options: pollEl.find(".poll-option").toArray().map((o) => {
+              const id = num($(o).attr("data-option-id"));
+              return {
+                label: clean($(o).find(".poll-option__label").text()),
+                pct: num($(o).attr("data-pct")),
+                ...(id ? { id } : {}),
+              };
+            }),
           },
         }
       : {}),
@@ -91,9 +106,12 @@ export type EdgeCache = {
   put(key: string, res: Response): Promise<void>;
 };
 
+/** A logged-in read is that viewer's vote state, so it must not enter the shared cache. */
+export type CommentsOpts = { personal?: boolean };
+
 /** Serves load() as JSON, cached at the edge for COMMENTS_TTL_SECONDS; failures answer 502 and aren't cached. */
-async function cachedJson(key: string, load: () => Promise<unknown>, cache?: EdgeCache): Promise<Response> {
-  const hit = await cache?.match(key);
+async function cachedJson(key: string, load: () => Promise<unknown>, cache?: EdgeCache, personal = false): Promise<Response> {
+  const hit = personal ? undefined : await cache?.match(key);
   if (hit) return hit;
   let data: unknown;
   try {
@@ -101,15 +119,17 @@ async function cachedJson(key: string, load: () => Promise<unknown>, cache?: Edg
   } catch {
     return Response.json({ error: "unavailable" }, { status: 502, headers: { "cache-control": "no-store" } });
   }
-  const res = Response.json(data, { headers: { "cache-control": `public, max-age=${COMMENTS_TTL_SECONDS}` } });
-  await cache?.put(key, res.clone());
+  const res = Response.json(data, {
+    headers: { "cache-control": personal ? "private, no-store" : `public, max-age=${COMMENTS_TTL_SECONDS}` },
+  });
+  if (!personal) await cache?.put(key, res.clone());
   return res;
 }
 
 /** GET /api/comments/<id>/: LigaInsider's comments on one article. */
-export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?: EdgeCache): Promise<Response> {
+export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?: EdgeCache, opts?: CommentsOpts): Promise<Response> {
   if (!/^\d{1,9}$/.test(id)) return new Response("Not found", { status: 404 });
-  return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, Number(id)), cache);
+  return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, Number(id)), cache, opts?.personal);
 }
 
 /** The overview whose comment counts the news page refreshes live (the newest ~15 articles). */

@@ -1,12 +1,38 @@
 ---
 interface Props { articleId: number; url: string }
 const { articleId, url } = Astro.props;
+const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
-<!-- Loaded live from LigaInsider (via /api/comments/<id>/, cached 2 min), so it's always current. -->
+<!-- Loaded live from LigaInsider (via /api/comments/<id>/). Logged-in reads are personal and uncached. -->
 <section class="mt-10" data-comments={articleId}>
   <h2 class="mb-4 flex items-baseline gap-2 text-[20px] font-bold tracking-[-0.02em]">
     Kommentare <span class="text-[15px] font-semibold text-muted" data-comments-count></span>
   </h2>
+
+  <div data-li-box class="mb-6 hidden">
+    <form data-li-form class="flex flex-col gap-2">
+      <textarea data-li-body rows="3" maxlength="2000" placeholder="Was sagst du dazu?" class={field}></textarea>
+      <div data-li-poll class="hidden flex flex-col gap-2">
+        <input data-li-question maxlength="200" placeholder="Frage der Umfrage…" class={field} />
+        <div data-li-options class="flex flex-col gap-2"></div>
+        <button type="button" data-li-add class="self-start text-sm font-medium text-accent">Weitere Antwort</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" data-li-mode="text" class="press rounded-full bg-fg px-3 py-1.5 text-[13px] font-semibold text-bg">Kommentar</button>
+        <button type="button" data-li-mode="poll" class="press rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold">Umfrage</button>
+        <span data-li-hint class="min-w-0 flex-1 truncate text-xs text-muted"></span>
+        <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
+      </div>
+    </form>
+    <form method="post" action="/api/li-logout/" class="mt-2" data-astro-reload>
+      <input type="hidden" name="next" value="/" data-li-next />
+      <button type="submit" class="text-xs text-muted">LigaInsider abmelden</button>
+    </form>
+  </div>
+  <p data-li-guest class="mb-6 hidden text-sm text-muted">
+    <a data-li-login href="/login/" class="font-medium text-accent">Mit LigaInsider anmelden</a>, um zu kommentieren, zu antworten und abzustimmen.
+  </p>
+
   <p class="text-sm text-muted" data-comments-status>Kommentare werden geladen …</p>
   <ul class="flex flex-col" data-comments-list></ul>
   <a
@@ -19,8 +45,10 @@ const { articleId, url } = Astro.props;
 </section>
 
 <script>
-  import type { Comment, Comments } from "../lib/comments.ts";
+  import type { Comment, Comments, Poll } from "../lib/comments.ts";
   import { ago, initials } from "../lib/format.ts";
+
+  const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 
   // Builds DOM with textContent only: comment text is untrusted and never parsed as HTML.
   function h(tag: string, cls = "", text?: string) {
@@ -28,6 +56,10 @@ const { articleId, url } = Astro.props;
     if (cls) el.className = cls;
     if (text !== undefined) el.textContent = text;
     return el;
+  }
+
+  function loggedIn() {
+    return /(?:^|; )liin=1/.test(document.cookie);
   }
 
   function renderComment(c: Comment, now: Date, reply = false): HTMLElement {
@@ -39,25 +71,28 @@ const { articleId, url } = Astro.props;
       h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
       h("span", "shrink-0 text-xs text-muted", c.date ? ago(c.date, now) : ""),
     );
-    if (c.score) head.append(h("span", "ml-auto shrink-0 text-xs font-medium text-muted", `▲ ${c.score}`));
+    const score = h("span", "ml-auto shrink-0 text-xs font-medium text-muted", c.score ? `▲ ${c.score}` : "");
+    score.dataset.score = "";
+    if (c.score || loggedIn()) head.append(score);
+    if (loggedIn() && c.id) {
+      const up = h("button", "press shrink-0 text-xs font-semibold text-muted");
+      up.type = "button";
+      up.dataset.up = String(c.id);
+      up.dataset.vote = String(c.vote);
+      up.textContent = c.vote === 1 ? "▲" : "△";
+      up.setAttribute("aria-label", "Hochvoten");
+      head.append(up);
+    }
     li.append(head);
 
     const body = h("div", reply ? "pl-[38px]" : "pl-[42px]");
     if (c.text) body.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
-    if (c.poll) {
-      const poll = h("div", "mt-2 rounded-xl bg-surface p-3");
-      poll.append(h("p", "mb-2 text-[14px] font-semibold", c.poll.question));
-      const best = Math.max(...c.poll.options.map((o) => o.pct));
-      for (const o of c.poll.options) {
-        const row = h("div", "poll-row relative mb-1.5 overflow-hidden rounded-lg px-3 py-1.5 text-[13px]");
-        const fill = h("span", "poll-fill absolute inset-y-0 left-0");
-        fill.style.width = `${o.pct}%`;
-        if (o.pct === best) fill.classList.add("is-best");
-        row.append(fill, h("span", "relative", o.label), h("span", "relative float-right font-semibold", `${o.pct}%`));
-        poll.append(row);
-      }
-      poll.append(h("p", "mt-1 text-xs text-muted", `${c.poll.total} Stimmen`));
-      body.append(poll);
+    if (c.poll) body.append(renderPoll(c.poll));
+    if (loggedIn() && c.id) {
+      const replyBtn = h("button", "mt-1 text-xs font-medium text-muted", "Antworten");
+      replyBtn.type = "button";
+      replyBtn.dataset.reply = String(c.id);
+      body.append(replyBtn);
     }
     li.append(body);
 
@@ -69,11 +104,47 @@ const { articleId, url } = Astro.props;
     return li;
   }
 
+  function renderPoll(poll: Poll): HTMLElement {
+    const box = h("div", "mt-2 rounded-xl bg-surface p-3");
+    box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
+    const best = Math.max(...poll.options.map((o) => o.pct));
+    for (const o of poll.options) {
+      const row = h(loggedIn() && poll.votingId && o.id ? "button" : "div", "poll-row relative mb-1.5 w-full overflow-hidden rounded-lg px-3 py-1.5 text-left text-[13px]");
+      if (row instanceof HTMLButtonElement) {
+        row.type = "button";
+        row.dataset.voting = String(poll.votingId);
+        row.dataset.option = String(o.id);
+      }
+      const fill = h("span", "poll-fill absolute inset-y-0 left-0");
+      fill.style.width = `${o.pct}%`;
+      if (o.pct === best) fill.classList.add("is-best");
+      row.append(fill, h("span", "relative", o.label), h("span", "relative float-right font-semibold", `${o.pct}%`));
+      box.append(row);
+    }
+    box.append(h("p", "mt-1 text-xs text-muted", `${poll.total} Stimmen`));
+    return box;
+  }
+
+  function sectionOf() {
+    return document.querySelector<HTMLElement>("[data-comments]");
+  }
+
+  async function send(payload: Record<string, unknown>) {
+    const section = sectionOf();
+    const res = await fetch("/api/li-comment/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ articleId: Number(section?.dataset.comments), ...payload }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) throw new Error(data.error || "Konnte nicht gesendet werden.");
+    await load();
+  }
+
   async function load() {
-    const section = document.querySelector<HTMLElement>("[data-comments]");
-    if (!section || section.dataset.loaded) return;
-    section.dataset.loaded = "1";
-    const status = section.querySelector<HTMLElement>("[data-comments-status]")!;
+    const section = sectionOf();
+    if (!section) return;
+    const status = section.querySelector<HTMLElement>("[data-comments-status]");
     const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
     const more = section.querySelector<HTMLElement>("[data-comments-more]")!;
     try {
@@ -82,11 +153,13 @@ const { articleId, url } = Astro.props;
       const data = (await res.json()) as Comments;
       const now = new Date();
       section.querySelector("[data-comments-count]")!.textContent = data.total ? String(data.total) : "";
+      list.replaceChildren();
       if (!data.comments.length) {
-        status.textContent = "Noch keine Kommentare.";
+        if (status) status.textContent = "Noch keine Kommentare.";
+        status?.classList.remove("hidden");
         return;
       }
-      status.remove();
+      status?.remove();
       for (const c of data.comments) list.append(renderComment(c, now));
       const count = (cs: Comment[]): number => cs.reduce((n, c) => n + 1 + count(c.replies), 0);
       const shown = count(data.comments);
@@ -94,13 +167,124 @@ const { articleId, url } = Astro.props;
         more.textContent = `Alle ${data.total} Kommentare auf ligainsider.de ↗`;
         more.classList.remove("hidden");
         more.classList.add("inline-block");
+      } else {
+        more.classList.add("hidden");
       }
     } catch {
-      status.textContent = "Kommentare gerade nicht erreichbar.";
+      if (status) {
+        status.textContent = "Kommentare gerade nicht erreichbar.";
+        status.classList.remove("hidden");
+      }
       more.classList.remove("hidden");
       more.classList.add("inline-block");
     }
   }
 
-  document.addEventListener("astro:page-load", load);
+  function optionInput(value = "") {
+    const input = h("input", field) as HTMLInputElement;
+    input.maxLength = 80;
+    input.placeholder = "Antwort…";
+    input.value = value;
+    input.dataset.liOption = "";
+    return input;
+  }
+
+  function setup(section: HTMLElement) {
+    const here = `${location.pathname}${location.search}`;
+    section.querySelectorAll<HTMLInputElement>("[data-li-next]").forEach((input) => { input.value = here; });
+    const login = section.querySelector<HTMLAnchorElement>("[data-li-login]");
+    if (login) login.href = `/login/?next=${encodeURIComponent(location.pathname)}`;
+    const box = section.querySelector<HTMLElement>("[data-li-box]")!;
+    const guest = section.querySelector<HTMLElement>("[data-li-guest]")!;
+    if (loggedIn()) box.classList.remove("hidden");
+    else guest.classList.remove("hidden");
+
+    const poll = section.querySelector<HTMLElement>("[data-li-poll]")!;
+    const options = section.querySelector<HTMLElement>("[data-li-options]")!;
+    const body = section.querySelector<HTMLTextAreaElement>("[data-li-body]")!;
+    const hint = section.querySelector<HTMLElement>("[data-li-hint]")!;
+    options.append(optionInput(), optionInput());
+
+    section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const on = btn.dataset.liMode === "poll";
+        poll.classList.toggle("hidden", !on);
+        body.classList.toggle("hidden", on);
+        section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((b) => {
+          const active = b === btn;
+          b.classList.toggle("bg-fg", active);
+          b.classList.toggle("text-bg", active);
+          b.classList.toggle("bg-surface", !active);
+        });
+      });
+    });
+    section.querySelector<HTMLButtonElement>("[data-li-add]")!.addEventListener("click", () => {
+      if (options.children.length >= 6) return;
+      options.append(optionInput());
+    });
+
+    section.querySelector<HTMLFormElement>("[data-li-form]")!.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hint.textContent = "Wird gesendet …";
+      const polling = !poll.classList.contains("hidden");
+      try {
+        if (polling) {
+          const question = section.querySelector<HTMLInputElement>("[data-li-question]")!.value;
+          const labels = [...options.querySelectorAll<HTMLInputElement>("[data-li-option]")].map((i) => i.value);
+          await send({ kind: "poll", question, options: labels });
+        } else {
+          await send({ kind: "comment", body: body.value });
+        }
+        body.value = "";
+        section.querySelector<HTMLInputElement>("[data-li-question]")!.value = "";
+        options.replaceChildren(optionInput(), optionInput());
+        hint.textContent = "Gesendet.";
+      } catch (err) {
+        hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden.";
+      }
+    });
+
+    section.querySelector<HTMLElement>("[data-comments-list]")!.addEventListener("click", async (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      const up = target?.closest<HTMLButtonElement>("[data-up]");
+      const replyBtn = target?.closest<HTMLButtonElement>("[data-reply]");
+      const option = target?.closest<HTMLButtonElement>("[data-option]");
+      if (up) {
+        up.disabled = true;
+        try { await send({ kind: "vote", commentId: Number(up.dataset.up), currentVote: Number(up.dataset.vote) }); }
+        catch (err) { hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden."; up.disabled = false; }
+      } else if (option) {
+        option.disabled = true;
+        try { await send({ kind: "pollvote", votingId: Number(option.dataset.voting), optionId: Number(option.dataset.option) }); }
+        catch (err) { hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden."; option.disabled = false; }
+      } else if (replyBtn && !replyBtn.nextElementSibling?.matches("[data-reply-row]")) {
+        const row = h("form", "mt-2 flex gap-2");
+        row.dataset.replyRow = "";
+        const input = h("input", field) as HTMLInputElement;
+        input.maxLength = 2000;
+        input.placeholder = "Antwort…";
+        const go = h("button", "press shrink-0 rounded-full bg-fg px-3 text-sm font-semibold text-bg", "Senden");
+        go.type = "submit";
+        row.append(input, go);
+        replyBtn.after(row);
+        row.addEventListener("submit", async (ev) => {
+          ev.preventDefault();
+          go.disabled = true;
+          try { await send({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: input.value }); }
+          catch (err) { hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden."; go.disabled = false; }
+        });
+        input.focus();
+      }
+    });
+  }
+
+  function boot() {
+    const section = sectionOf();
+    if (!section || section.dataset.ready) return;
+    section.dataset.ready = "1";
+    setup(section);
+    void load();
+  }
+
+  document.addEventListener("astro:page-load", boot);
 </script>
