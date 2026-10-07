@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chancesFor, sameClub } from "./odds.ts";
+import { chancesFor, likelyScore, sameClub } from "./odds.ts";
 import type { OddsEvent } from "../../scraper/odds.ts";
 import type { Fixture } from "./fixtures.ts";
 
@@ -61,5 +61,21 @@ describe("chancesFor", () => {
     expect(chancesFor(fx("1. FC Köln", "SC Freiburg", "2026-10-10T13:30:00Z"), events)).toBeUndefined();
     expect(chancesFor(fx("Borussia Dortmund", "", "2026-10-09T18:30:00Z"), events)).toBeUndefined();
     expect(chancesFor(fx("Borussia Dortmund", "SV Werder Bremen"), undefined)).toBeUndefined();
+  });
+});
+
+describe("likelyScore", () => {
+  it("derives the most likely exact result from the win/draw/loss chances (Poisson model)", () => {
+    expect(likelyScore({ home: 70, draw: 17, away: 13 })).toEqual({ home: 2, away: 0, percent: 10 });
+    expect(likelyScore({ home: 32, draw: 25, away: 43 })).toEqual({ home: 1, away: 1, percent: 12 });
+    expect(likelyScore({ home: 9, draw: 11, away: 80 })).toMatchObject({ home: 1, away: 3 });
+  });
+
+  it("is symmetric: swapping the teams swaps the score", () => {
+    expect(likelyScore({ home: 13, draw: 17, away: 70 })).toEqual({ home: 0, away: 2, percent: 10 });
+  });
+
+  it("gives an even game a draw", () => {
+    expect(likelyScore({ home: 36, draw: 28, away: 36 })).toMatchObject({ home: 1, away: 1 });
   });
 });

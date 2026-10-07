@@ -4,6 +4,7 @@ import type { Fixture } from "../lib/fixtures.ts";
 import { kickoffDay, time } from "../lib/format.ts";
 import type { Lineup } from "../../scraper/types.ts";
 import type { Chances } from "../../scraper/odds.ts";
+import { likelyScore } from "../lib/odds.ts";
 
 interface Props {
   fixture: Fixture;
@@ -20,6 +21,7 @@ interface Props {
 const { fixture: f, size = "list", current, index = 0, matchday, chances } = Astro.props;
 // The likelier team gets the strong tone; draw stays neutral.
 const strong = chances && (chances.home >= chances.away ? "home" : "away");
+const score = chances && likelyScore(chances);
 const hero = size === "hero";
 const crest = hero ? 64 : 52;
 const sides: { lineup?: Lineup; name: string }[] = [
@@ -53,6 +55,7 @@ const sides: { lineup?: Lineup; name: string }[] = [
                 <p class:list={["font-bold tracking-tight tabular-nums", hero ? "text-[30px] leading-none" : "text-[17px]"]}>{time(f.kickoff)}</p>
                 <p class:list={["text-muted", hero ? "mt-1.5 text-[13px]" : "text-[11px]"]}>{kickoffDay(f.kickoff)}</p>
                 {hero && matchday && <p class="text-[13px] text-muted">{matchday}. Spieltag</p>}
+                {!hero && score && <p class="mt-0.5 text-[11px] text-muted tabular-nums">Tipp {score.home}:{score.away}</p>}
               </>
             ) : (
               <p class="text-sm text-muted">vs</p>
@@ -80,6 +83,11 @@ const sides: { lineup?: Lineup; name: string }[] = [
       <span class="text-center">{hero && "Remis "}{chances.draw} %</span>
       <span class="text-right">{hero && "Sieg "}<b class="font-semibold text-fg">{chances.away} %</b></span>
     </div>
+    {hero && score && (
+      <p class="mt-3 text-center text-[13px] text-muted">
+        Wahrscheinlichstes Ergebnis <b class="font-semibold text-fg tabular-nums">{score.home}:{score.away}</b> ({score.percent} %)
+      </p>
+    )}
   </div>
 )}
 </div>
