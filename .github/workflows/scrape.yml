@@ -66,9 +66,11 @@ jobs:
         if: steps.scrape.outputs.changed == 'true' || github.event_name != 'schedule'
         run: npm run build
 
-      - name: Deploy to Cloudflare Pages
+      # Cloudflare Pages is now part of Workers: the site is a Worker that only serves static assets.
+      # The name comes from a repo variable so the (unguessable) URL never appears in this public repo.
+      - name: Deploy to Cloudflare
         if: steps.scrape.outputs.changed == 'true' || github.event_name != 'schedule'
-        run: npx wrangler pages deploy dist --project-name="${{ vars.CF_PAGES_PROJECT }}" --branch=main --commit-dirty=true
+        run: npx wrangler deploy --name "${{ vars.CF_PAGES_PROJECT }}" --assets ./dist --compatibility-date 2026-10-01
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

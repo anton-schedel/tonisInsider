@@ -4,7 +4,7 @@ Private, ad-free reader for ligainsider.de news and predicted Bundesliga XIs. On
 
 ## How it works
 
-A GitHub Actions cron (every 5 min) scrapes LigaInsider. Data lives in the Actions cache, never in git. When something changed, it builds the Astro site and deploys it to Cloudflare Pages. See `docs/superpowers/specs/2026-10-07-tonisinsider-design.md`.
+A GitHub Actions cron (every 5 min) scrapes LigaInsider. Data lives in the Actions cache, never in git. When something changed, it builds the Astro site and deploys it to Cloudflare (Workers static assets). See `docs/superpowers/specs/2026-10-07-tonisinsider-design.md`.
 
 ## Local development
 
@@ -17,16 +17,14 @@ npm test           # needs scraper/__fixtures__/ (git-ignored, real pages)
 
 ## One-time setup (owner)
 
-1. **Cloudflare:** create an API token with the "Cloudflare Pages: Edit" permission, and note your account ID.
-2. **Pick an unguessable project name**, e.g. `tonisinsider-7f3k9q`. The site URL becomes `https://<name>.pages.dev`, and nobody can find it without the link.
-   ```bash
-   npx wrangler login
-   npx wrangler pages project create <name> --production-branch=main
-   ```
-3. **GitHub:** create a **public** repo (public = unlimited free Actions minutes; it only contains code) and push.
+Cloudflare Pages is now part of Cloudflare Workers: the site is deployed as a Worker serving static assets (`wrangler deploy --assets`).
+
+1. **Cloudflare:** create an API token with "Workers Scripts: Edit" (plus "Account Settings: Read"), and note your account ID.
+2. **Pick an unguessable name**, e.g. `ligainsider-ba52`. The site URL becomes `https://<name>.<your-subdomain>.workers.dev`. Don't connect the Worker to GitHub in the Cloudflare dashboard: the workflow deploys it, and a Git-connected build would publish an empty site.
+3. **GitHub:** a **public** repo (public = unlimited free Actions minutes; it only contains code).
 4. In the repo settings → Secrets and variables → Actions:
    - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-   - Variables: `CF_PAGES_PROJECT` = `<name>`, `SITE_URL` = `https://<name>.pages.dev`
+   - Variables: `CF_PAGES_PROJECT` = `<name>`, `SITE_URL` = `https://<name>.<your-subdomain>.workers.dev`
 5. Actions tab → `scrape-and-deploy` → "Run workflow" once. The first run backfills (~8 min).
 
 ## When GitHub emails "run failed"
