@@ -17,7 +17,7 @@ const rows = lineup.lines.length;
 <PitchField>
   {lineup.lines.map((line, i) =>
     line.map((p, j) => (
-      <div class="absolute w-[24%]" style={slotStyle(i, rows, j, line.length)}>
+      <div class="absolute w-[24%]" style={slotStyle(i, rows, j, line.length, { mirror: true })}>
         <div>
           {p.alternative ? (
             // Tap swaps to the alternative and back (handler in Base.astro).
