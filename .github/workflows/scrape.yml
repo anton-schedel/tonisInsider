@@ -1,0 +1,90 @@
+name: scrape-and-deploy
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# Never run two scrapes at once; queue instead of cancelling (a cancelled run would lose its cache save).
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write # keep-alive re-enables this workflow
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (code changes only)
+        if: github.event_name != 'schedule'
+        run: npm run typecheck
+
+      - name: Restore data cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            store
+            public/img
+          key: data-${{ github.run_id }}
+          restore-keys: data-
+
+      - name: Restore from our own site if the cache was lost
+        run: npm run restore
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+
+      - name: Scrape
+        id: scrape
+        run: npm run scrape
+
+      - name: Save data cache
+        if: steps.scrape.outputs.save_cache == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            store
+            public/img
+          key: data-${{ github.run_id }}
+
+      - name: Build
+        if: steps.scrape.outputs.changed == 'true' || github.event_name != 'schedule'
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.scrape.outputs.changed == 'true' || github.event_name != 'schedule'
+        run: npx wrangler pages deploy dist --project-name="${{ vars.CF_PAGES_PROJECT }}" --branch=main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # GitHub pauses scheduled workflows in public repos after 60 days without activity.
+      # Re-enabling once a day (first run after midnight UTC) resets that timer.
+      - name: Keep-alive
+        if: github.event_name == 'schedule'
+        run: |
+          if [ "$(date -u +%H%M)" \< "0005" ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/scrape.yml/enable"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fail if the scraper reported problems (GitHub emails you)
+        if: steps.scrape.outputs.problems != '0'
+        run: |
+          echo "The scraper reported problems; see the Scrape step log. LigaInsider may have changed their HTML."
+          exit 1
