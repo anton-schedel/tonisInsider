@@ -9,3 +9,8 @@ store/
 public/img/
 public/data/
 scraper/__fixtures__/
+
+# Local secrets (Kickbase test account etc.)
+.env
+.env.*
+.dev.vars
