@@ -12,7 +12,7 @@ let index = 0;
 {groups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section class="mb-4">
-    <h2 class="sticky top-0 z-10 -mx-1 bg-bg/90 px-1 pt-3 pb-1.5 text-[15px] font-semibold backdrop-blur">
+    <h2 class="sticky top-0 z-10 -mx-1 bg-bg/90 px-1 pt-3 pb-1.5 text-[15px] font-semibold backdrop-blur" data-day={g.first}>
       {(() => {
         const [rel, date] = dayLabel(g.first, now).split(" · ");
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
@@ -24,3 +24,21 @@ let index = 0;
   </section>
 ))}
 
+<script>
+  import { dayLabel } from "../lib/format.ts";
+
+  // "Heute" / "Gestern" relative to now, not to when the page was built (it may be from yesterday).
+  document.addEventListener("astro:page-load", () => {
+    const now = new Date();
+    for (const h of document.querySelectorAll<HTMLElement>("[data-day]")) {
+      const [rel, date] = dayLabel(h.dataset.day!, now).split(" · ");
+      h.textContent = rel;
+      if (date) {
+        const muted = document.createElement("span");
+        muted.className = "font-normal text-muted";
+        muted.textContent = date;
+        h.append(" ", muted);
+      }
+    }
+  });
+</script>

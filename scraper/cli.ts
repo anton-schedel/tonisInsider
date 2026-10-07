@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createFetcher } from "./fetch.ts";
 import { Store } from "./store.ts";
 import { run } from "./run.ts";
-import { restoreFromSite, writeSnapshot } from "./snapshot.ts";
+import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
 
 const ROOT = process.cwd();
 const store = new Store(join(ROOT, "store"));
@@ -37,7 +37,8 @@ if (command === "scrape") {
   }
 } else if (command === "snapshot") {
   writeSnapshot(store, join(publicDir, "data", "snapshot.json"));
-  console.log("wrote public/data/snapshot.json");
+  writeVersion(store, join(publicDir, "data", "version.json"));
+  console.log("wrote public/data/snapshot.json and version.json");
 } else {
   console.error("usage: tsx scraper/cli.ts <scrape|restore|snapshot>");
   process.exit(2);

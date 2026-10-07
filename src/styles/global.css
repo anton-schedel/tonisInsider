@@ -109,6 +109,22 @@ nav.tabbar { view-transition-name: tabbar; }
 .nav-progress.is-loading::after { animation: nav-progress 900ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
 @keyframes nav-progress { to { transform: translateX(250%); } }
 
+/* "Neue Meldungen": floats just above the tab bar. */
+.news-notice {
+  position: absolute; bottom: calc(100% + 12px); left: 50%; translate: -50% 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 9999px;
+  background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  animation: fade-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.news-notice[hidden] { display: none; }
+
+/* Desktop: subtle hover on tappable rows and cards. */
+@media (hover: hover) {
+  a.press:hover { opacity: 0.8; }
+}
+
 /* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
 /* Only on a fresh page load, not on in-app navigation (the page fade already covers that). */
 html:not([data-navigated]) .enter {

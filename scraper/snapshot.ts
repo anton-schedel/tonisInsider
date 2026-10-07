@@ -13,6 +13,21 @@ export function writeSnapshot(store: Store, file: string): void {
   writeFileSync(file, JSON.stringify(snapshot));
 }
 
+/** What the site's open pages poll to notice updates: the newest Bundesliga article and the last change. */
+export type Version = { newest?: number; updated?: string };
+
+export function newestArticleId(articles: Article[]): number | undefined {
+  return articles
+    .filter((a) => a.category === "bundesliga")
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0]?.id;
+}
+
+export function writeVersion(store: Store, file: string): void {
+  const version: Version = { newest: newestArticleId(store.articles()), updated: store.state().lastChangeAt };
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(version));
+}
+
 /** Every local image path referenced by the data, e.g. "/img/players/9357.jpg". */
 export function referencedImages(s: Pick<Snapshot, "articles" | "lineups">): string[] {
   const paths = new Set<string>();

@@ -1,7 +1,7 @@
 ---
 import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
-import { lastUpdate } from "../lib/data.ts";
+import { articles, lastUpdate } from "../lib/data.ts";
 import { fullDate } from "../lib/format.ts";
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
 }
 const { title, tab, back, hideHeading = false } = Astro.props;
 const updated = lastUpdate();
+// Lets open pages notice updates (see the freshness script below and /data/version.json).
+const newest = articles()[0]?.id;
 const tabs = [
   { id: "news", href: "/", label: "News", icon: "M4 5h16M4 12h16M4 19h10" },
   { id: "aufstellungen", href: "/aufstellungen/", label: "Aufstellungen", icon: "M12 3v18M3 12h18M7 7h10v10H7z" },
@@ -20,7 +22,7 @@ const tabs = [
 ] as const;
 ---
 <!doctype html>
-<html lang="de">
+<html lang="de" data-newest={newest} data-updated={updated}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -134,6 +136,10 @@ const tabs = [
     </div>
     <nav class="tabbar fixed inset-x-0 bottom-0 border-t border-hairline bg-[var(--tabbar)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl" transition:persist="tabbar">
       <div class="nav-progress" data-nav-progress aria-hidden="true"></div>
+      <button type="button" class="news-notice press" data-news-notice hidden>
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+        Neue Meldungen
+      </button>
       <div class="mx-auto grid max-w-[720px] grid-cols-3 pt-2 pb-2">
         {tabs.map((t) => (
           <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
@@ -143,5 +149,57 @@ const tabs = [
         ))}
       </div>
     </nav>
+    <script is:inline>
+      // Before the first paint: "Login" or "Mein Team" from the non-secret flag cookie (no label flicker).
+      document.querySelectorAll('nav [data-tab="mein-team"] [data-label]').forEach((l) => {
+        l.textContent = /(?:^|; )kbin=1/.test(document.cookie) ? "Mein Team" : "Login";
+      });
+    </script>
+    <script>
+      import { navigate } from "astro:transitions/client";
+      import { updateAction } from "../lib/freshness.ts";
+      import type { Version } from "../../scraper/snapshot.ts";
+
+      // Notice updates while the site is open: every minute while visible, and when coming back to it.
+      const notice = () => document.querySelector<HTMLButtonElement>("[data-news-notice]");
+      const pageVersion = (): Version => {
+        const d = document.documentElement.dataset;
+        return { newest: d.newest ? Number(d.newest) : undefined, updated: d.updated };
+      };
+      let hiddenAt = 0;
+      let busy = false;
+
+      async function check(resumed: boolean) {
+        if (busy || document.visibilityState !== "visible") return;
+        busy = true;
+        try {
+          const res = await fetch("/data/version.json", { cache: "no-store" });
+          if (!res.ok) return;
+          const live = (await res.json()) as Version;
+          const action = updateAction(pageVersion(), live, { resumed, nearTop: scrollY < 120, path: location.pathname });
+          if (action === "refresh") navigate(location.pathname + location.search, { history: "replace" });
+          else if (action === "notice") notice()?.removeAttribute("hidden");
+        } catch {
+          // Offline: try again later.
+        } finally {
+          busy = false;
+        }
+      }
+
+      setInterval(() => check(false), 60_000);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") hiddenAt = Date.now();
+        else if (hiddenAt && Date.now() - hiddenAt > 60_000) check(true);
+      });
+      document.addEventListener("astro:page-load", () => {
+        notice()?.setAttribute("hidden", "");
+        check(false);
+      });
+      document.addEventListener("click", (e) => {
+        if (!(e.target as Element).closest?.("[data-news-notice]")) return;
+        notice()?.setAttribute("hidden", "");
+        navigate("/", { history: location.pathname === "/" ? "replace" : "push" });
+      });
+    </script>
   </body>
 </html>

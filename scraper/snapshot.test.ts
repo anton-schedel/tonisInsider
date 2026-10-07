@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "./store.ts";
-import { restoreFromSite, writeSnapshot, referencedImages } from "./snapshot.ts";
+import { restoreFromSite, writeSnapshot, writeVersion, referencedImages } from "./snapshot.ts";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Article } from "./types.ts";
 
@@ -71,5 +71,19 @@ describe("snapshot", () => {
       "/img/clubs/14.png",
       "/img/players/9357.jpg",
     ]);
+  });
+});
+
+describe("writeVersion", () => {
+  it("writes the newest Bundesliga article and the last update, for open pages to poll", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ti-v-"));
+    const store = new Store(join(dir, "s"));
+    store.putArticle({ ...article, id: 5, publishedAt: "2026-10-07T10:00:00.000Z" });
+    store.putArticle({ ...article, id: 7, publishedAt: "2026-10-07T12:00:00.000Z" });
+    store.putArticle({ ...article, id: 9, category: "testspiele", publishedAt: "2026-10-07T13:00:00.000Z" });
+    store.putState({ lastChangeAt: "2026-10-07T12:01:00.000Z" });
+    const file = join(dir, "public", "data", "version.json");
+    writeVersion(store, file);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ newest: 7, updated: "2026-10-07T12:01:00.000Z" });
   });
 });
