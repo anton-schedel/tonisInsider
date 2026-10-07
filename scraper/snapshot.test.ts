@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "./store.ts";
 import { restoreFromSite, writeSnapshot, referencedImages } from "./snapshot.ts";
-import type { Fetcher } from "./fetch.ts";
+import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Article } from "./types.ts";
 
 const article: Article = {
@@ -39,13 +39,31 @@ describe("snapshot", () => {
     expect(existsSync(join(publicDir, "img/clubs/14.png"))).toBe(true);
   });
 
-  it("returns false when the site has no snapshot", async () => {
+  it("returns false when the site has no snapshot (404)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ti-"));
     const fetcher: Fetcher = {
-      async text() { throw new Error("HTTP 404"); },
-      async binary() { throw new Error("HTTP 404"); },
+      async text(url) { throw new HttpError(404, url); },
+      async binary(url) { throw new HttpError(404, url); },
     };
     expect(await restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"))).toBe(false);
+  });
+
+  it("throws instead of starting fresh when the site fails for another reason (would wipe history)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ti-"));
+    const fetcher: Fetcher = {
+      async text(url) { throw new HttpError(503, url); },
+      async binary(url) { throw new HttpError(503, url); },
+    };
+    await expect(restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"))).rejects.toThrow("HTTP 503");
+  });
+
+  it("throws when the site returns something that is not a snapshot", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ti-"));
+    const fetcher: Fetcher = {
+      async text() { return "<!doctype html><p>Fehler</p>"; },
+      async binary() { return new Uint8Array(); },
+    };
+    await expect(restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"))).rejects.toThrow();
   });
 
   it("lists referenced images without duplicates", () => {

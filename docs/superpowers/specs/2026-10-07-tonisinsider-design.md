@@ -60,7 +60,7 @@ GitHub Actions cron (every 5 min, PUBLIC repo: code only, no content in git)
   └─ Astro build (also writes /data/snapshot.json) → wrangler deploy to Cloudflare Pages
 ```
 
-**Why a public repo:** private repos get 2,000 free Actions minutes a month, and a 5-minute cron needs about 8,600. Public repos get unlimited free minutes. The repo therefore holds **only code**. Scraped content lives in the Actions cache and on the deployed site, never in git. Scheduled workflows in public repos are paused by GitHub after 60 days without repo activity, so the workflow re-enables itself via the GitHub API once a week (keep-alive).
+**Why a public repo:** private repos get 2,000 free Actions minutes a month, and a 5-minute cron needs about 8,600. Public repos get unlimited free minutes. The repo therefore holds **only code**. Scraped content lives in the Actions cache and on the deployed site, never in git. Scheduled workflows in public repos are paused by GitHub after 60 days without repo activity, so a separate keep-alive job re-enables the workflow via the GitHub API once a day.
 
 ### Components (each one is isolated and testable)
 

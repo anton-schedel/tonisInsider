@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Fetcher } from "./fetch.ts";
+import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Store } from "./store.ts";
 import type { Article, Lineup, State } from "./types.ts";
 import { ensureImage } from "./images.ts";
@@ -27,16 +27,21 @@ export function referencedImages(s: Pick<Snapshot, "articles" | "lineups">): str
 
 /**
  * Restores store/ and images from our own deployed site. Used when the Actions cache was evicted.
- * Returns false if the site has no snapshot (e.g. very first deploy).
+ * Returns false only if the site has no snapshot (404, e.g. very first deploy). Any other failure throws:
+ * starting fresh after a temporary outage would deploy a tiny snapshot over 30 days of history.
  */
 export async function restoreFromSite(store: Store, fetcher: Fetcher, siteUrl: string, publicDir: string): Promise<boolean> {
   let snapshot: Snapshot;
   try {
     snapshot = JSON.parse(await fetcher.text(`${siteUrl.replace(/\/$/, "")}/data/snapshot.json`)) as Snapshot;
   } catch (err) {
-    console.warn(`no snapshot on site: ${(err as Error).message}`);
-    return false;
+    if (err instanceof HttpError && err.status === 404) {
+      console.warn("no snapshot on site yet");
+      return false;
+    }
+    throw err;
   }
+  if (snapshot?.version !== 1 || !Array.isArray(snapshot.articles)) throw new Error("site returned an invalid snapshot");
   for (const a of snapshot.articles) store.putArticle(a);
   for (const l of snapshot.lineups) store.putLineup(l);
   store.putState(snapshot.state);

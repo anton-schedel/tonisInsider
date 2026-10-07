@@ -102,6 +102,46 @@ describe("run", () => {
     expect(calls).not.toContain(gone);
   });
 
+  it("reports an article that fails validation once, then skips it until its headline changes", async () => {
+    const url = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
+    const broken = "<html><body>Nur ein Video</body></html>";
+    const first = await run({ store, fetcher: fakeFetcher({ [url]: broken }).fetcher, publicDir, now: NOW });
+    expect(first.problems.filter((p) => p.startsWith("article 418776"))).toHaveLength(1);
+    expect(first.stateChanged).toBe(true);
+    const { fetcher, calls } = fakeFetcher({ [url]: broken });
+    const second = await run({ store, fetcher, publicDir, now: new Date(NOW.getTime() + 5 * 60_000) });
+    expect(calls).not.toContain(url);
+    expect(second.problems).toEqual([]);
+  });
+
+  it("retries articles that failed validation when the code version changes, and forces a rebuild", async () => {
+    const url = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
+    await run({ store, fetcher: fakeFetcher({ [url]: "<html></html>" }).fetcher, publicDir, now: NOW, codeVersion: "a" });
+    const later = new Date(NOW.getTime() + 5 * 60_000);
+    const unchanged = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: later, codeVersion: "a" });
+    expect(unchanged.changed).toBe(false);
+    const { fetcher, calls } = fakeFetcher();
+    const res = await run({ store, fetcher, publicDir, now: later, codeVersion: "b" });
+    expect(res.changed).toBe(true);
+    expect(calls).toContain(url);
+    expect(store.getArticle(418776)).toBeDefined();
+  });
+
+  it("reports a problem when the club list cannot be parsed (lineups would go stale)", async () => {
+    const noNav = fx("news-bundesliga.html").replaceAll("/verein/news/", "/verein/x/");
+    const { fetcher } = fakeFetcher({ "https://www.ligainsider.de/bundesliga-news/uebersicht/": noNav });
+    const res = await run({ store, fetcher, publicDir, now: NOW });
+    expect(res.problems).toContain("clubs: expected 18, got 0");
+  });
+
+  it("deletes stored lineups of clubs that are no longer in the league", async () => {
+    store.putLineup({ club: { id: 999, slug: "abgestiegen-fc", name: "Abgestiegen FC" }, formation: "", lines: [], updatedAt: "x" });
+    const res = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    expect(res.changed).toBe(true);
+    expect(store.getLineup("abgestiegen-fc")).toBeUndefined();
+    expect(store.lineups()).toHaveLength(18);
+  });
+
   it("reports a problem when an overview suddenly has no articles (HTML changed)", async () => {
     const { fetcher } = fakeFetcher({ "https://www.ligainsider.de/testspiele-news/uebersicht/": "<html></html>" });
     const res = await run({ store, fetcher, publicDir, now: NOW });

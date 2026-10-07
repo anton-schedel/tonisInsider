@@ -17,11 +17,13 @@ function output(key: string, value: string | number | boolean): void {
 const command = process.argv[2];
 
 if (command === "scrape") {
-  const result = await run({ store, fetcher: createFetcher(), publicDir, now: new Date() });
+  const result = await run({
+    store, fetcher: createFetcher(), publicDir, now: new Date(), codeVersion: process.env.GITHUB_SHA,
+  });
   console.log(`changed=${result.changed} new=${result.newArticles} lineups=${result.lineupsUpdated}`);
   for (const p of result.problems) console.warn(`PROBLEM: ${p}`);
   output("changed", result.changed);
-  output("save_cache", result.changed || result.lineupsChecked);
+  output("save_cache", result.changed || result.stateChanged);
   output("problems", result.problems.length);
 } else if (command === "restore") {
   if (store.articles().length > 0) {

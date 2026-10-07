@@ -49,6 +49,10 @@ export class Store {
     this.writeJson(join(this.root, "lineups", `${l.club.slug}.json`), l);
   }
 
+  deleteLineup(slug: string): void {
+    rmSync(join(this.root, "lineups", `${slug}.json`), { force: true });
+  }
+
   state(): State {
     return this.readJson<State>(join(this.root, "state.json")) ?? {};
   }

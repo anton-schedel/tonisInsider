@@ -11,6 +11,7 @@ import { ensureImage } from "./images.ts";
 
 export const RETENTION_DAYS = 30;
 export const BACKFILL_PAGES = 3;
+export const CLUB_COUNT = 18;
 const MINUTE = 60_000;
 
 export const OVERVIEWS: { category: Category; url: (page: number) => string }[] = [
@@ -24,12 +25,14 @@ export const OVERVIEWS: { category: Category; url: (page: number) => string }[] 
   },
 ];
 
-export type RunOptions = { store: Store; fetcher: Fetcher; publicDir: string; now: Date };
+export type RunOptions = { store: Store; fetcher: Fetcher; publicDir: string; now: Date; codeVersion?: string };
 export type RunResult = {
   /** Content changed: rebuild and deploy the site. */
   changed: boolean;
   /** Lineups were checked (even if unchanged): the cache must be saved so the timestamp survives. */
   lineupsChecked: boolean;
+  /** state.json changed (skip lists, timestamps, code version): the cache must be saved. */
+  stateChanged: boolean;
   newArticles: number;
   lineupsUpdated: number;
   problems: string[];
@@ -55,31 +58,49 @@ function mediumCrest(url: string): string {
   return url.replace("/teams/small/", "/teams/medium/");
 }
 
-export async function run({ store, fetcher, publicDir, now }: RunOptions): Promise<RunResult> {
-  const result: RunResult = { changed: false, lineupsChecked: false, newArticles: 0, lineupsUpdated: 0, problems: [] };
+export async function run({ store, fetcher, publicDir, now, codeVersion }: RunOptions): Promise<RunResult> {
+  const result: RunResult = {
+    changed: false, lineupsChecked: false, stateChanged: false, newArticles: 0, lineupsUpdated: 0, problems: [],
+  };
+  const state = store.state();
+  const stateBefore = JSON.stringify(state);
+
+  // New code (e.g. a parser fix) → rebuild the site and give previously invalid articles another chance.
+  if (codeVersion && state.codeVersion !== codeVersion) {
+    result.changed = true;
+    state.invalid = {};
+    state.codeVersion = codeVersion;
+  }
   const pages = store.articles().length === 0 ? BACKFILL_PAGES : 1;
 
   // 1. Collect article refs from the overviews. Bundesliga wins if an article is listed twice.
   const refs = new Map<number, { ref: ArticleRef; category: Category }>();
   let clubs: ClubRef[] = [];
+  let clubsParsed = false;
   for (const overview of OVERVIEWS) {
     for (let page = 1; page <= pages; page++) {
       try {
         const html = await fetcher.text(overview.url(page));
         const list = parseNewsList(html);
         if (page === 1 && list.length === 0) result.problems.push(`${overview.category}: overview returned 0 articles`);
-        if (overview.category === "bundesliga" && page === 1) clubs = parseClubs(html);
+        if (overview.category === "bundesliga" && page === 1) {
+          clubs = parseClubs(html);
+          clubsParsed = true;
+        }
         for (const ref of list) if (!refs.has(ref.id)) refs.set(ref.id, { ref, category: overview.category });
       } catch (err) {
         result.problems.push(`${overview.category} page ${page}: ${(err as Error).message}`);
       }
     }
   }
+  if (clubsParsed && clubs.length < CLUB_COUNT) {
+    result.problems.push(`clubs: expected ${CLUB_COUNT}, got ${clubs.length}`);
+  }
   const clubById = new Map(clubs.map((c) => [c.id, c]));
 
   // 2. Fetch new or re-titled articles.
-  const state = store.state();
   const unavailable: Record<string, string> = {};
+  const invalid: Record<string, string> = {};
   const cutoff = now.getTime() - RETENTION_DAYS * 24 * 60 * MINUTE;
   for (const { ref, category } of refs.values()) {
     const existing = store.getArticle(ref.id);
@@ -88,11 +109,16 @@ export async function run({ store, fetcher, publicDir, now }: RunOptions): Promi
       unavailable[ref.id] = ref.headline;
       continue;
     }
+    if (state.invalid?.[ref.id] === ref.headline) {
+      invalid[ref.id] = ref.headline;
+      continue;
+    }
     try {
       const article: Article = parseArticle(await fetcher.text(ref.url), ref, category, now);
       const problems = validateArticle(article);
       if (problems.length) {
         result.problems.push(`article ${ref.id}: ${problems.join(", ")}`);
+        invalid[ref.id] = ref.headline;
         continue;
       }
       if (article.player) {
@@ -115,6 +141,7 @@ export async function run({ store, fetcher, publicDir, now }: RunOptions): Promi
     }
   }
   state.unavailable = unavailable;
+  state.invalid = invalid;
 
   // 3. Lineups.
   if (clubs.length && lineupsDue(store.lineups(), state.lineupsFetchedAt, now)) {
@@ -146,6 +173,17 @@ export async function run({ store, fetcher, publicDir, now }: RunOptions): Promi
     result.lineupsChecked = true;
   }
 
+  // Clubs that left the league (relegation): drop their lineups, but only when the full list parsed.
+  if (clubs.length >= CLUB_COUNT) {
+    const current = new Set(clubs.map((c) => c.slug));
+    for (const l of store.lineups()) {
+      if (!current.has(l.club.slug)) {
+        store.deleteLineup(l.club.slug);
+        result.changed = true;
+      }
+    }
+  }
+
   // 4. Retention: drop old articles, unless LigaInsider still lists them (else we'd re-fetch them every run).
   for (const a of store.articles()) {
     if (Date.parse(a.publishedAt) < cutoff && !refs.has(a.id)) {
@@ -156,5 +194,6 @@ export async function run({ store, fetcher, publicDir, now }: RunOptions): Promi
 
   if (result.changed) state.lastChangeAt = now.toISOString();
   store.putState(state);
+  result.stateChanged = JSON.stringify(state) !== stateBefore;
   return result;
 }

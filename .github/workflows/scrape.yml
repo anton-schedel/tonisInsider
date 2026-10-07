@@ -14,7 +14,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write # keep-alive re-enables this workflow
 
 jobs:
   scrape:
@@ -22,6 +21,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false # keep the token away from npm dependencies
 
       - uses: actions/setup-node@v5
         with:
@@ -72,19 +73,27 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      # GitHub pauses scheduled workflows in public repos after 60 days without activity.
-      # Re-enabling once a day (first run after midnight UTC) resets that timer.
-      - name: Keep-alive
-        if: github.event_name == 'schedule'
-        run: |
-          if [ "$(date -u +%H%M)" \< "0005" ]; then
-            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/scrape.yml/enable"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Fail if the scraper reported problems (GitHub emails you)
         if: steps.scrape.outputs.problems != '0'
         run: |
           echo "The scraper reported problems; see the Scrape step log. LigaInsider may have changed their HTML."
           exit 1
+
+  # GitHub pauses scheduled workflows in public repos after 60 days without activity.
+  # Re-enabling (idempotent) during the midnight-UTC hour resets that timer. Separate job so that
+  # only this tiny step, which runs no npm code, holds the actions:write token.
+  keep-alive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Re-enable this workflow
+        run: |
+          if [ "$(date -u +%H)" = "00" ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/scrape.yml/enable" \
+              || echo "::warning::keep-alive call failed; will retry next run"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
