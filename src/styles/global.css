@@ -77,15 +77,14 @@ html {
   to { opacity: 1; transform: none; }
 }
 
-/* Page navigation (view transitions). The tab bar stays put on its own layer; the page fades through
-   (old out fast, new in with a small rise); club crests glide from the matchday card into the team page. */
-.page { view-transition-name: page; }
+/* Page navigation (view transitions). The visible screen (root) fades through: old out fast, new in with a
+   small rise. Root is captured as the viewport, so a scrolled page can't jump to its top while fading.
+   The tab bar stays put on its own layer; club crests glide from the matchday card into the team page. */
 nav.tabbar { view-transition-name: tabbar; }
-::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root),
-::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar),
-::view-transition-group(page) { animation: none; }
-::view-transition-old(page) { animation: fade-out 90ms ease-in both; }
-::view-transition-new(page) { animation: fade-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; }
+::view-transition-group(root),
+::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar) { animation: none; }
+::view-transition-old(root) { animation: fade-out 90ms ease-in both; }
+::view-transition-new(root) { animation: fade-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; }
 ::view-transition-group(.crest) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
 /* A crest on both pages glides; one that exists on only one side fades with the page. */
 ::view-transition-old(.crest) { animation: none; opacity: 0; }
@@ -128,7 +127,7 @@ html:not([data-navigated]) .enter {
 
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; }
-  ::view-transition-old(page), ::view-transition-new(page), ::view-transition-group(.crest),
+  ::view-transition-old(root), ::view-transition-new(root), ::view-transition-group(.crest),
   ::view-transition-old(.crest):only-child, ::view-transition-new(.crest):only-child { animation: none; }
   .swap-face { transition: none; }
   .press, .press:active { transition: none; transform: none; }
