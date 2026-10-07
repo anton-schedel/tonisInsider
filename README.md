@@ -12,12 +12,13 @@ A GitHub Actions cron (every 5 min) scrapes LigaInsider. Data lives in the Actio
 npm install
 npm run scrape     # first run: ~5–8 min backfill; later runs: seconds
 npm run dev        # http://localhost:4321
-npm test           # needs scraper/__fixtures__/ (git-ignored, real pages)
+npm test           # needs scraper/__fixtures__/ (git-ignored, real pages + recorded Kickbase responses)
+npm run build && npm run preview   # local Worker incl. Kickbase login at http://localhost:4321/login/
 ```
 
 ## One-time setup (owner)
 
-Cloudflare Pages is now part of Cloudflare Workers: the site is deployed as a Worker serving static assets (`wrangler deploy --assets`).
+The site is a Cloudflare Worker built with Astro's Cloudflare adapter: static pages are served as assets, while `/mein-team/` and `/api/login|logout/` run on the Worker (Kickbase login). Deploy: `npm run build && npx wrangler deploy --config dist/server/wrangler.json --name <name>`.
 
 1. **Cloudflare:** create an API token with "Workers Scripts: Edit" (plus "Account Settings: Read"), and note your account ID.
 2. **Pick an unguessable name**, e.g. `ligainsider-ba52`. The site URL becomes `https://<name>.<your-subdomain>.workers.dev`. Don't connect the Worker to GitHub in the Cloudflare dashboard: the workflow deploys it, and a Git-connected build would publish an empty site.
