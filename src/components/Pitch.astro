@@ -5,8 +5,10 @@ import Avatar from "./Avatar.astro";
 interface Props { lineup: Lineup }
 const { lineup } = Astro.props;
 const rows = lineup.lines.length;
-// Goalkeeper at the bottom, attack at the top. Leave room for names below the avatars.
-const top = (i: number) => (rows <= 1 ? 50 : 88 - (i * 76) / (rows - 1));
+// Goalkeeper at the bottom, attack at the top. The point marks the photo's centre;
+// names and "Alt: …" grow downwards, so every photo in a line sits at the same height.
+const top = (i: number) => (rows <= 1 ? 50 : 84 - (i * 74) / (rows - 1));
+const AVATAR = 54;
 const left = (j: number, n: number) => ((j + 1) * 100) / (n + 1);
 ---
 <div
@@ -18,10 +20,10 @@ const left = (j: number, n: number) => ((j + 1) * 100) / (n + 1);
   <div class="absolute top-1/2 left-1/2 size-16 -translate-1/2 rounded-full border-[1.5px]" style="border-color:var(--pitch-line)"></div>
   {lineup.lines.map((line, i) =>
     line.map((p, j) => (
-      <div class="absolute w-[24%] -translate-1/2" style={`top:${top(i)}%;left:${left(j, line.length)}%`}>
+      <div class="absolute w-[24%]" style={`top:${top(i)}%;left:${left(j, line.length)}%;transform:translate(-50%,-${AVATAR / 2}px)`}>
         <div class="pop flex flex-col items-center text-center" style={`--i:${i}`}>
           <span class="relative">
-            <Avatar src={p.photo} name={p.name} size={54} class="shadow-md ring-2 ring-white/80" />
+            <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
             <span
               class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white"
               style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`}
