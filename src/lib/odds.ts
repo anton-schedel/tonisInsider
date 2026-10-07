@@ -25,19 +25,27 @@ export function sameClub(ours: string, theirs: string): boolean {
 /** The same pairing can come round again later in the season; only accept odds within 3 days of our kickoff. */
 const MAX_KICKOFF_GAP_MS = 3 * 24 * 60 * 60_000;
 
-/** Win chances for a fixture, from our home team's point of view. */
-export function chancesFor(f: Fixture, events: OddsEvent[] | undefined): Chances | undefined {
+/** The event for a fixture (names may be spelled differently; home/away may be swapped), or undefined. */
+export function findEvent<E extends { home: string; away: string; kickoff: string }>(
+  f: Fixture, events: E[] | undefined,
+): { event: E; flipped: boolean } | undefined {
   if (!events || !f.homeName || !f.awayName) return undefined;
-  const near = (e: OddsEvent) => !f.kickoff || Math.abs(Date.parse(e.kickoff) - Date.parse(f.kickoff)) <= MAX_KICKOFF_GAP_MS;
+  const near = (e: E) => !f.kickoff || Math.abs(Date.parse(e.kickoff) - Date.parse(f.kickoff)) <= MAX_KICKOFF_GAP_MS;
   const sorted = [...events].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
-  for (const e of sorted) {
-    if (!near(e)) continue;
-    if (sameClub(f.homeName, e.home) && sameClub(f.awayName, e.away)) return e.chances;
-    if (sameClub(f.homeName, e.away) && sameClub(f.awayName, e.home)) {
-      return { home: e.chances.away, draw: e.chances.draw, away: e.chances.home };
-    }
+  for (const event of sorted) {
+    if (!near(event)) continue;
+    if (sameClub(f.homeName, event.home) && sameClub(f.awayName, event.away)) return { event, flipped: false };
+    if (sameClub(f.homeName, event.away) && sameClub(f.awayName, event.home)) return { event, flipped: true };
   }
   return undefined;
+}
+
+/** Win chances for a fixture, from our home team's point of view. */
+export function chancesFor(f: Fixture, events: OddsEvent[] | undefined): Chances | undefined {
+  const found = findEvent(f, events);
+  if (!found) return undefined;
+  const c = found.event.chances;
+  return found.flipped ? { home: c.away, draw: c.draw, away: c.home } : c;
 }
 
 export type Score = { home: number; away: number; percent: number };
@@ -69,7 +77,13 @@ function outcomeError(lh: number, la: number, target: [number, number, number]):
  * The most likely exact result: expected goals for both teams are fitted to the win/draw/loss chances
  * (Poisson model), then the likeliest score is picked. Even that is rare (≈ 8–12 %), so show it as a tip.
  */
-export function likelyScore(c: Chances): Score {
+const fitted = new Map<string, { home: number; away: number }>();
+
+/** Expected goals of both teams, fitted to the win/draw/loss chances (Poisson model). */
+export function expectedGoals(c: Chances): { home: number; away: number } {
+  const key = `${c.home}/${c.draw}/${c.away}`;
+  const hit = fitted.get(key);
+  if (hit) return hit;
   const target: [number, number, number] = [c.home / 100, c.draw / 100, c.away / 100];
   // Coarse grid, then a finer one around the best point.
   let best = { lh: 1, la: 1, err: Infinity };
@@ -81,8 +95,18 @@ export function likelyScore(c: Chances): Score {
   };
   search([0.1, 0.1], [5, 5], 0.05);
   search([Math.max(0.05, best.lh - 0.05), Math.max(0.05, best.la - 0.05)], [best.lh + 0.05, best.la + 0.05], 0.01);
+  const xg = { home: best.lh, away: best.la };
+  fitted.set(key, xg);
+  return xg;
+}
 
-  const t = scoreTable(best.lh, best.la);
+/**
+ * The most likely exact result: the likeliest score given both teams' expected goals.
+ * Even that is rare (≈ 8–12 %), so show it as a tip.
+ */
+export function likelyScore(c: Chances): Score {
+  const xg = expectedGoals(c);
+  const t = scoreTable(xg.home, xg.away);
   let top = { home: 0, away: 0, p: -1 };
   for (let i = 0; i <= MAX_GOALS; i++) for (let j = 0; j <= MAX_GOALS; j++) {
     if (t[i][j] > top.p) top = { home: i, away: j, p: t[i][j] };

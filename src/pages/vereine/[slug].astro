@@ -3,7 +3,8 @@ import Base from "../../layouts/Base.astro";
 import Pitch from "../../components/Pitch.astro";
 import FixtureCard from "../../components/FixtureCard.astro";
 import ArticleRow from "../../components/ArticleRow.astro";
-import { clubArticles, lineups, odds } from "../../lib/data.ts";
+import { clubArticles, lineups, odds, scorers } from "../../lib/data.ts";
+import { goalChances } from "../../lib/scorers.ts";
 import { chancesFor } from "../../lib/odds.ts";
 import { toFixtures } from "../../lib/fixtures.ts";
 import type { Lineup } from "../../../scraper/types.ts";
@@ -17,6 +18,7 @@ export function getStaticPaths() {
 }
 const { lineup, fixture } = Astro.props as { lineup: Lineup; fixture?: ReturnType<typeof toFixtures>[number] };
 const news = clubArticles(lineup.club.id);
+const goal = fixture ? goalChances(fixture, odds(), scorers()) : undefined;
 ---
 <Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
   {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chancesFor(fixture, odds())} />}
@@ -26,7 +28,7 @@ const news = clubArticles(lineup.club.id);
       <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
       <span class="text-[15px] font-semibold text-muted tabular-nums">{lineup.formation}</span>
     </div>
-    <Pitch lineup={lineup} />
+    <Pitch lineup={lineup} goal={goal} />
   </section>
 
   <section class="mt-7">

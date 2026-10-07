@@ -13,7 +13,7 @@ describe("parseOdds", () => {
   it("turns decimal odds into win/draw/loss chances without the bookmaker margin", () => {
     // 1/1.6 + 1/4.3 + 1/5.2 = 1.0499 → 59.5 % / 22.1 % / 18.3 %
     const [e] = parseOdds([event([book("pinnacle", 1.6, 4.3, 5.2)])]);
-    expect(e).toEqual({ home: "Borussia Dortmund", away: "Werder Bremen", kickoff: "2026-10-09T18:30:00Z", chances: { home: 60, draw: 22, away: 18 }, books: 1 });
+    expect(e).toEqual({ id: "e1", home: "Borussia Dortmund", away: "Werder Bremen", kickoff: "2026-10-09T18:30:00Z", chances: { home: 60, draw: 22, away: 18 }, books: 1 });
   });
 
   it("averages over all bookmakers", () => {

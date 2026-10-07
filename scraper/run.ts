@@ -4,6 +4,7 @@ import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts"
 import { BASE_URL } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
+import { parseScorerOdds, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
@@ -209,6 +210,22 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       if (status === 401 || status === 403) result.problems.push(`odds: HTTP ${status}, check the ODDS_API_KEY secret`);
       else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying in 2 hours`);
     }
+  }
+
+  // Goalscorer odds for matches close to kickoff (match ids come from the win-chance odds above).
+  if (oddsApiKey && state.odds) {
+    const before = state.scorers;
+    const scorers = pruneScorers({ ...state.scorers }, now);
+    for (const id of scorersToFetch(state.odds, scorers, now)) {
+      try {
+        scorers[id] = parseScorerOdds(JSON.parse(await fetcher.text(scorerOddsUrl(oddsApiKey, id))), now);
+      } catch (err) {
+        const status = err instanceof HttpError ? err.status : undefined;
+        console.warn(`goalscorer odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying later`);
+      }
+    }
+    if (!sameScorers(before, scorers)) result.changed = true;
+    state.scorers = scorers;
   }
 
   // Only for articles we still have; articles that left the overview keep their last known count.

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run, lineupsDue } from "./run.ts";
 import { oddsUrl } from "./odds.ts";
+import { scorerOddsUrl } from "./scorers.ts";
 import { Store } from "./store.ts";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Lineup } from "./types.ts";
@@ -90,6 +91,31 @@ describe("run", () => {
   it("only logs other odds failures (they retry in 2 hours)", async () => {
     const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
     expect(r.problems).toEqual([]);
+  });
+
+  // NOW is 2026-10-07T09:00Z; this kickoff is 33.5 h later, inside the 40 h window.
+  const ODDS_WITH_ID = JSON.stringify([{ ...JSON.parse(ODDS)[0], id: "e1", commence_time: "2026-10-08T18:30:00Z" }]);
+  const SCORERS = JSON.stringify({
+    id: "e1", home_team: "Borussia Dortmund", away_team: "Werder Bremen", commence_time: "2026-10-08T18:30:00Z",
+    bookmakers: [{ key: "a", markets: [{ key: "player_goal_scorer_anytime", outcomes: [{ name: "Yes", description: "Serhou Guirassy", price: 1.6 }] }] }],
+  });
+
+  it("fetches goalscorer odds for matches within 40 hours and stores them", async () => {
+    const { fetcher, calls } = fakeFetcher({ [oddsUrl("K")]: ODDS_WITH_ID, [scorerOddsUrl("K", "e1")]: SCORERS });
+    const r = await run({ store, fetcher, publicDir, now: NOW, oddsApiKey: "K" });
+    expect(calls).toContain(scorerOddsUrl("K", "e1"));
+    expect(store.state().scorers?.e1.players[0]).toMatchObject({ name: "Serhou Guirassy", books: 1 });
+    expect(r.changed).toBe(true);
+
+    const again = fakeFetcher({ [oddsUrl("K")]: ODDS_WITH_ID, [scorerOddsUrl("K", "e1")]: SCORERS });
+    await run({ store, fetcher: again.fetcher, publicDir, now: new Date(NOW.getTime() + 3 * 3600_000), oddsApiKey: "K" });
+    expect(again.calls).not.toContain(scorerOddsUrl("K", "e1"));
+  });
+
+  it("keeps going when goalscorer odds fail, without printing the key", async () => {
+    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: ODDS_WITH_ID, [scorerOddsUrl("SECRET", "e1")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
+    expect(r.problems).toEqual([]);
+    expect(store.state().odds).toHaveLength(1);
   });
 
   it("saves comment counts from the overview without triggering a rebuild", async () => {

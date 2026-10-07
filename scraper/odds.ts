@@ -6,7 +6,7 @@ const INTERVAL_MIN = 120;
 
 export type Chances = { home: number; draw: number; away: number };
 /** One Bundesliga match with its chances in whole percent (summing to 100), names as the API spells them. */
-export type OddsEvent = { home: string; away: string; kickoff: string; chances: Chances; books: number };
+export type OddsEvent = { id?: string; home: string; away: string; kickoff: string; chances: Chances; books: number };
 
 export const oddsUrl = (apiKey: string) =>
   `https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/odds/?apiKey=${encodeURIComponent(apiKey)}&regions=eu&markets=h2h&oddsFormat=decimal`;
@@ -18,6 +18,7 @@ export function oddsDue(lastFetchedAt: string | undefined, now: Date): boolean {
 
 type ApiOutcome = { name?: string; price?: number };
 type ApiEvent = {
+  id?: string;
   home_team?: string;
   away_team?: string;
   commence_time?: string;
@@ -52,7 +53,7 @@ export function parseOdds(json: unknown): OddsEvent[] {
     }
     if (!fair.length) continue;
     const avg = [0, 1, 2].map((i) => fair.reduce((s, f) => s + f[i], 0) / fair.length) as [number, number, number];
-    events.push({ home: e.home_team, away: e.away_team, kickoff: e.commence_time, chances: percentages(avg), books: fair.length });
+    events.push({ ...(e.id ? { id: e.id } : {}), home: e.home_team, away: e.away_team, kickoff: e.commence_time, chances: percentages(avg), books: fair.length });
   }
   return events;
 }

@@ -4,8 +4,13 @@ import Avatar from "./Avatar.astro";
 import StartBadge from "./StartBadge.astro";
 import { kickoffDay, time } from "../lib/format.ts";
 
-interface Props { player: MyPlayer; index?: number }
-const { player: p, index = 0 } = Astro.props;
+interface Props {
+  player: MyPlayer;
+  index?: number;
+  /** Chance to score in percent, from goalscorer odds. */
+  goal?: number;
+}
+const { player: p, index = 0, goal } = Astro.props;
 const name = p.ligainsider?.name ?? p.kickbase.name;
 const l = p.lineup;
 const match = l?.opponent
@@ -21,7 +26,7 @@ const Tag = href ? "a" : "div";
   </span>
   <span class="min-w-0 flex-1">
     <span class="block truncate text-[15px] font-semibold tracking-[-0.01em]">{name}</span>
-    {match && <span class="block truncate text-xs text-muted">{match}</span>}
+    {match && <span class="block truncate text-xs text-muted">{match}{goal !== undefined && goal >= 1 && ` · Torchance ${goal} %`}</span>}
   </span>
   <StartBadge status={p.status} label={p.statusLabel} />
 </Tag>

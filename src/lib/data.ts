@@ -51,6 +51,11 @@ export function odds() {
   return load().state.odds;
 }
 
+/** Goalscorer odds per match id (fetched close to kickoff). */
+export function scorers() {
+  return load().state.scorers;
+}
+
 export function lastUpdate(): string | undefined {
   return load().state.lastChangeAt;
 }

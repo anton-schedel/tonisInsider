@@ -1,11 +1,17 @@
 ---
-import type { Lineup } from "../../scraper/types.ts";
+import type { Lineup, Ref } from "../../scraper/types.ts";
 import Avatar from "./Avatar.astro";
 import PitchField from "./PitchField.astro";
+import GoalChance from "./GoalChance.astro";
 import { AVATAR, slotStyle } from "../lib/pitch.ts";
 
-interface Props { lineup: Lineup }
-const { lineup } = Astro.props;
+interface Props {
+  lineup: Lineup;
+  /** Chance to score in percent per player, if goalscorer odds exist for this match. */
+  goal?: (player: Ref) => number | undefined;
+}
+const { lineup, goal = () => undefined } = Astro.props;
+const anyGoal = lineup.lines.some((line) => line.some((p) => goal(p) !== undefined));
 const rows = lineup.lines.length;
 ---
 <PitchField>
@@ -20,6 +26,7 @@ const rows = lineup.lines.length;
                 <span class="relative">
                   <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
                   <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>
+                  <GoalChance percent={goal(p)} />
                   <span class="swap-hint" aria-hidden="true">⇄</span>
                 </span>
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
@@ -28,6 +35,7 @@ const rows = lineup.lines.length;
               <span class="swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true">
                 <span class="relative">
                   <Avatar src={p.alternative.photo} name={p.alternative.name} size={AVATAR} class="shadow-md ring-2 ring-[var(--yellow-dot)]" />
+                  <GoalChance percent={goal(p.alternative)} />
                   <span class="swap-hint" aria-hidden="true">⇄</span>
                 </span>
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.alternative.name}</span>
@@ -39,6 +47,7 @@ const rows = lineup.lines.length;
               <span class="relative">
                 <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
                 <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>
+                  <GoalChance percent={goal(p)} />
               </span>
               <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
             </div>
@@ -50,5 +59,6 @@ const rows = lineup.lines.length;
   <Fragment slot="legend">
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
+    {anyGoal && <span class="flex items-center gap-1"><span class="goal-chance is-legend">40%</span>Torchance</span>}
   </Fragment>
 </PitchField>

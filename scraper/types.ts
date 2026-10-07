@@ -1,4 +1,5 @@
 import type { OddsEvent } from "./odds.ts";
+import type { ScorerMatch } from "./scorers.ts";
 
 export type Ref = { id: number; slug: string; name: string };
 
@@ -64,4 +65,6 @@ export type State = {
   /** Win chances from bookmaker odds (The Odds API), refreshed every 2 hours. */
   odds?: OddsEvent[];
   oddsFetchedAt?: string;
+  /** Anytime-goalscorer odds per match id, fetched close to kickoff. */
+  scorers?: Record<string, ScorerMatch>;
 };
