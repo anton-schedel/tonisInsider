@@ -6,21 +6,24 @@ import { fullDate } from "../lib/format.ts";
 
 interface Props {
   title: string;
-  tab?: "news" | "aufstellungen" | "vereine";
+  tab?: "news" | "aufstellungen" | "mein-team";
   back?: { href: string; label: string };
   /** Hide the big page title (article pages show their own headline). */
   hideHeading?: boolean;
 }
 const { title, tab, back, hideHeading = false } = Astro.props;
 const updated = lastUpdate();
+// Old page disappears instantly, new page fades in once (no cross-fade, no double animation).
+const swapIn = { old: { name: "none", duration: "0s" }, new: { name: "astroFadeIn", duration: "180ms", easing: "ease-out", fillMode: "both" } };
+const pageSwap = { forwards: swapIn, backwards: swapIn };
 const tabs = [
   { id: "news", href: "/", label: "News", icon: "M4 5h16M4 12h16M4 19h10" },
   { id: "aufstellungen", href: "/aufstellungen/", label: "Aufstellungen", icon: "M12 3v18M3 12h18M7 7h10v10H7z" },
-  { id: "vereine", href: "/vereine/", label: "Vereine", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" },
+  { id: "mein-team", href: "/mein-team/", label: "Mein Team", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" },
 ] as const;
 ---
 <!doctype html>
-<html lang="de">
+<html lang="de" transition:animation="none">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -47,8 +50,14 @@ const tabs = [
             a.classList.toggle("text-accent", a.dataset.tab === tab);
             a.classList.toggle("text-muted", a.dataset.tab !== tab);
           });
+          // "kbin" is a non-secret flag cookie set at login (the token itself is HttpOnly).
+          const label = document.querySelector('nav [data-tab="mein-team"] [data-label]');
+          if (label) label.textContent = /(?:^|; )kbin=1/.test(document.cookie) ? "Mein Team" : "Login";
         });
-        document.addEventListener("astro:before-swap", (e) => apply(e.newDocument));
+        document.addEventListener("astro:before-swap", (e) => {
+          apply(e.newDocument);
+          e.newDocument.documentElement.dataset.navigated = "";
+        });
         document.addEventListener("click", (e) => {
           if (!e.target.closest?.("#theme-toggle")) return;
           const root = document.documentElement;
@@ -61,7 +70,7 @@ const tabs = [
     <ClientRouter />
   </head>
   <body class="min-h-dvh bg-bg font-sans text-fg">
-    <div class="mx-auto max-w-[720px] px-4 pb-28 sm:px-6" transition:animation="fade" data-active-tab={tab}>
+    <div class="mx-auto max-w-[720px] px-4 pb-28 sm:px-6" transition:animation={pageSwap} data-active-tab={tab}>
       <header class="flex items-end justify-between pt-6 pb-3">
         <div class="min-w-0">
           {back && (
@@ -91,7 +100,7 @@ const tabs = [
         {tabs.map((t) => (
           <a href={t.href} data-tab={t.id} class:list={["press flex flex-col items-center gap-0.5 px-4 text-[10px] font-medium transition-colors duration-200", tab === t.id ? "text-accent" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
-            {t.label}
+            <span data-label>{t.label}</span>
           </a>
         ))}
       </div>
