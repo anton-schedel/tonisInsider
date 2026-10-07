@@ -1,0 +1,160 @@
+import { HttpError, type Fetcher } from "./fetch.ts";
+import type { Store } from "./store.ts";
+import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
+import { BASE_URL } from "./text.ts";
+import { parseNewsList } from "./parse/newsList.ts";
+import { parseArticle } from "./parse/article.ts";
+import { parseClubs } from "./parse/clubs.ts";
+import { parseClubPage } from "./parse/clubPage.ts";
+import { validateArticle, validateLineup } from "./validate.ts";
+import { ensureImage } from "./images.ts";
+
+export const RETENTION_DAYS = 30;
+export const BACKFILL_PAGES = 3;
+const MINUTE = 60_000;
+
+export const OVERVIEWS: { category: Category; url: (page: number) => string }[] = [
+  {
+    category: "bundesliga",
+    url: (p) => (p === 1 ? `${BASE_URL}/bundesliga-news/uebersicht/` : `${BASE_URL}/startpage/uebersicht/${p}/`),
+  },
+  {
+    category: "testspiele",
+    url: (p) => (p === 1 ? `${BASE_URL}/testspiele-news/uebersicht/` : `${BASE_URL}/testspiele-news/uebersicht/${p}/`),
+  },
+];
+
+export type RunOptions = { store: Store; fetcher: Fetcher; publicDir: string; now: Date };
+export type RunResult = {
+  /** Content changed: rebuild and deploy the site. */
+  changed: boolean;
+  /** Lineups were checked (even if unchanged): the cache must be saved so the timestamp survives. */
+  lineupsChecked: boolean;
+  newArticles: number;
+  lineupsUpdated: number;
+  problems: string[];
+};
+
+/** Lineups refresh every 30 min, or every 10 min if any known kickoff is within the next 48 h. */
+export function lineupsDue(lineups: Lineup[], lastFetchedAt: string | undefined, now: Date): boolean {
+  if (!lastFetchedAt) return true;
+  const soon = lineups.some((l) => {
+    if (!l.kickoff) return false;
+    const diff = Date.parse(l.kickoff) - now.getTime();
+    return diff > -3 * 60 * MINUTE && diff < 48 * 60 * MINUTE;
+  });
+  const interval = (soon ? 10 : 30) * MINUTE;
+  return now.getTime() - Date.parse(lastFetchedAt) >= interval - MINUTE;
+}
+
+function withoutTimestamps(l: Lineup | undefined): string {
+  return l ? JSON.stringify({ ...l, updatedAt: undefined }) : "";
+}
+
+function mediumCrest(url: string): string {
+  return url.replace("/teams/small/", "/teams/medium/");
+}
+
+export async function run({ store, fetcher, publicDir, now }: RunOptions): Promise<RunResult> {
+  const result: RunResult = { changed: false, lineupsChecked: false, newArticles: 0, lineupsUpdated: 0, problems: [] };
+  const pages = store.articles().length === 0 ? BACKFILL_PAGES : 1;
+
+  // 1. Collect article refs from the overviews. Bundesliga wins if an article is listed twice.
+  const refs = new Map<number, { ref: ArticleRef; category: Category }>();
+  let clubs: ClubRef[] = [];
+  for (const overview of OVERVIEWS) {
+    for (let page = 1; page <= pages; page++) {
+      try {
+        const html = await fetcher.text(overview.url(page));
+        const list = parseNewsList(html);
+        if (page === 1 && list.length === 0) result.problems.push(`${overview.category}: overview returned 0 articles`);
+        if (overview.category === "bundesliga" && page === 1) clubs = parseClubs(html);
+        for (const ref of list) if (!refs.has(ref.id)) refs.set(ref.id, { ref, category: overview.category });
+      } catch (err) {
+        result.problems.push(`${overview.category} page ${page}: ${(err as Error).message}`);
+      }
+    }
+  }
+  const clubById = new Map(clubs.map((c) => [c.id, c]));
+
+  // 2. Fetch new or re-titled articles.
+  const state = store.state();
+  const unavailable: Record<string, string> = {};
+  const cutoff = now.getTime() - RETENTION_DAYS * 24 * 60 * MINUTE;
+  for (const { ref, category } of refs.values()) {
+    const existing = store.getArticle(ref.id);
+    if (existing && existing.listHeadline === ref.headline) continue;
+    if (state.unavailable?.[ref.id] === ref.headline) {
+      unavailable[ref.id] = ref.headline;
+      continue;
+    }
+    try {
+      const article: Article = parseArticle(await fetcher.text(ref.url), ref, category, now);
+      const problems = validateArticle(article);
+      if (problems.length) {
+        result.problems.push(`article ${ref.id}: ${problems.join(", ")}`);
+        continue;
+      }
+      if (article.player) {
+        article.player.photo = await ensureImage(fetcher, publicDir, "players", article.player.id, ref.playerPhotoUrl);
+      }
+      if (article.club) {
+        const club = clubById.get(article.club.id);
+        article.club.crest = await ensureImage(fetcher, publicDir, "clubs", article.club.id, club && mediumCrest(club.crestUrl));
+      }
+      store.putArticle(article);
+      result.changed = true;
+      if (!existing) result.newArticles++;
+    } catch (err) {
+      if (err instanceof HttpError && err.status === 404) {
+        console.log(`article ${ref.id} is listed but gone (404), skipping`);
+        unavailable[ref.id] = ref.headline;
+      } else {
+        result.problems.push(`article ${ref.id}: ${(err as Error).message}`);
+      }
+    }
+  }
+  state.unavailable = unavailable;
+
+  // 3. Lineups.
+  if (clubs.length && lineupsDue(store.lineups(), state.lineupsFetchedAt, now)) {
+    for (const club of clubs) {
+      try {
+        const lineup = parseClubPage(await fetcher.text(`${BASE_URL}/${club.slug}/${club.id}/`), club, now);
+        const problems = validateLineup(lineup);
+        if (problems.length) {
+          result.problems.push(`lineup ${club.slug}: ${problems.join(", ")}`);
+          continue;
+        }
+        lineup.club.crest = await ensureImage(fetcher, publicDir, "clubs", club.id, mediumCrest(club.crestUrl));
+        for (const p of lineup.lines.flat()) {
+          p.photo = await ensureImage(fetcher, publicDir, "players", p.id, p.photoUrl);
+          if (p.alternative) {
+            p.alternative.photo = await ensureImage(fetcher, publicDir, "players", p.alternative.id, p.alternative.photoUrl);
+          }
+        }
+        if (withoutTimestamps(lineup) !== withoutTimestamps(store.getLineup(club.slug))) {
+          store.putLineup(lineup);
+          result.changed = true;
+          result.lineupsUpdated++;
+        }
+      } catch (err) {
+        result.problems.push(`lineup ${club.slug}: ${(err as Error).message}`);
+      }
+    }
+    state.lineupsFetchedAt = now.toISOString();
+    result.lineupsChecked = true;
+  }
+
+  // 4. Retention: drop old articles, unless LigaInsider still lists them (else we'd re-fetch them every run).
+  for (const a of store.articles()) {
+    if (Date.parse(a.publishedAt) < cutoff && !refs.has(a.id)) {
+      store.deleteArticle(a.id);
+      result.changed = true;
+    }
+  }
+
+  if (result.changed) state.lastChangeAt = now.toISOString();
+  store.putState(state);
+  return result;
+}
