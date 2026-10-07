@@ -1,6 +1,9 @@
 {
+  // Placeholder name: the real Worker name is passed with --name (repo variable), never committed.
   "name": "tonisinsider",
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  "main": "./src/worker.ts",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "./dist", "binding": "ASSETS" }
+  "assets": { "directory": "./dist", "binding": "ASSETS" },
+  // Every 5 minutes: start the scrape workflow on GitHub (see src/worker.ts).
+  "triggers": { "crons": ["*/5 * * * *"] }
 }

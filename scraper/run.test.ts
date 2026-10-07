@@ -48,7 +48,7 @@ describe("run", () => {
     const { fetcher } = fakeFetcher();
     const res = await run({ store, fetcher, publicDir, now: NOW });
     expect(res.changed).toBe(true);
-    expect(res.newArticles).toBeGreaterThan(20);
+    expect(res.newArticles).toBe(15);
     expect(store.getArticle(418776)?.category).toBe("bundesliga");
     expect(store.lineups()).toHaveLength(18);
     expect(store.getLineup("tsg-hoffenheim")?.formation).toBe("4-4-2");
@@ -63,10 +63,7 @@ describe("run", () => {
     expect(res.changed).toBe(false);
     expect(res.lineupsChecked).toBe(false);
     expect(res.newArticles).toBe(0);
-    expect(calls).toEqual([
-      "https://www.ligainsider.de/bundesliga-news/uebersicht/",
-      "https://www.ligainsider.de/testspiele-news/uebersicht/",
-    ]);
+    expect(calls).toEqual(["https://www.ligainsider.de/bundesliga-news/uebersicht/"]);
   });
 
   it("re-fetches an article whose headline changed in the overview", async () => {
@@ -143,9 +140,9 @@ describe("run", () => {
   });
 
   it("reports a problem when an overview suddenly has no articles (HTML changed)", async () => {
-    const { fetcher } = fakeFetcher({ "https://www.ligainsider.de/testspiele-news/uebersicht/": "<html></html>" });
+    const { fetcher } = fakeFetcher({ "https://www.ligainsider.de/bundesliga-news/uebersicht/": "<html></html>" });
     const res = await run({ store, fetcher, publicDir, now: NOW });
-    expect(res.problems).toContain("testspiele: overview returned 0 articles");
+    expect(res.problems).toContain("bundesliga: overview returned 0 articles");
   });
 
   it("deletes articles older than 30 days that are no longer listed", async () => {

@@ -14,14 +14,11 @@ export const BACKFILL_PAGES = 3;
 export const CLUB_COUNT = 18;
 const MINUTE = 60_000;
 
+// Bundesliga news only: friendly-match news ("Testspiele") only matters around the season start.
 export const OVERVIEWS: { category: Category; url: (page: number) => string }[] = [
   {
     category: "bundesliga",
     url: (p) => (p === 1 ? `${BASE_URL}/bundesliga-news/uebersicht/` : `${BASE_URL}/startpage/uebersicht/${p}/`),
-  },
-  {
-    category: "testspiele",
-    url: (p) => (p === 1 ? `${BASE_URL}/testspiele-news/uebersicht/` : `${BASE_URL}/testspiele-news/uebersicht/${p}/`),
   },
 ];
 

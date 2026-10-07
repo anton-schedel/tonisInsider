@@ -1,9 +1,16 @@
 name: scrape-and-deploy
 
 on:
+  # Primary trigger: the Cloudflare Worker's cron starts this every 5 minutes via workflow_dispatch
+  # (force=false). GitHub's own scheduler is best-effort, so it only runs as a 30-minute backup.
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Build and deploy even if nothing changed"
+        type: boolean
+        default: true
   push:
     branches: [main]
 
@@ -32,7 +39,7 @@ jobs:
       - run: npm ci
 
       - name: Typecheck (code changes only)
-        if: github.event_name != 'schedule'
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
         run: npm run typecheck
 
       - name: Restore data cache
@@ -63,13 +70,13 @@ jobs:
           key: data-${{ github.run_id }}
 
       - name: Build
-        if: steps.scrape.outputs.changed == 'true' || github.event_name != 'schedule'
+        if: steps.scrape.outputs.changed == 'true' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
         run: npm run build
 
       # The site is a Cloudflare Worker (Astro adapter): static pages as assets, /mein-team/ and /api/*
       # rendered on request. The name comes from a repo variable so the URL never appears in this repo.
       - name: Deploy to Cloudflare
-        if: steps.scrape.outputs.changed == 'true' || github.event_name != 'schedule'
+        if: steps.scrape.outputs.changed == 'true' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
         run: npx wrangler deploy --config dist/server/wrangler.json --name "${{ vars.CF_PAGES_PROJECT }}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

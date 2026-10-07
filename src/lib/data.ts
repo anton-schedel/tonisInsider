@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Article, Category, Lineup, State } from "../../scraper/types.ts";
+import type { Article, Lineup, State } from "../../scraper/types.ts";
 import { dayKey } from "./format.ts";
 
 const STORE = join(process.cwd(), "store");
@@ -27,10 +27,9 @@ function load() {
   return cache;
 }
 
-/** Newest first, optionally filtered by category. */
-export function articles(category?: Category): Article[] {
-  const all = load().articles;
-  return category ? all.filter((a) => a.category === category) : all;
+/** Newest first. Only Bundesliga news (older "Testspiele" articles in the store are hidden until they expire). */
+export function articles(): Article[] {
+  return load().articles.filter((a) => a.category === "bundesliga");
 }
 
 export function clubArticles(clubId: number): Article[] {
