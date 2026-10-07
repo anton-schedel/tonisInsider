@@ -19,6 +19,7 @@ const command = process.argv[2];
 if (command === "scrape") {
   const result = await run({
     store, fetcher: createFetcher(), publicDir, now: new Date(), codeVersion: process.env.GITHUB_SHA,
+    oddsApiKey: process.env.ODDS_API_KEY || undefined,
   });
   console.log(`changed=${result.changed} new=${result.newArticles} lineups=${result.lineupsUpdated}`);
   for (const p of result.problems) console.warn(`PROBLEM: ${p}`);

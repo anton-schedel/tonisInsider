@@ -71,6 +71,12 @@ html {
 .poll-fill { background: var(--hairline); }
 .poll-fill.is-best { background: color-mix(in srgb, var(--fg) 16%, transparent); }
 
+/* Win-chance bar on match cards. */
+.odds-seg { min-width: 4px; border-radius: 2px; }
+.odds-seg.is-strong { background: var(--fg); }
+.odds-seg.is-weak { background: color-mix(in srgb, var(--fg) 40%, transparent); }
+.odds-seg.is-draw { background: var(--hairline); }
+
 /* ---------- Motion ---------- */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(6px); }

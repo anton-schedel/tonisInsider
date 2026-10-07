@@ -3,6 +3,7 @@ import Crest from "./Crest.astro";
 import type { Fixture } from "../lib/fixtures.ts";
 import { kickoffDay, time } from "../lib/format.ts";
 import type { Lineup } from "../../scraper/types.ts";
+import type { Chances } from "../../scraper/odds.ts";
 
 interface Props {
   fixture: Fixture;
@@ -13,8 +14,12 @@ interface Props {
   index?: number;
   /** Shown under the date on the hero card. */
   matchday?: number;
+  /** Win chances from bookmaker odds; the bar is hidden without them. */
+  chances?: Chances;
 }
-const { fixture: f, size = "list", current, index = 0, matchday } = Astro.props;
+const { fixture: f, size = "list", current, index = 0, matchday, chances } = Astro.props;
+// The likelier team gets the strong tone; draw stays neutral.
+const strong = chances && (chances.home >= chances.away ? "home" : "away");
 const hero = size === "hero";
 const crest = hero ? 64 : 52;
 const sides: { lineup?: Lineup; name: string }[] = [
@@ -24,9 +29,10 @@ const sides: { lineup?: Lineup; name: string }[] = [
 ---
 {/* The crests share a view-transition-name between the matchday page and the team page, so they glide across. */}
 <div
-  class:list={["flex items-center rounded-[22px] bg-surface", hero ? "px-3 py-6" : "enter px-2 py-4"]}
+  class:list={["rounded-[22px] bg-surface", hero ? "px-3 py-6" : "enter px-2 py-4"]}
   style={hero ? undefined : `--i:${index}`}
 >
+<div class="flex items-center">
   {sides.map((s, i) => {
     const slug = s.lineup?.club.slug;
     const inner = (
@@ -61,4 +67,19 @@ const sides: { lineup?: Lineup; name: string }[] = [
       </>
     );
   })}
+</div>
+{chances && (
+  <div class:list={["px-3", hero ? "mt-5" : "mt-3"]} aria-label={`Siegchancen laut Wettquoten: ${f.homeName} ${chances.home} %, Unentschieden ${chances.draw} %, ${f.awayName} ${chances.away} %`}>
+    <div class="flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+      <span class:list={["odds-seg", strong === "home" ? "is-strong" : "is-weak"]} style={`flex:${chances.home}`}></span>
+      <span class="odds-seg is-draw" style={`flex:${chances.draw}`}></span>
+      <span class:list={["odds-seg", strong === "away" ? "is-strong" : "is-weak"]} style={`flex:${chances.away}`}></span>
+    </div>
+    <div class:list={["mt-1.5 grid grid-cols-3 tabular-nums text-muted", hero ? "text-[13px]" : "text-[11px]"]} aria-hidden="true">
+      <span>{hero && "Sieg "}<b class="font-semibold text-fg">{chances.home} %</b></span>
+      <span class="text-center">{hero && "Remis "}{chances.draw} %</span>
+      <span class="text-right">{hero && "Sieg "}<b class="font-semibold text-fg">{chances.away} %</b></span>
+    </div>
+  </div>
+)}
 </div>

@@ -46,6 +46,11 @@ export function commentCount(articleId: number): number | undefined {
   return load().state.commentCounts?.[articleId];
 }
 
+/** Win chances from bookmaker odds, if an ODDS_API_KEY is configured. */
+export function odds() {
+  return load().state.odds;
+}
+
 export function lastUpdate(): string | undefined {
   return load().state.lastChangeAt;
 }

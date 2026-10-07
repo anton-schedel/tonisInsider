@@ -1,7 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
 import FixtureCard from "../components/FixtureCard.astro";
-import { lineups } from "../lib/data.ts";
+import { lineups, odds } from "../lib/data.ts";
+import { chancesFor } from "../lib/odds.ts";
 import { toFixtures } from "../lib/fixtures.ts";
 
 const all = lineups();
@@ -12,6 +13,6 @@ const matchday = all.find((l) => l.matchday)?.matchday;
   <p class="-mt-1 mb-4 text-sm text-muted">Voraussichtliche Aufstellungen. Tippe auf ein Team.</p>
   {fixtures.length === 0 && <p class="py-10 text-center text-muted">Noch keine Aufstellungen.</p>}
   <div class="grid gap-3 sm:grid-cols-2">
-    {fixtures.map((f, i) => <FixtureCard fixture={f} index={i} />)}
+    {fixtures.map((f, i) => <FixtureCard fixture={f} index={i} chances={chancesFor(f, odds())} />)}
   </div>
 </Base>

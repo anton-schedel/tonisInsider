@@ -59,6 +59,9 @@ jobs:
       - name: Scrape
         id: scrape
         run: npm run scrape
+        env:
+          # Optional: win chances from The Odds API (free key). Without it the odds are skipped.
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
 
       - name: Save data cache
         if: steps.scrape.outputs.save_cache == 'true'

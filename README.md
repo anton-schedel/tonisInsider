@@ -29,6 +29,7 @@ The site is a Cloudflare Worker built with Astro's Cloudflare adapter: static pa
 5. Actions tab → `scrape-and-deploy` → "Run workflow" once. The first run backfills (~8 min).
 6. **Reliable 5-minute updates:** GitHub's scheduler is best-effort, so the Worker's Cloudflare cron trigger starts the workflow every 5 minutes. Create a fine-grained GitHub token (Settings → Developer settings → Fine-grained tokens) for **only this repository** with **Actions: Read and write**, and add it to the Worker as secret `GH_DISPATCH_TOKEN` (Cloudflare dashboard → Workers & Pages → the Worker → Settings → Variables and Secrets → Add → Secret). Fine-grained tokens expire (max. 1 year): renew it then. Until it is set, the GitHub schedule (every 30 min) is the fallback.
 7. **Stay-logged-in key:** `openssl rand -base64 32 | npx wrangler secret put CREDENTIALS_KEY --name <name>` (once; without it users log in again weekly).
+8. **Win chances (optional):** create a free key at [the-odds-api.com](https://the-odds-api.com/) (500 requests a month; the scraper uses ~360) and add it as repo secret `ODDS_API_KEY`. Without it the match cards show no chances.
 
 ## When GitHub emails "run failed"
 

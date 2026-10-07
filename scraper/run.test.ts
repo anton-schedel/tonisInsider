@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run, lineupsDue } from "./run.ts";
+import { oddsUrl } from "./odds.ts";
 import { Store } from "./store.ts";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Lineup } from "./types.ts";
@@ -42,6 +43,53 @@ describe("run", () => {
     const dir = mkdtempSync(join(tmpdir(), "ti-"));
     store = new Store(join(dir, "store"));
     publicDir = join(dir, "public");
+  });
+
+  const ODDS = JSON.stringify([{
+    home_team: "Borussia Dortmund", away_team: "Werder Bremen", commence_time: "2026-10-09T18:30:00Z",
+    bookmakers: [{ key: "a", markets: [{ key: "h2h", outcomes: [{ name: "Borussia Dortmund", price: 1.6 }, { name: "Draw", price: 4.3 }, { name: "Werder Bremen", price: 5.2 }] }] }],
+  }]);
+
+  it("fetches odds when a key is set and stores the chances", async () => {
+    const { fetcher, calls } = fakeFetcher({ [oddsUrl("SECRET")]: ODDS });
+    const r = await run({ store, fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
+    expect(calls).toContain(oddsUrl("SECRET"));
+    expect(store.state().odds?.[0]).toMatchObject({ home: "Borussia Dortmund", chances: { home: 60, draw: 22, away: 18 } });
+    expect(store.state().oddsFetchedAt).toBe(NOW.toISOString());
+    expect(r.changed).toBe(true);
+  });
+
+  it("doesn't fetch odds without a key, or again within 2 hours", async () => {
+    const a = fakeFetcher({ [oddsUrl("SECRET")]: ODDS });
+    await run({ store, fetcher: a.fetcher, publicDir, now: NOW });
+    expect(a.calls.some((u) => u.includes("the-odds-api"))).toBe(false);
+    await run({ store, fetcher: a.fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
+    const b = fakeFetcher({ [oddsUrl("SECRET")]: ODDS });
+    await run({ store, fetcher: b.fetcher, publicDir, now: new Date(NOW.getTime() + 60 * 60_000), oddsApiKey: "SECRET" });
+    expect(b.calls.some((u) => u.includes("the-odds-api"))).toBe(false);
+  });
+
+  it("doesn't rebuild when the shown percentages stay the same", async () => {
+    await run({ store, fetcher: fakeFetcher({ [oddsUrl("K")]: ODDS }).fetcher, publicDir, now: NOW, oddsApiKey: "K" });
+    const later = new Date(NOW.getTime() + 3 * 60 * 60_000);
+    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("K")]: ODDS }).fetcher, publicDir, now: later, oddsApiKey: "K" });
+    expect(r.changed).toBe(false);
+    expect(r.stateChanged).toBe(true);
+  });
+
+  it("reports a rejected key without ever printing it, and keeps the last odds", async () => {
+    await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: ODDS }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
+    const later = new Date(NOW.getTime() + 3 * 60 * 60_000);
+    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: 401 }).fetcher, publicDir, now: later, oddsApiKey: "SECRET" });
+    expect(r.problems).toEqual(["odds: HTTP 401, check the ODDS_API_KEY secret"]);
+    expect(JSON.stringify(r.problems)).not.toContain("SECRET");
+    expect(store.state().odds).toHaveLength(1);
+    expect(store.state().oddsFetchedAt).toBe(later.toISOString());
+  });
+
+  it("only logs other odds failures (they retry in 2 hours)", async () => {
+    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
+    expect(r.problems).toEqual([]);
   });
 
   it("saves comment counts from the overview without triggering a rebuild", async () => {

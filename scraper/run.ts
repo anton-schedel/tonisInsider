@@ -3,6 +3,7 @@ import type { Store } from "./store.ts";
 import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
 import { BASE_URL } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
+import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
@@ -23,7 +24,11 @@ export const OVERVIEWS: { category: Category; url: (page: number) => string }[] 
   },
 ];
 
-export type RunOptions = { store: Store; fetcher: Fetcher; publicDir: string; now: Date; codeVersion?: string };
+export type RunOptions = {
+  store: Store; fetcher: Fetcher; publicDir: string; now: Date; codeVersion?: string;
+  /** The Odds API key; without it, win chances are skipped. Never log it: it is part of the request URL. */
+  oddsApiKey?: string;
+};
 export type RunResult = {
   /** Content changed: rebuild and deploy the site. */
   changed: boolean;
@@ -56,7 +61,7 @@ function mediumCrest(url: string): string {
   return url.replace("/teams/small/", "/teams/medium/");
 }
 
-export async function run({ store, fetcher, publicDir, now, codeVersion }: RunOptions): Promise<RunResult> {
+export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApiKey }: RunOptions): Promise<RunResult> {
   const result: RunResult = {
     changed: false, lineupsChecked: false, stateChanged: false, newArticles: 0, lineupsUpdated: 0, problems: [],
   };
@@ -189,6 +194,20 @@ export async function run({ store, fetcher, publicDir, now, codeVersion }: RunOp
     if (Date.parse(a.publishedAt) < cutoff && !refs.has(a.id)) {
       store.deleteArticle(a.id);
       result.changed = true;
+    }
+  }
+
+  // Win chances. Errors are reported by status only: the URL contains the API key.
+  if (oddsApiKey && oddsDue(state.oddsFetchedAt, now)) {
+    state.oddsFetchedAt = now.toISOString();
+    try {
+      const odds = parseOdds(JSON.parse(await fetcher.text(oddsUrl(oddsApiKey))));
+      if (odds.length && !sameOdds(state.odds, odds)) result.changed = true;
+      if (odds.length) state.odds = odds;
+    } catch (err) {
+      const status = err instanceof HttpError ? err.status : undefined;
+      if (status === 401 || status === 403) result.problems.push(`odds: HTTP ${status}, check the ODDS_API_KEY secret`);
+      else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying in 2 hours`);
     }
   }
 

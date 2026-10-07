@@ -1,3 +1,5 @@
+import type { OddsEvent } from "./odds.ts";
+
 export type Ref = { id: number; slug: string; name: string };
 
 export type NewsType = "verletzung" | "angeschlagen" | "aufbautraining" | "fit" | "sonstiges";
@@ -59,4 +61,7 @@ export type State = {
   codeVersion?: string;
   /** Comment counts from the overviews: id → count. Updating them alone doesn't trigger a rebuild. */
   commentCounts?: Record<string, number>;
+  /** Win chances from bookmaker odds (The Odds API), refreshed every 2 hours. */
+  odds?: OddsEvent[];
+  oddsFetchedAt?: string;
 };
