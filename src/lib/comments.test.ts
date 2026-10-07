@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { COMMENTS_TTL_SECONDS, commentsResponse, commentsUrl, fetchComments, parseComments, type EdgeCache } from "./comments.ts";
+import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, fetchComments, parseComments, type EdgeCache } from "./comments.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../../scraper/__fixtures__/${name}`, import.meta.url), "utf8");
 
@@ -133,5 +133,26 @@ describe("commentsResponse", () => {
   it("answers 502 when the network fails", async () => {
     const fn = (async () => { throw new TypeError("network"); }) as typeof fetch;
     expect((await commentsResponse("418776", fn)).status).toBe(502);
+  });
+});
+
+describe("commentCountsResponse", () => {
+  it("answers with the counts of LigaInsider's newest articles, cached", async () => {
+    const urls: string[] = [];
+    const fn = (async (url: string | URL | Request) => (urls.push(String(url)), new Response(fixture("news-bundesliga.html")))) as typeof fetch;
+    const store = new Map<string, Response>();
+    const cache: EdgeCache = { match: async (k) => store.get(k)?.clone(), put: async (k, r) => void store.set(k, r.clone()) };
+    const res = await commentCountsResponse(fn, cache);
+    expect(COUNTS_URL).toBe("https://www.ligainsider.de/bundesliga-news/uebersicht/");
+    expect(urls).toEqual([COUNTS_URL]);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=120");
+    expect((await res.json())["418778"]).toBe(3);
+    await commentCountsResponse(fn, cache);
+    expect(urls).toHaveLength(1);
+  });
+
+  it("answers 502 when LigaInsider fails", async () => {
+    const fn = (async () => new Response("x", { status: 500 })) as typeof fetch;
+    expect((await commentCountsResponse(fn)).status).toBe(502);
   });
 });

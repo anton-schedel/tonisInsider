@@ -4,9 +4,11 @@ import Avatar from "./Avatar.astro";
 import Crest from "./Crest.astro";
 import StatusPill from "./StatusPill.astro";
 import { time } from "../lib/format.ts";
+import { commentCount } from "../lib/data.ts";
 
 interface Props { article: Article; index?: number }
 const { article: a, index = 0 } = Astro.props;
+const comments = commentCount(a.id);
 ---
 <a href={`/artikel/${a.id}/`} class="press enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`}>
   <span class="relative">
@@ -21,7 +23,31 @@ const { article: a, index = 0 } = Astro.props;
     <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
     <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
-      <span>{a.player?.name ?? a.club?.name ?? "LigaInsider"} · {time(a.publishedAt)}</span>
+      <span class="min-w-0 truncate">{a.player?.name ?? a.club?.name ?? "LigaInsider"} · {time(a.publishedAt)}</span>
+      {/* Refreshed live by the script below. Hidden while there are no comments. */}
+      <span class:list={["ml-auto flex shrink-0 items-center gap-1 pl-2 tabular-nums", !comments && "hidden"]} data-comment-count={a.id} aria-label="Kommentare">
+        <svg viewBox="0 0 24 24" class="size-[15px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" /></svg>
+        <span data-n>{comments ?? 0}</span>
+      </span>
     </span>
   </span>
 </a>
+
+<script>
+  // Refresh the counts of LigaInsider's newest articles live (the built page has the counts of the last scrape).
+  document.addEventListener("astro:page-load", async () => {
+    const badges = document.querySelectorAll<HTMLElement>("[data-comment-count]");
+    if (!badges.length) return;
+    try {
+      const res = await fetch("/api/comment-counts/");
+      if (!res.ok) return;
+      const counts = (await res.json()) as Record<string, number>;
+      for (const b of badges) {
+        const n = counts[b.dataset.commentCount!];
+        if (n === undefined) continue;
+        b.querySelector("[data-n]")!.textContent = String(n);
+        b.classList.toggle("hidden", n === 0);
+      }
+    } catch {}
+  });
+</script>

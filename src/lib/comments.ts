@@ -1,10 +1,12 @@
 import { load, type CheerioAPI } from "cheerio/slim";
 import type { Element } from "domhandler";
 import { USER_AGENT } from "../../scraper/fetch.ts";
+import { parseCommentCounts } from "../../scraper/parse/commentCounts.ts";
 
 /** LigaInsider comments are fetched live per article view and cached this long at the edge. */
 export const COMMENTS_TTL_SECONDS = 120;
 const TIMEOUT_MS = 8000;
+const HEADERS = { "user-agent": USER_AGENT, "accept-language": "de-DE,de;q=0.9" };
 
 export type Poll = { question: string; total: number; options: { label: string; pct: number }[] };
 export type Comment = {
@@ -26,7 +28,7 @@ export const commentsUrl = (articleId: number) =>
 
 export async function fetchComments(fetchFn: typeof fetch, articleId: number): Promise<Comments> {
   const res = await fetchFn(commentsUrl(articleId), {
-    headers: { "user-agent": USER_AGENT, "accept-language": "de-DE,de;q=0.9" },
+    headers: HEADERS,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -89,19 +91,35 @@ export type EdgeCache = {
   put(key: string, res: Response): Promise<void>;
 };
 
-/** GET /api/comments/<id>/: LigaInsider's comments as JSON, cached at the edge for COMMENTS_TTL_SECONDS. */
-export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?: EdgeCache): Promise<Response> {
-  if (!/^\d{1,9}$/.test(id)) return new Response("Not found", { status: 404 });
-  const key = `https://comments.cache/${id}`;
+/** Serves load() as JSON, cached at the edge for COMMENTS_TTL_SECONDS; failures answer 502 and aren't cached. */
+async function cachedJson(key: string, load: () => Promise<unknown>, cache?: EdgeCache): Promise<Response> {
   const hit = await cache?.match(key);
   if (hit) return hit;
-  let data: Comments;
+  let data: unknown;
   try {
-    data = await fetchComments(fetchFn, Number(id));
+    data = await load();
   } catch {
     return Response.json({ error: "unavailable" }, { status: 502, headers: { "cache-control": "no-store" } });
   }
   const res = Response.json(data, { headers: { "cache-control": `public, max-age=${COMMENTS_TTL_SECONDS}` } });
   await cache?.put(key, res.clone());
   return res;
+}
+
+/** GET /api/comments/<id>/: LigaInsider's comments on one article. */
+export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?: EdgeCache): Promise<Response> {
+  if (!/^\d{1,9}$/.test(id)) return new Response("Not found", { status: 404 });
+  return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, Number(id)), cache);
+}
+
+/** The overview whose comment counts the news page refreshes live (the newest ~15 articles). */
+export const COUNTS_URL = "https://www.ligainsider.de/bundesliga-news/uebersicht/";
+
+/** GET /api/comment-counts/: article id → comment count for LigaInsider's newest articles. */
+export async function commentCountsResponse(fetchFn: typeof fetch, cache?: EdgeCache): Promise<Response> {
+  return cachedJson("https://comments.cache/counts", async () => {
+    const res = await fetchFn(COUNTS_URL, { headers: HEADERS, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return parseCommentCounts(await res.text());
+  }, cache);
 }

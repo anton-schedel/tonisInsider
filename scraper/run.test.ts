@@ -44,6 +44,29 @@ describe("run", () => {
     publicDir = join(dir, "public");
   });
 
+  it("saves comment counts from the overview without triggering a rebuild", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    const second = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    expect(store.state().commentCounts?.["418778"]).toBe(3);
+    expect(second.changed).toBe(false);
+
+    const bumped = fx("news-bundesliga.html").replace(/(418778\/#comments"><i class="fa fa-comments"><\/i><small>)3/, "$13" + "1");
+    const fetcher = fakeFetcher({ "https://www.ligainsider.de/bundesliga-news/uebersicht/": bumped }).fetcher;
+    const third = await run({ store, fetcher, publicDir, now: NOW });
+    expect(store.state().commentCounts?.["418778"]).toBe(31);
+    expect(third.changed).toBe(false);
+    expect(third.stateChanged).toBe(true);
+  });
+
+  it("keeps the last known count when an article shows no count any more", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    const counts = store.state().commentCounts!;
+    const empty = fx("news-bundesliga.html").replace(/small_comment_top/g, "x");
+    await run({ store, fetcher: fakeFetcher({ "https://www.ligainsider.de/bundesliga-news/uebersicht/": empty }).fetcher, publicDir, now: NOW });
+    expect(store.state().commentCounts).toEqual(counts);
+    for (const id of Object.keys(counts)) expect(store.getArticle(Number(id)) ?? null).not.toBeNull();
+  });
+
   it("first run backfills articles and lineups and reports a change", async () => {
     const { fetcher } = fakeFetcher();
     const res = await run({ store, fetcher, publicDir, now: NOW });

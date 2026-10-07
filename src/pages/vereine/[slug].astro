@@ -1,24 +1,41 @@
 ---
 import Base from "../../layouts/Base.astro";
 import Pitch from "../../components/Pitch.astro";
-import MatchHeader from "../../components/MatchHeader.astro";
+import FixtureCard from "../../components/FixtureCard.astro";
 import ArticleRow from "../../components/ArticleRow.astro";
 import { clubArticles, lineups } from "../../lib/data.ts";
+import { toFixtures } from "../../lib/fixtures.ts";
 import type { Lineup } from "../../../scraper/types.ts";
 
 export function getStaticPaths() {
-  return lineups().map((lineup) => ({ params: { slug: lineup.club.slug }, props: { lineup } }));
+  const fixtures = toFixtures(lineups());
+  return lineups().map((lineup) => ({
+    params: { slug: lineup.club.slug },
+    props: { lineup, fixture: fixtures.find((f) => f.home === lineup || f.away === lineup) },
+  }));
 }
-const { lineup } = Astro.props as { lineup: Lineup };
+const { lineup, fixture } = Astro.props as { lineup: Lineup; fixture?: ReturnType<typeof toFixtures>[number] };
 const news = clubArticles(lineup.club.id);
 ---
-<Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Zurück" }}>
-  <h2 class="mt-2 text-xs font-semibold tracking-wide text-muted uppercase">Voraussichtliche Aufstellung</h2>
-  <MatchHeader lineup={lineup} />
-  <Pitch lineup={lineup} />
-  <h2 class="mt-6 text-xs font-semibold tracking-wide text-muted uppercase">News</h2>
-  {news.length === 0 && <p class="py-6 text-sm text-muted">Keine aktuellen News.</p>}
-  <div class="divide-y divide-hairline">
-    {news.map((a, i) => <ArticleRow article={a} index={i} />)}
-  </div>
+<Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
+  {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} />}
+
+  <section class="mt-9">
+    <div class="mb-3 flex items-baseline justify-between">
+      <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
+      <span class="text-[15px] font-semibold text-muted tabular-nums">{lineup.formation}</span>
+    </div>
+    <Pitch lineup={lineup} />
+  </section>
+
+  <section class="mt-7">
+    <div class="mb-1 flex items-baseline justify-between">
+      <h2 class="text-[22px] font-bold tracking-[-0.02em]">News</h2>
+      {news.length > 0 && <span class="text-[15px] font-semibold text-muted tabular-nums">{news.length}</span>}
+    </div>
+    {news.length === 0 && <p class="py-4 text-sm text-muted">Keine aktuellen News zu diesem Team.</p>}
+    <div class="divide-y divide-hairline">
+      {news.map((a, i) => <ArticleRow article={a} index={i} />)}
+    </div>
+  </section>
 </Base>

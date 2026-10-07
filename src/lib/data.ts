@@ -41,6 +41,11 @@ export function lineups(): Lineup[] {
   return load().lineups;
 }
 
+/** LigaInsider comment count as of the last scrape (the news page refreshes the newest ones live). */
+export function commentCount(articleId: number): number | undefined {
+  return load().state.commentCounts?.[articleId];
+}
+
 export function lastUpdate(): string | undefined {
   return load().state.lastChangeAt;
 }

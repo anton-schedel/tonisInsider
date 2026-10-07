@@ -1,0 +1,64 @@
+---
+import Crest from "./Crest.astro";
+import type { Fixture } from "../lib/fixtures.ts";
+import { kickoffDay, time } from "../lib/format.ts";
+import type { Lineup } from "../../scraper/types.ts";
+
+interface Props {
+  fixture: Fixture;
+  /** "hero" on a team page: bigger, and the current club isn't a link. */
+  size?: "list" | "hero";
+  /** Slug of the club whose page this is. */
+  current?: string;
+  index?: number;
+  /** Shown under the date on the hero card. */
+  matchday?: number;
+}
+const { fixture: f, size = "list", current, index = 0, matchday } = Astro.props;
+const hero = size === "hero";
+const crest = hero ? 64 : 52;
+const sides: { lineup?: Lineup; name: string }[] = [
+  { lineup: f.home, name: f.homeName },
+  { lineup: f.away, name: f.awayName },
+];
+---
+{/* The crests share a view-transition-name between the matchday page and the team page, so they glide across. */}
+<div
+  class:list={["flex items-center rounded-[22px] bg-surface", hero ? "px-3 py-6" : "enter px-2 py-4"]}
+  style={hero ? undefined : `--i:${index}`}
+>
+  {sides.map((s, i) => {
+    const slug = s.lineup?.club.slug;
+    const inner = (
+      <>
+        <span style={slug ? `view-transition-name:crest-${slug};view-transition-class:crest` : undefined}>
+          <Crest src={s.lineup?.club.crest} name={s.name} size={crest} />
+        </span>
+        <span class:list={["mt-2 line-clamp-2 text-center leading-tight font-semibold", hero ? "text-[14px]" : "text-[12px]"]}>{s.name}</span>
+      </>
+    );
+    const box = "flex min-w-0 flex-1 flex-col items-center px-1";
+    return (
+      <>
+        {i === 1 && (
+          <div class:list={["shrink-0 text-center", hero ? "w-28" : "w-20"]}>
+            {f.kickoff ? (
+              <>
+                <p class:list={["font-bold tracking-tight tabular-nums", hero ? "text-[30px] leading-none" : "text-[17px]"]}>{time(f.kickoff)}</p>
+                <p class:list={["text-muted", hero ? "mt-1.5 text-[13px]" : "text-[11px]"]}>{kickoffDay(f.kickoff)}</p>
+                {hero && matchday && <p class="text-[13px] text-muted">{matchday}. Spieltag</p>}
+              </>
+            ) : (
+              <p class="text-sm text-muted">vs</p>
+            )}
+          </div>
+        )}
+        {slug && slug !== current ? (
+          <a href={`/vereine/${slug}/`} class:list={["press", box]}>{inner}</a>
+        ) : (
+          <div class:list={[box, !s.lineup && "opacity-50"]}>{inner}</div>
+        )}
+      </>
+    );
+  })}
+</div>

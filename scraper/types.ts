@@ -57,4 +57,6 @@ export type State = {
   invalid?: Record<string, string>;
   /** Git SHA of the code that last ran; a change forces a rebuild and retries invalid articles. */
   codeVersion?: string;
+  /** Comment counts from the overviews: id → count. Updating them alone doesn't trigger a rebuild. */
+  commentCounts?: Record<string, number>;
 };

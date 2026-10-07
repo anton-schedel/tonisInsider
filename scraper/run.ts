@@ -2,6 +2,7 @@ import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Store } from "./store.ts";
 import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
 import { BASE_URL } from "./text.ts";
+import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
@@ -72,6 +73,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion }: RunOp
 
   // 1. Collect article refs from the overviews. Bundesliga wins if an article is listed twice.
   const refs = new Map<number, { ref: ArticleRef; category: Category }>();
+  const counts: Record<string, number> = { ...state.commentCounts };
   let clubs: ClubRef[] = [];
   let clubsParsed = false;
   for (const overview of OVERVIEWS) {
@@ -79,6 +81,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion }: RunOp
       try {
         const html = await fetcher.text(overview.url(page));
         const list = parseNewsList(html);
+        for (const [id, count] of Object.entries(parseCommentCounts(html))) counts[id] = count;
         if (page === 1 && list.length === 0) result.problems.push(`${overview.category}: overview returned 0 articles`);
         if (overview.category === "bundesliga" && page === 1) {
           clubs = parseClubs(html);
@@ -188,6 +191,9 @@ export async function run({ store, fetcher, publicDir, now, codeVersion }: RunOp
       result.changed = true;
     }
   }
+
+  // Only for articles we still have; articles that left the overview keep their last known count.
+  state.commentCounts = Object.fromEntries(store.articles().filter((a) => a.id in counts).map((a) => [a.id, counts[a.id]]));
 
   if (result.changed) state.lastChangeAt = now.toISOString();
   store.putState(state);

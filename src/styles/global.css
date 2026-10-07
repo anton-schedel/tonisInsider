@@ -8,7 +8,8 @@
   --fg: #1d1d1f;
   --muted: #86868b;
   --hairline: #e5e5ea;
-  --accent: #248a3d;
+  /* Interactive elements use the text colour (black / white); green only means "set to start". */
+  --accent: var(--fg);
   --tabbar: rgba(250, 250, 252, 0.94);
   --pitch-from: #f3f8f2;
   --pitch-to: #e8f2e6;
@@ -22,7 +23,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #000000; --surface: #1c1c1e; --surface-raised: #2c2c2e; --fg: #f5f5f7; --muted: #8e8e93;
-    --hairline: #2c2c2e; --accent: #30d158; --tabbar: rgba(22, 22, 24, 0.92);
+    --hairline: #2c2c2e; --tabbar: rgba(22, 22, 24, 0.92);
     --pitch-from: #0f1a12; --pitch-to: #0b140d; --pitch-line: rgba(48, 209, 88, 0.18);
     --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
     --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
@@ -33,7 +34,7 @@
 
 :root[data-theme="dark"] {
   --bg: #000000; --surface: #1c1c1e; --surface-raised: #2c2c2e; --fg: #f5f5f7; --muted: #8e8e93;
-  --hairline: #2c2c2e; --accent: #30d158; --tabbar: rgba(22, 22, 24, 0.92);
+  --hairline: #2c2c2e; --tabbar: rgba(22, 22, 24, 0.92);
   --pitch-from: #0f1a12; --pitch-to: #0b140d; --pitch-line: rgba(48, 209, 88, 0.18);
   --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
   --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
@@ -68,35 +69,37 @@ html {
 [data-comments-list] > .comment { padding: 14px 0; border-top: 1px solid var(--hairline); }
 [data-comments-list] > .comment:first-child { border-top: 0; padding-top: 0; }
 .poll-fill { background: var(--hairline); }
-.poll-fill.is-best { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.poll-fill.is-best { background: color-mix(in srgb, var(--fg) 16%, transparent); }
 
 /* ---------- Motion ---------- */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
-@keyframes pop-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: none; }
-}
 
-/* Page navigation (view transitions): the rest of the page, incl. the tab bar, swaps instantly;
-   the old content is gone at once and only the new content fades in. No cross-fade, no morph. */
+/* Page navigation (view transitions). The tab bar stays put on its own layer; the page fades through
+   (old out fast, new in with a small rise); club crests glide from the matchday card into the team page. */
 .page { view-transition-name: page; }
-::view-transition-old(root), ::view-transition-new(root), ::view-transition-group(page) { animation: none; }
-::view-transition-old(page) { display: none; }
-::view-transition-new(page) { animation: fade-in 180ms ease-out both; }
-@keyframes fade-in { from { opacity: 0; } }
+nav.tabbar { view-transition-name: tabbar; }
+::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root),
+::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar),
+::view-transition-group(page) { animation: none; }
+::view-transition-old(page) { animation: fade-out 90ms ease-in both; }
+::view-transition-new(page) { animation: fade-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; }
+::view-transition-group(.crest) { animation-duration: 340ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* A crest on both pages glides; one that exists on only one side fades with the page. */
+::view-transition-old(.crest) { animation: none; opacity: 0; }
+::view-transition-new(.crest) { animation: none; }
+::view-transition-old(.crest):only-child { opacity: 1; animation: fade-out 90ms ease-in both; }
+::view-transition-new(.crest):only-child { animation: fade-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes fade-rise { from { opacity: 0; transform: translateY(6px); } }
 
 /* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
 /* Only on a fresh page load, not on in-app navigation (the page fade already covers that). */
 html:not([data-navigated]) .enter {
   animation: fade-up 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   animation-delay: calc(min(var(--i, 0), 10) * 30ms);
-}
-.pop {
-  animation: pop-in 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  animation-delay: calc(var(--i, 0) * 60ms);
 }
 
 /* Lineup: tap a player with an alternative to flip to the alternative and back. */
@@ -124,8 +127,9 @@ html:not([data-navigated]) .enter {
 .press:active { transform: scale(0.97); opacity: 0.75; }
 
 @media (prefers-reduced-motion: reduce) {
-  .enter, .pop { animation: none; }
-  ::view-transition-new(page) { animation: none; }
+  .enter { animation: none; }
+  ::view-transition-old(page), ::view-transition-new(page), ::view-transition-group(.crest),
+  ::view-transition-old(.crest):only-child, ::view-transition-new(.crest):only-child { animation: none; }
   .swap-face { transition: none; }
   .press, .press:active { transition: none; transform: none; }
 }

@@ -21,7 +21,7 @@ const left = (j: number, n: number) => ((j + 1) * 100) / (n + 1);
   {lineup.lines.map((line, i) =>
     line.map((p, j) => (
       <div class="absolute w-[24%]" style={`top:${top(i)}%;left:${left(j, line.length)}%;transform:translate(-50%,-${AVATAR / 2}px)`}>
-        <div class="pop" style={`--i:${i}`}>
+        <div>
           {p.alternative ? (
             // Tap swaps to the alternative and back (handler in Base.astro).
             <button type="button" data-swap aria-pressed="false" aria-label={`${p.name} oder ${p.alternative.name}`} class="swap grid w-full">
