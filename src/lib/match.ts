@@ -1,7 +1,8 @@
 import type { Article, Lineup, LineupPlayer, Ref } from "../../scraper/types.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 
-export type StartStatus = "start" | "doubtful" | "alternative" | "bench" | "unknown";
+/** contested: in the predicted XI, but LigaInsider names an alternative for the spot. */
+export type StartStatus = "start" | "contested" | "doubtful" | "alternative" | "bench" | "unknown";
 
 export type MyPlayer = {
   kickbase: KbPlayer;
@@ -10,6 +11,8 @@ export type MyPlayer = {
   ligainsider?: Ref & { photo?: string };
   status: StartStatus;
   statusLabel?: string;
+  /** The alternative LigaInsider names for this starter's spot. */
+  rival?: string;
 };
 
 /** Lowercase, strip accents, ß → ss, keep only a–z, 0–9 and single spaces. */
@@ -81,8 +84,9 @@ export function matchPlayer(p: KbPlayer, lineup: Lineup | undefined, roster?: st
     return {
       ...base,
       ligainsider: { id: s.id, slug: s.slug, name: s.name, photo: s.photo },
-      status: s.status === "doubtful" ? "doubtful" : "start",
+      status: s.status === "doubtful" ? "doubtful" : s.alternative ? "contested" : "start",
       statusLabel: s.statusLabel,
+      ...(s.alternative ? { rival: s.alternative.name } : {}),
     };
   }
   const a = altHits[0];

@@ -21,6 +21,7 @@ const bvb: Lineup = {
     lp(20052, "nico-schlotterbeck", "N. Schlotterbeck", { status: "doubtful", statusLabel: "Angeschlagen", alternative: { id: 7791, slug: "ramy-bensebaini", name: "Bensebaini" } }),
     lp(1, "felix-nmecha", "F. Nmecha"),
     lp(2, "lukas-nmecha", "L. Nmecha"),
+    lp(3, "joey-veerman", "Veerman", { alternative: { id: 4, slug: "jobe-bellingham", name: "Jobe" } }),
   ]],
 };
 
@@ -51,6 +52,14 @@ describe("matchPlayer", () => {
   it("marks a doubtful starter with its label", () => {
     expect(matchPlayer(kb("Schlotterbeck"), bvb)).toMatchObject({ status: "doubtful", statusLabel: "Angeschlagen" });
   });
+  it("marks a starter who has an alternative as contested, with the rival's name", () => {
+    expect(matchPlayer(kb("Veerman"), bvb)).toMatchObject({ status: "contested", rival: "Jobe", ligainsider: { name: "Veerman" } });
+  });
+
+  it("keeps 'doubtful' for an injured starter but still names the rival", () => {
+    expect(matchPlayer(kb("Schlotterbeck"), bvb)).toMatchObject({ status: "doubtful", rival: "Bensebaini" });
+  });
+
   it("marks an alternative", () => {
     expect(matchPlayer(kb("Bensebaini"), bvb)).toMatchObject({ status: "alternative", ligainsider: { id: 7791 } });
   });

@@ -64,9 +64,11 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
   function voteControl(c: Comment): HTMLElement {
     const mine = c.vote === 1;
-    const label = mine && c.score ? String(c.score) : "";
+    // The up-vote count is always visible, voted or not, logged in or not.
+    const label = c.score ? String(c.score) : "";
     if (!loggedIn()) {
-      const link = h("a", "vote-btn press", "▲");
+      const link = h("a", "vote-btn press");
+      link.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", label));
       link.setAttribute("href", `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`);
       link.setAttribute("aria-label", "Zum Hochvoten anmelden");
       return link;
@@ -113,14 +115,16 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   }
 
   function renderPoll(poll: Poll): HTMLElement {
-    const box = h("div", `poll mt-2 rounded-xl bg-surface p-3${poll.voted ? " is-open" : ""}`);
+    // Results are always shown (like the rest of the comments). Note: Tailwind only sees whole class
+    // words, so classes must not touch a ${…} placeholder.
+    const box = h("div", "poll mt-2 rounded-xl bg-surface p-3");
     box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
-    const open = poll.voted;
+    const voted = poll.voted;
     const best = Math.max(...poll.options.map((o) => o.pct));
     for (const o of poll.options) {
-      const canVote = !open && loggedIn() && poll.votingId && o.id;
-      const row = h(open ? "div" : canVote ? "button" : "a", "poll-choice relative mb-1.5 w-full overflow-hidden rounded-xl px-3 py-3 text-left text-[15px]");
-      if (!open && !canVote) {
+      const canVote = !voted && loggedIn() && poll.votingId && o.id;
+      const row = h(voted ? "div" : canVote ? "button" : "a", "poll-choice relative mb-1.5 w-full overflow-hidden rounded-xl px-3 py-3 text-left text-[15px]");
+      if (!voted && !canVote) {
         row.classList.add("press");
         row.setAttribute("href", `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`);
       }
@@ -132,18 +136,12 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       }
       const fill = h("span", "poll-fill absolute inset-y-0 left-0");
       fill.dataset.pct = String(o.pct);
-      fill.style.width = open ? `${o.pct}%` : "0";
+      fill.style.width = `${o.pct}%`;
       if (o.pct === best && o.pct > 0) fill.classList.add("is-best");
       row.append(fill, h("span", "relative", o.label), h("span", "poll-pct relative float-right font-semibold tabular-nums", `${o.pct}%`));
       box.append(row);
     }
     box.append(h("p", "poll-total mt-1 text-xs text-muted", `${poll.total} Stimmen`));
-    if (!open) {
-      const reveal = h("button", "press mt-0.5 py-1 text-[13px] font-medium text-accent", "Ergebnisse anzeigen");
-      reveal.setAttribute("type", "button");
-      reveal.dataset.pollReveal = "";
-      box.append(reveal);
-    }
     return box;
   }
 
@@ -268,17 +266,6 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
     section.querySelector<HTMLElement>("[data-comments-list]")!.addEventListener("click", async (e) => {
       const target = e.target instanceof Element ? e.target : null;
-      const reveal = target?.closest<HTMLButtonElement>("[data-poll-reveal]");
-      if (reveal) {
-        const pollEl = reveal.closest<HTMLElement>(".poll");
-        if (!pollEl) return;
-        const shown = pollEl.classList.toggle("is-open");
-        pollEl.querySelectorAll<HTMLElement>(".poll-fill").forEach((fill) => {
-          fill.style.width = shown ? `${fill.dataset.pct}%` : "0";
-        });
-        reveal.textContent = shown ? "Ergebnisse verbergen" : "Ergebnisse anzeigen";
-        return;
-      }
       const up = target?.closest<HTMLButtonElement>("[data-up]");
       const replyBtn = target?.closest<HTMLButtonElement>("[data-reply]");
       const option = target?.closest<HTMLButtonElement>("[data-option]");

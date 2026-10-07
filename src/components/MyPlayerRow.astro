@@ -28,5 +28,5 @@ const Tag = href ? "a" : "div";
     <span class="block truncate text-[15px] font-semibold tracking-[-0.01em]">{name}</span>
     {match && <span class="block truncate text-xs text-muted">{match}{goal !== undefined && goal >= 1 && ` · Torchance ${goal} %`}</span>}
   </span>
-  <StartBadge status={p.status} label={p.statusLabel} />
+  <StartBadge status={p.status} label={p.statusLabel} rival={p.rival} />
 </Tag>
