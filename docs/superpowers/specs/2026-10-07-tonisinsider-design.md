@@ -1,7 +1,7 @@
 # tonisInsider — Design Spec
 
 **Date:** 2026-10-07
-**Status:** Draft, awaiting review
+**Status:** Approved (rev. 2: public code-only repo, sanitised HTML bodies, lineup model matched to real markup)
 
 ## 1. Goal
 
@@ -45,69 +45,86 @@ A private, ad-free, fast and modern mirror of the parts of ligainsider.de that m
 ## 3. Architecture
 
 ```
-GitHub Actions cron (every 5 min, private repo)
-  └─ scraper (Node + TypeScript)
-       1. GET news overview → diff article IDs against data/articles/
-       2. GET each new article → parse → data/articles/<id>.json
-       3. lineups due? (every 30 min; every 10 min within 48 h of a club's kickoff)
-            → GET 18 club pages → data/lineups/<club-slug>.json
-       4. new player/club images → download once → public/img/...
-       5. nothing changed → exit (no commit, no deploy)
-  └─ commit changed data → Astro build → deploy to Cloudflare Pages
+GitHub Actions cron (every 5 min, PUBLIC repo: code only, no content in git)
+  ├─ restore store/ + public/img/ from the Actions cache
+  │    (cache missing → fallback: download <SITE_URL>/data/snapshot.json from our own site)
+  ├─ scraper (Node + TypeScript)
+  │    1. GET news overview(s) → diff article IDs against store/
+  │    2. GET each new or re-titled article → parse → store/articles/<id>.json
+  │    3. lineups due? (every 30 min; every 10 min within 48 h of any kickoff)
+  │         → GET 18 club pages → store/lineups/<club-slug>.json
+  │    4. new player photos / club crests → download once → public/img/...
+  │    5. drop articles older than 30 days
+  │    6. nothing changed → exit (no build, no deploy)
+  ├─ save store/ + public/img/ to the Actions cache
+  └─ Astro build (also writes /data/snapshot.json) → wrangler deploy to Cloudflare Pages
 ```
+
+**Why a public repo:** private repos get 2,000 free Actions minutes a month, and a 5-minute cron needs about 8,600. Public repos get unlimited free minutes. The repo therefore holds **only code**. Scraped content lives in the Actions cache and on the deployed site, never in git. Scheduled workflows in public repos are paused by GitHub after 60 days without repo activity, so the workflow re-enables itself via the GitHub API once a week (keep-alive).
 
 ### Components (each one is isolated and testable)
 
 | Unit | Responsibility | Input → Output |
 |---|---|---|
 | `scraper/fetch.ts` | HTTP with a normal user-agent, ~1 s delay between requests, 1 retry, timeout | URL → HTML string |
-| `scraper/parse/newsList.ts` | Parse the news overview | HTML → `ArticleRef[]` (id, url, headline, player, club, time) |
-| `scraper/parse/article.ts` | Parse an article page | HTML → `Article` |
+| `scraper/parse/newsList.ts` | Parse a news overview page | HTML → `ArticleRef[]` |
+| `scraper/parse/article.ts` | Parse an article page (body sanitised) | HTML → `Article` |
+| `scraper/parse/clubs.ts` | Find the 18 clubs on the homepage | HTML → `ClubRef[]` |
 | `scraper/parse/clubPage.ts` | Parse a club page's predicted XI | HTML → `Lineup` |
-| `scraper/validate.ts` | Sanity checks (see §5) | object → ok / error |
+| `scraper/sanitize.ts` | Reduce article body HTML to an allowlist | HTML → safe HTML |
+| `scraper/validate.ts` | Sanity checks (see §5) | object → list of problems |
+| `scraper/store.ts` | Read and write `store/` | — |
 | `scraper/images.ts` | Download missing player photos and club crests | URLs → files in `public/img/` |
-| `scraper/run.ts` | Orchestrates the steps; writes JSON only when something changed | — |
-| `site/` (Astro + Tailwind) | Static pages built from `data/` | JSON → HTML |
+| `scraper/run.ts` | Orchestrates the steps; exits with "changed" or "unchanged" | — |
+| `src/` (Astro + Tailwind) | Static pages built from `store/` | JSON → HTML |
 
-### Data model (JSON files in git)
+### Data model (JSON files in `store/`, git-ignored)
 
 ```ts
+type Ref = { id: number; slug: string; name: string };
+
+type NewsType = "verletzung" | "angeschlagen" | "aufbautraining" | "fit" | "sonstiges";
+
 type Article = {
-  id: number;            // LigaInsider article id, e.g. 418778
-  url: string;           // original URL (link back)
+  id: number;              // LigaInsider article id, e.g. 418778
+  url: string;             // original URL (link back)
   headline: string;
-  category: "bundesliga" | "testspiele" | "other";
-  player?: { id: number; name: string; slug: string };
-  club?: { id: number; name: string; slug: string };
+  category: "bundesliga" | "testspiele";   // which overview it was listed in
+  newsType: NewsType;      // from the list icon, drives the status pill
+  player?: Ref;            // absent for editorial pieces ("LigaInsider")
+  club?: Ref;
   author?: string;
-  source?: string;       // "Quelle: bild.de"
-  publishedAt: string;   // ISO
-  paragraphs: string[];  // plain text paragraphs, no source HTML
+  source?: { name: string; url: string };  // "Quelle: bild.de"
+  publishedAt: string;     // ISO, from "07.10.2026 - 09:32 Uhr" (Europe/Berlin)
+  bodyHtml: string;        // sanitised, allowlist: p h3 b strong i em br a[href^=http]
   fetchedAt: string;
 };
 
+type LineupPlayer = Ref & {
+  photo?: string;          // local path, e.g. /img/players/9357.jpg
+  status: "set" | "doubtful";
+  statusLabel?: string;    // e.g. "Angeschlagen"
+  alternative?: Ref & { photo?: string };
+};
+
 type Lineup = {
-  club: { id: number; name: string; slug: string };
-  opponent?: { name: string; slug: string; home: boolean };
+  club: Ref & { crest?: string };
+  opponent?: { name: string; home: boolean };
   matchday?: number;
-  kickoff?: string;      // ISO
-  formation?: string;    // e.g. "3-4-2-1"
-  players: Array<{
-    id: number; name: string; slug: string;
-    position: { x: number; y: number };     // 0..1 pitch coordinates
-    status: "set" | "doubtful" | "out";      // as shown by LigaInsider
-    alternative?: { id: number; name: string };
-  }>;
+  kickoff?: string;        // ISO
+  formation: string;       // derived from row sizes, e.g. "3-4-3"
+  lines: LineupPlayer[][]; // lines[0] = goalkeeper … last = attack
   updatedAt: string;
 };
 ```
 
-Article bodies are stored as **plain-text paragraphs**, never as raw source HTML. Our site then shows no foreign markup or scripts.
+Article bodies are **sanitised to a small tag allowlist**. Some articles use headings, bold text and links (e.g. press-conference schedules), so pure plain text would lose meaning. Scripts, ads (`<div id="ad_oop">`), images and attributes other than a link's `href` are stripped.
 
 ### Hosting and privacy
-- Private GitHub repo (the scraped content is never public on GitHub).
-- Cloudflare Pages (free; deploys from a private repo).
+- Public GitHub repo containing only code. Content is never committed.
+- Cloudflare Pages via direct upload (`wrangler pages deploy`) from the workflow; free.
 - `<meta name="robots" content="noindex,nofollow">` on every page plus a `robots.txt` disallowing everything.
+- Secrets in repo settings: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Variable: `SITE_URL`.
 
 ## 4. UI / design
 
@@ -115,26 +132,27 @@ Approved direction: **"B minimal"**, a dark sports-app feel in an Apple/Airbnb-l
 
 - System font stack (`-apple-system, …, Inter`), large bold titles, generous whitespace, hairline separators.
 - Colours follow iOS system colours. Dark: background `#000`, surfaces `#1c1c1e`. Light: `#fff` / `#f2f2f7`. One accent colour, green (`#30d158` dark / `#248a3d` light).
-- Status pills: Verletzt (red), Fraglich (yellow), Comeback (green), shown only when LigaInsider provides the status.
+- Status pills from LigaInsider's news icons: Verletzung (red), Angeschlagen (yellow), Aufbautraining and Fit (green). "Sonstiges" shows no pill.
 - Bottom tab bar on mobile: **News · Aufstellungen · Vereine**. Wider screens get a centered column, max ~720px.
-- Pitch view: light pitch, round player photos (initials as fallback) with a status dot, short name, and "Alt: X" for doubtful players.
+- Pitch view: light pitch, round player photos (initials as fallback) with a status dot (green = set, yellow = doubtful), short name, and "Alt: X" when LigaInsider names an alternative.
 - Footer: "Stand: <last update>", plus "Inhalte von ligainsider.de" with a link.
 - Language: German UI labels, matching the source.
 
 ## 5. Error handling
 
-- **Validation before writing:** an article needs an id, a headline and ≥1 paragraph. A lineup needs exactly 11 players with positions. On failure, keep the last good file, log the failure, and exit non-zero, so GitHub emails the owner.
+- **Validation before writing:** an article needs an id, a headline, a valid date and a non-empty body. A lineup needs exactly 11 players, one goalkeeper line of size 1. On failure, keep the last good file, log the failure, and exit non-zero, so GitHub emails the owner.
 - **Network errors:** one retry with backoff, then skip until the next run. One failing item doesn't block the others.
 - **Blocked by the source:** the site keeps serving the last good data, and the footer timestamp makes staleness visible.
 - **Edited articles:** re-fetch when a known article's headline changes in the overview.
-- **Retention:** the feed shows articles from the last 30 days. Older JSON is deleted by the scraper.
+- **Retention:** articles older than 30 days are deleted from `store/`.
+- **Lost cache:** if the Actions cache is evicted, the scraper restores `store/` from `<SITE_URL>/data/snapshot.json` and re-downloads images as needed. If that also fails, it starts fresh and backfills 3 overview pages.
 - **Missing images:** fall back to initials or the club colour.
 
 ## 6. Testing
 
 - **Parser unit tests (Vitest)** run against saved real pages in `scraper/__fixtures__/` (news overview, ≥2 articles, ≥2 club pages). No network calls in tests.
 - **Validation tests:** malformed input is rejected.
-- **Change detection test:** no new IDs → no writes.
+- **Change detection test:** no new IDs → no writes, run reports "unchanged".
 - **Build check:** `astro build` succeeds on the fixture data (runs in CI).
 - **Manual check:** phone, dark and light, before the first deploy.
 
