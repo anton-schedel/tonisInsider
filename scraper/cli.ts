@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createFetcher } from "./fetch.ts";
 import { Store } from "./store.ts";
 import { run } from "./run.ts";
+import { lastingProblems } from "./problems.ts";
 import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
 
 const ROOT = process.cwd();
@@ -22,10 +23,15 @@ if (command === "scrape") {
     oddsApiKey: process.env.ODDS_API_KEY || undefined,
   });
   console.log(`changed=${result.changed} new=${result.newArticles} lineups=${result.lineupsUpdated}`);
-  for (const p of result.problems) console.warn(`PROBLEM: ${p}`);
+  // Only problems that last fail the run (GitHub emails); one-off glitches are just logged.
+  const state = store.state();
+  const { report, streaks } = lastingProblems(result.problems, state.problemStreaks ?? {});
+  const streaksChanged = JSON.stringify(streaks) !== JSON.stringify(state.problemStreaks ?? {});
+  if (streaksChanged) store.putState({ ...state, problemStreaks: streaks });
+  for (const p of result.problems) console.warn(`${report.includes(p) ? "PROBLEM" : "glitch (reported if it lasts 3 runs)"}: ${p}`);
   output("changed", result.changed);
-  output("save_cache", result.changed || result.stateChanged);
-  output("problems", result.problems.length);
+  output("save_cache", result.changed || result.stateChanged || streaksChanged);
+  output("problems", report.length);
 } else if (command === "restore") {
   if (store.articles().length > 0) {
     console.log("store already populated, nothing to restore");

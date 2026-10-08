@@ -71,11 +71,13 @@ export type State = {
   codeVersion?: string;
   /** Comment counts from the overviews: id → count. Updating them alone doesn't trigger a rebuild. */
   commentCounts?: Record<string, number>;
-  /** Win chances from bookmaker odds (The Odds API), refreshed every 2 hours. */
+  /** Win chances from bookmaker odds (The Odds API), refreshed every 3 hours. */
   odds?: OddsEvent[];
   oddsFetchedAt?: string;
   /** Articles LigaInsider pins on top of its news list, in its order. */
   pinned?: number[];
-  /** Anytime-goalscorer odds per match id, fetched close to kickoff. */
+  /** Anytime-goalscorer odds per match id, fetched per matchday. */
   scorers?: Record<string, ScorerMatch>;
+  /** Problems of the last runs: key → runs in a row (see problems.ts). */
+  problemStreaks?: Record<string, number>;
 };
