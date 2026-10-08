@@ -18,6 +18,13 @@ describe("findScorer", () => {
     [ref("Demirović", "ermedin-demirovic"), "Ermedin Demirovic"],
   ])("%o → %s", (r, expected) => expect(findScorer(r, names)).toBe(expected));
 
+  it("tolerates one wrong letter in longer names", () => {
+    expect(findScorer(ref("El Khannouss", "bilal-el-khannouss"), ["Bilal El Khannous", "Ermedin Demirovic"])).toBe("Bilal El Khannous");
+    // Short names must match exactly.
+    expect(findScorer(ref("Can", "emre-can"), ["Emre Car"])).toBeUndefined();
+    expect(findScorer(ref("Kane", "harry-kane"), ["Harry Kone"])).toBeUndefined();
+  });
+
   it("doesn't guess between two players with the same surname", () => {
     expect(findScorer(ref("Nmecha", "nmecha"), ["Felix Nmecha", "Lukas Nmecha"])).toBeUndefined();
     expect(findScorer(ref("F. Nmecha", "felix-nmecha"), ["Felix Nmecha", "Lukas Nmecha"])).toBe("Felix Nmecha");

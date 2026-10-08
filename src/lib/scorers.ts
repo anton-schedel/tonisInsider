@@ -10,6 +10,22 @@ function words(s: string): string[] {
   return normalize(s).split(" ").filter((w) => w.length > 2);
 }
 
+/** Equal, or one letter off in a longer word ("Khannouss" / "Khannous"): spellings differ between sources. */
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) < 6 || Math.abs(a.length - b.length) > 1) return false;
+  // Edit distance ≤ 1 (one letter replaced, added or dropped).
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
 /**
  * The bookmakers' spelling of a LigaInsider player ("Rômulo" → "Cardoso Romulo Jose").
  * Match on the surname (last word of the slug) or on two shared name words; never guess between ties.
@@ -19,9 +35,10 @@ export function findScorer(player: Pick<Ref, "name" | "slug">, names: string[]):
   const surname = words(player.slug.replace(/-/g, " ")).at(-1);
   const scored = names
     .map((name) => {
-      const theirs = new Set(words(name));
-      const shared = [...own].filter((w) => theirs.has(w)).length;
-      const ok = (surname && theirs.has(surname)) || shared >= 2;
+      const theirs = words(name);
+      const has = (w: string) => theirs.some((t) => sameWord(w, t));
+      const shared = [...own].filter(has).length;
+      const ok = (surname && has(surname)) || shared >= 2;
       return { name, shared: ok ? shared : 0 };
     })
     .filter((c) => c.shared > 0)
