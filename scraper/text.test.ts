@@ -25,4 +25,15 @@ describe("text helpers", () => {
     expect(parseGermanDateTime("Heimspiel Fr. 09.10.2026 | 20:30 gegen")).toBe("2026-10-09T18:30:00.000Z");
     expect(parseGermanDateTime("kein Datum")).toBeUndefined();
   });
+
+  it("parses kickoffs written relative to today (Berlin date)", () => {
+    const now = new Date("2026-10-08T14:00:00Z"); // Thursday
+    expect(parseGermanDateTime("Heimspiel Morgen 20:30 gegen", now)).toBe("2026-10-09T18:30:00.000Z");
+    expect(parseGermanDateTime("Auswärtsspiel Heute 18:30 bei", now)).toBe("2026-10-08T16:30:00.000Z");
+    expect(parseGermanDateTime("Heimspiel Übermorgen 15:30 gegen", now)).toBe("2026-10-10T13:30:00.000Z");
+    // Just after midnight in Berlin it's already the next day there.
+    expect(parseGermanDateTime("Heute 15:30", new Date("2026-10-08T22:30:00Z"))).toBe("2026-10-09T13:30:00.000Z");
+    // Without a reference time a relative date can't be resolved.
+    expect(parseGermanDateTime("Morgen 20:30")).toBeUndefined();
+  });
 });

@@ -51,7 +51,7 @@ export function parseClubPage(html: string, club: ClubRef, now: Date): Lineup {
     club: { id: club.id, slug: club.slug, name: cleanText($("h2[itemprop=name]").first().text()) || club.name },
     opponent: opponentName ? { name: opponentName, home: /Heimspiel/i.test(matchText) } : undefined,
     matchday,
-    kickoff: parseGermanDateTime(matchText),
+    kickoff: parseGermanDateTime(matchText, now),
     formation: lines.slice(1).map((l) => l.length).join("-"),
     lines,
     updatedAt: now.toISOString(),

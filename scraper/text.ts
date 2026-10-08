@@ -43,11 +43,19 @@ export function berlinToIso(year: number, month: number, day: number, hour: numb
 }
 
 /** Finds "DD.MM.YYYY" followed by "HH:MM" anywhere in the text, e.g. "07.10.2026 - 09:32 Uhr" or "Fr. 09.10.2026 | 20:30". */
-export function parseGermanDateTime(text: string): string | undefined {
+export function parseGermanDateTime(text: string, now?: Date): string | undefined {
   const m = text.match(/(\d{2})\.(\d{2})\.(\d{4})\D{1,10}?(\d{2}):(\d{2})/);
-  if (!m) return undefined;
-  const [, d, mo, y, h, mi] = m.map(Number);
-  return berlinToIso(y, mo, d, h, mi);
+  if (m) {
+    const [, d, mo, y, h, mi] = m.map(Number);
+    return berlinToIso(y, mo, d, h, mi);
+  }
+  // Close matches are written relative to today: "Heimspiel Morgen 20:30 gegen …".
+  const rel = now && text.match(/(Übermorgen|Morgen|Heute)\D{1,10}?(\d{2}):(\d{2})/i);
+  if (!rel || !now) return undefined;
+  const days = { heute: 0, morgen: 1, übermorgen: 2 }[rel[1].toLowerCase() as "heute" | "morgen" | "übermorgen"];
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  return berlinToIso(get("year"), get("month"), get("day") + days, Number(rel[2]), Number(rel[3]));
 }
 
 export function absoluteUrl(href: string): string {
