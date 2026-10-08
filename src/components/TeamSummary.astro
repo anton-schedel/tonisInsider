@@ -1,0 +1,41 @@
+---
+import type { StartStatus } from "../lib/match.ts";
+import type { TeamSummary } from "../lib/summary.ts";
+
+interface Props { summary: TeamSummary }
+const { summary: s } = Astro.props;
+// Same colours as the dots on the pitch.
+const DOT: Record<StartStatus, string> = {
+  start: "var(--green-dot)",
+  contested: "var(--yellow-dot)",
+  doubtful: "var(--yellow-dot)",
+  alternative: "var(--yellow-dot)",
+  bench: "var(--red-fg)",
+  unknown: "var(--hairline)",
+};
+const details = [
+  s.shaky && `${s.shaky} ${s.shaky === 1 ? "wackelt" : "wackeln"}`,
+  s.out && `${s.out} nicht in der Startelf`,
+  s.unknown && `${s.unknown} ohne Infos`,
+].filter(Boolean);
+---
+<section class="mb-6 rounded-[22px] bg-surface p-4" aria-label="Überblick">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <p class="text-[34px] leading-none font-bold tracking-[-0.03em] tabular-nums">
+        {s.starting}<span class="text-[20px] font-semibold text-muted"> von {s.total}</span>
+      </p>
+      <p class="mt-1.5 text-[13px] text-muted">in der vorhergesagten Startelf</p>
+    </div>
+    {s.scorers !== undefined && (
+      <div class="text-right">
+        <p class="text-[34px] leading-none font-bold tracking-[-0.03em] tabular-nums">{s.scorers.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
+        <p class="mt-1.5 text-[13px] text-muted">erwartete Torschützen</p>
+      </div>
+    )}
+  </div>
+  <div class="mt-4 flex h-1.5 gap-1" aria-hidden="true">
+    {s.statuses.map((status) => <span class="flex-1 rounded-full" style={`background:${DOT[status]}`}></span>)}
+  </div>
+  {details.length > 0 && <p class="mt-2.5 text-[13px] text-muted">{details.join(" · ")}</p>}
+</section>
