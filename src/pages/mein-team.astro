@@ -3,13 +3,11 @@ import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
 import MyPitch from "../components/MyPitch.astro";
 import ArticleRow from "../components/ArticleRow.astro";
-import TeamSummary from "../components/TeamSummary.astro";
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
 import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../lib/match.ts";
 import { toFixtures } from "../lib/fixtures.ts";
 import { goalChances } from "../lib/scorers.ts";
-import { teamSummary } from "../lib/summary.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
@@ -108,7 +106,6 @@ const { leagues, league, players, starterCount, news, goals } = data;
 // matchSquad keeps the order: the first starterCount players are the XI.
 const pitch = pitchLines(players.slice(0, starterCount));
 const benchPlayers = players.slice(starterCount);
-const summary = teamSummary(players.slice(0, starterCount), goals);
 
 const GROUPS = [
   { pos: 1, label: "Torwart" },
@@ -135,7 +132,6 @@ let index = 0;
 
   {starterCount > 0 ? (
     <>
-      <TeamSummary summary={summary} />
       <section>
         <div class="mb-3 flex items-baseline justify-between">
           <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
