@@ -7,6 +7,6 @@ import { articles, pinnedArticles } from "../lib/data.ts";
 const pinned = pinnedArticles();
 const pinnedIds = new Set(pinned.map((a) => a.id));
 ---
-<Base title="News" tab="news">
+<Base title="News" tab="news" logo>
   <NewsFeed articles={articles().filter((a) => !pinnedIds.has(a.id))} pinned={pinned} />
 </Base>

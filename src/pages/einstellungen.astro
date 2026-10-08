@@ -24,13 +24,12 @@ const error = errors[Astro.url.searchParams.get("error") ?? ""] ?? "";
 
 const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
-<Base title="Einstellungen" tab="einstellungen">
+<Base title="Einstellungen" tab="einstellungen" logo>
   <p id="login-error" class:list={["mb-4 rounded-xl px-4 py-3 text-sm font-medium", !error && "hidden"]} style="background:var(--red-bg);color:var(--red-fg)">{error}</p>
 
   <section class="mb-8">
     <h2 class="mb-3 text-[15px] font-semibold">Darstellung</h2>
-    <div class="grid grid-cols-3 gap-1 rounded-2xl bg-surface p-1" role="group" aria-label="Darstellung">
-      <button type="button" data-theme-set="auto" class="press rounded-xl py-2.5 text-[15px] font-semibold">Automatisch</button>
+    <div class="grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1" role="group" aria-label="Darstellung">
       <button type="button" data-theme-set="light" class="press rounded-xl py-2.5 text-[15px] font-semibold">Hell</button>
       <button type="button" data-theme-set="dark" class="press rounded-xl py-2.5 text-[15px] font-semibold">Dunkel</button>
     </div>
@@ -89,8 +88,8 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
         if (slot) slot.textContent = name;
       }
 
-      // The stored choice ("auto" when nothing is stored), not the resolved colour.
-      let theme = "auto";
+      // The stored choice, or the system's colour while nothing is chosen.
+      let theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
       try {
         const t = localStorage.getItem("theme");
         if (t === "light" || t === "dark") theme = t;

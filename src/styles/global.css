@@ -42,6 +42,15 @@
   color-scheme: dark;
 }
 
+/* The logo's navy text needs its light version on dark backgrounds. */
+.brand-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-light { display: none; }
+  :root:not([data-theme="light"]) .brand-dark { display: inline; }
+}
+:root[data-theme="dark"] .brand-light { display: none; }
+:root[data-theme="dark"] .brand-dark { display: inline; }
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

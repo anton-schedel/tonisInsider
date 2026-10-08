@@ -1,4 +1,4 @@
-# tonisInsider
+# TonInsider
 
 Private, ad-free reader for ligainsider.de news and predicted Bundesliga XIs. Only for me and friends: not indexed, not public.
 
