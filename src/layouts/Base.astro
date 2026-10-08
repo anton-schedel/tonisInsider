@@ -79,6 +79,7 @@ const tabs = [
           document.querySelectorAll("nav [data-tab]").forEach((a) => {
             a.classList.toggle("text-accent", a.dataset.tab === tab);
             a.classList.toggle("text-muted", a.dataset.tab !== tab);
+            a.classList.toggle("is-active", a.dataset.tab === tab);
           });
         };
         const tabFor = (path) =>
@@ -193,15 +194,15 @@ const tabs = [
         <p class="mt-1">Inhalte von <a class="underline" href="https://www.ligainsider.de/" target="_blank" rel="noopener noreferrer">ligainsider.de</a></p>
       </footer>
     </div>
-    <nav class="tabbar fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-[var(--tabbar)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl" transition:persist="tabbar">
+    <nav class="tabbar fixed inset-x-3 bottom-[max(10px,env(safe-area-inset-bottom))] z-50 mx-auto max-w-[480px] rounded-[30px]" transition:persist="tabbar">
       <div class="nav-progress" data-nav-progress aria-hidden="true"></div>
       <button type="button" class="news-notice press" data-news-notice hidden>
         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         Neue Meldungen
       </button>
-      <div class="mx-auto grid max-w-[720px] grid-cols-4 pt-1.5 pb-1.5">
+      <div class="grid grid-cols-4 gap-1 p-1.5">
         {tabs.map((t) => (
-          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["press flex flex-col items-center gap-0.5 px-0.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent" : "text-muted"]}>
+          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["tab-item press flex flex-col items-center gap-0.5 rounded-[24px] px-0.5 py-1.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent is-active" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
             <span data-label class="text-center">{t.label}</span>
           </a>

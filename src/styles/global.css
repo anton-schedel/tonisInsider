@@ -10,7 +10,7 @@
   --hairline: #e5e5ea;
   /* Interactive elements use the text colour (black / white); green only means "set to start". */
   --accent: var(--fg);
-  --tabbar: rgba(250, 250, 252, 0.94);
+  --tabbar: rgba(250, 250, 252, 0.78);
   --red-bg: #ffebe9; --red-fg: #d70015;
   --yellow-bg: #fff4d6; --yellow-fg: #a05a00; --yellow-dot: #ffcc00;
   --green-bg: #e3f7e8; --green-fg: #248a3d; --green-dot: #30d158;
@@ -22,7 +22,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #000000; --surface: #1c1c1e; --surface-raised: #2c2c2e; --fg: #f5f5f7; --muted: #8e8e93;
-    --hairline: #2c2c2e; --tabbar: rgba(22, 22, 24, 0.92);
+    --hairline: #2c2c2e; --tabbar: rgba(30, 30, 32, 0.72);
     --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
     --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
     --green-bg: rgba(48, 209, 88, 0.16); --green-fg: #30d158; --green-dot: #30d158;
@@ -33,7 +33,7 @@
 
 :root[data-theme="dark"] {
   --bg: #000000; --surface: #1c1c1e; --surface-raised: #2c2c2e; --fg: #f5f5f7; --muted: #8e8e93;
-  --hairline: #2c2c2e; --tabbar: rgba(22, 22, 24, 0.92);
+  --hairline: #2c2c2e; --tabbar: rgba(30, 30, 32, 0.72);
   --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
   --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
   --green-bg: rgba(48, 209, 88, 0.16); --green-fg: #30d158; --green-dot: #30d158;
@@ -122,7 +122,7 @@ html {
 
 /* Error message above the tab bar (Comments.astro). */
 .toast {
-  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 76px); z-index: 60;
+  position: fixed; left: 50%; bottom: calc(max(10px, env(safe-area-inset-bottom)) + 78px); z-index: 60;
   max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 9999px;
   background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600; text-align: center;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
@@ -169,6 +169,14 @@ html {
    small rise. Root is captured as the viewport, so a scrolled page can't jump to its top while fading.
    The tab bar stays put on its own layer; club crests glide from the matchday card into the team page. */
 nav.tabbar { view-transition-name: tabbar; }
+/* Floating glass bar (iOS 26 style); the current tab sits on a soft pill. */
+nav.tabbar {
+  background: var(--tabbar);
+  -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--fg) 8%, transparent);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.tab-item.is-active { background: color-mix(in srgb, var(--fg) 8%, transparent); }
 ::view-transition-group(root),
 ::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar) { animation: none; }
 ::view-transition-old(root) { animation: fade-out 50ms ease-in both; }
@@ -185,7 +193,7 @@ nav.tabbar { view-transition-name: tabbar; }
 @keyframes fade-rise { from { opacity: 0; transform: translateY(6px); } }
 
 /* Thin line on top of the tab bar while a slow page loads. */
-.nav-progress { position: absolute; inset: 0 0 auto; height: 2px; overflow: hidden; opacity: 0; transition: opacity 150ms; }
+.nav-progress { position: absolute; inset: 0 28px auto; height: 2px; overflow: hidden; opacity: 0; transition: opacity 150ms; }
 .nav-progress::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--fg); opacity: 0.6; transform: translateX(-100%); }
 .nav-progress.is-loading { opacity: 1; }
 .nav-progress.is-loading::after { animation: nav-progress 900ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
