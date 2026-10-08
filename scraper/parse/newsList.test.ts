@@ -20,9 +20,17 @@ describe("parseNewsList", () => {
       headline: "Kobel kann sich langfristigen BVB-Verbleib vorstellen",
       newsType: "sonstiges",
       playerPhotoUrl: "https://cdn.ligainsider.de/images/player/team/minor/gregor-kobel-dortmund-2627.jpg",
+      listedAgoMinutes: 60,
     });
     expect(refs.find((r) => r.id === 418776)?.newsType).toBe("verletzung");
     expect(refs.find((r) => r.id === 418777)?.newsType).toBe("fit");
+  });
+
+  it("reads how long ago each article was listed ('Vor 46 Min.', 'Vor 1 Std.'), none for 'Gestern'", () => {
+    const refs = parseNewsList(fx("news-bundesliga.html"));
+    expect(refs.find((r) => r.id === 418775)?.listedAgoMinutes).toBe(46);
+    expect(refs.find((r) => r.id === 418778)?.listedAgoMinutes).toBe(60);
+    expect(refs.find((r) => r.id === 418765)?.listedAgoMinutes).toBeUndefined();
   });
 
   it("parses the Testspiele overview", () => {

@@ -11,6 +11,9 @@ import type { Lineup } from "./types.ts";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "__fixtures__", name), "utf8");
 const NOW = new Date("2026-10-07T09:00:00Z");
+const OVERVIEW = "https://www.ligainsider.de/bundesliga-news/uebersicht/";
+/** The saved overview says "Vor 46 Min." forever; hours later LigaInsider would show older times. */
+const overviewLater = () => fx("news-bundesliga.html").replace(/Vor \d+ (Min|Std)\./g, "Gestern");
 
 /** Serves fixtures by URL; any article URL gets the Kobel or Can article, any club page gets BVB or TSG. */
 function fakeFetcher(overrides: Record<string, string | number> = {}) {
@@ -73,7 +76,7 @@ describe("run", () => {
   it("doesn't rebuild when the shown percentages stay the same", async () => {
     await run({ store, fetcher: fakeFetcher({ [oddsUrl("K")]: ODDS }).fetcher, publicDir, now: NOW, oddsApiKey: "K" });
     const later = new Date(NOW.getTime() + 3 * 60 * 60_000);
-    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("K")]: ODDS }).fetcher, publicDir, now: later, oddsApiKey: "K" });
+    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("K")]: ODDS, [OVERVIEW]: overviewLater() }).fetcher, publicDir, now: later, oddsApiKey: "K" });
     expect(r.changed).toBe(false);
     expect(r.stateChanged).toBe(true);
   });
@@ -151,6 +154,35 @@ describe("run", () => {
     const r = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
     expect(store.state().pinned).toEqual([418765]);
     expect(r.changed).toBe(true);
+  });
+
+  it("re-reads an article LigaInsider republished under the same headline (newer listing time)", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    // Stored (and last seen in the list) on Tuesday, but the overview now lists it as 'Vor 46 Min.'.
+    store.putArticle({ ...store.getArticle(418775)!, publishedAt: "2026-10-05T18:00:00.000Z", listedAt: "2026-10-05T18:10:00.000Z" });
+    const again = fakeFetcher();
+    await run({ store, fetcher: again.fetcher, publicDir, now: NOW });
+    expect(again.calls.some((u) => u.includes("418775"))).toBe(true);
+    expect(store.getArticle(418775)!.publishedAt).not.toBe("2026-10-05T18:00:00.000Z");
+  });
+
+  it("re-reads a republished article only once, even if its page still shows the old date", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    store.putArticle({ ...store.getArticle(418775)!, publishedAt: "2026-10-05T18:00:00.000Z", listedAt: "2026-10-05T18:10:00.000Z" });
+    // The article page itself keeps showing the old date.
+    const oldPage = fx("article-kobel.html").replace("07.10.2026 - 09:32", "05.10.2026 - 20:00");
+    const url = store.getArticle(418775)!.url;
+    await run({ store, fetcher: fakeFetcher({ [url]: oldPage }).fetcher, publicDir, now: NOW });
+    const third = fakeFetcher({ [url]: oldPage });
+    await run({ store, fetcher: third.fetcher, publicDir, now: new Date(NOW.getTime() + 5 * 60_000) });
+    expect(third.calls.some((u) => u.includes("418775"))).toBe(false);
+  });
+
+  it("doesn't re-read articles whose listing time matches their date", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    const again = fakeFetcher();
+    await run({ store, fetcher: again.fetcher, publicDir, now: NOW });
+    expect(again.calls.filter((u) => /-\d{6}\/$/.test(u))).toEqual([]);
   });
 
   it("saves comment counts from the overview without triggering a rebuild", async () => {
@@ -293,8 +325,8 @@ describe("run", () => {
   it("keeps old articles that LigaInsider still lists, so they are not re-fetched every run", async () => {
     await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
     const later = new Date(NOW.getTime() + 40 * 24 * 60 * 60_000);
-    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: later });
-    const { fetcher, calls } = fakeFetcher();
+    await run({ store, fetcher: fakeFetcher({ [OVERVIEW]: overviewLater() }).fetcher, publicDir, now: later });
+    const { fetcher, calls } = fakeFetcher({ [OVERVIEW]: overviewLater() });
     await run({ store, fetcher, publicDir, now: new Date(later.getTime() + 5 * 60_000) });
     expect(calls.filter((u) => /-\d{6}\/$/.test(u))).toEqual([]);
   });

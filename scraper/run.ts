@@ -26,6 +26,9 @@ export const OVERVIEWS: { category: Category; url: (page: number) => string }[] 
   },
 ];
 
+/** "Vor 2 Std." means 2–3 h ago, so a listing time up to ~1 h after our date is normal. */
+const REPUBLISH_TOLERANCE_MIN = 90;
+
 export type RunOptions = {
   store: Store; fetcher: Fetcher; publicDir: string; now: Date; codeVersion?: string;
   /** The Odds API key; without it, win chances are skipped. Never log it: it is part of the request URL. */
@@ -113,8 +116,14 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   const cutoff = now.getTime() - RETENTION_DAYS * 24 * 60 * MINUTE;
   for (const { ref, category } of refs.values()) {
     const existing = store.getArticle(ref.id);
-    // Also re-read once if stored before banners existed (banner undefined), while LigaInsider still lists it.
-    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined) continue;
+    // Re-read when the headline changed, when it was stored before banners existed (banner undefined), or when
+    // LigaInsider republished it: the listing time ("Vor 46 Min.") is clearly newer than our date.
+    // Compared with the later of its date and the listing time seen at the last read, so an article whose page
+    // keeps an older date than the list is read once, not every run.
+    const listedAt = ref.listedAgoMinutes !== undefined ? now.getTime() - ref.listedAgoMinutes * MINUTE : undefined;
+    const known = existing ? Math.max(Date.parse(existing.publishedAt), existing.listedAt ? Date.parse(existing.listedAt) : 0) : 0;
+    const republished = existing && listedAt !== undefined && listedAt - known > REPUBLISH_TOLERANCE_MIN * MINUTE;
+    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished) continue;
     if (state.unavailable?.[ref.id] === ref.headline) {
       unavailable[ref.id] = ref.headline;
       continue;
@@ -125,6 +134,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     }
     try {
       const article: Article = parseArticle(await fetcher.text(ref.url), ref, category, now);
+      if (listedAt !== undefined) article.listedAt = new Date(listedAt).toISOString();
       const problems = validateArticle(article);
       if (problems.length) {
         result.problems.push(`article ${ref.id}: ${problems.join(", ")}`);

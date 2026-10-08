@@ -13,6 +13,8 @@ export type ArticleRef = {
   headline: string;
   newsType: NewsType;
   playerPhotoUrl?: string;
+  /** "Vor 46 Min." / "Vor 2 Std." in the overview, in minutes; reveals republished articles. */
+  listedAgoMinutes?: number;
 };
 
 export type Article = {
@@ -33,6 +35,8 @@ export type Article = {
    * null = the article has none. Missing = stored before banners existed (looked up once while listed).
    */
   banner?: string | null;
+  /** When LigaInsider's list last showed it as new (from "Vor 46 Min."); detects republishing. */
+  listedAt?: string;
   fetchedAt: string;
 };
 

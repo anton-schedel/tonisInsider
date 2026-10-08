@@ -14,6 +14,13 @@ export function newsTypeFromLabel(label: string | undefined): NewsType {
   return NEWS_TYPES[key] ?? "sonstiges";
 }
 
+/** "Vor 46 Min." → 46, "Vor 2 Std." → 120; anything else ("Gestern", a date) → undefined. */
+export function minutesAgo(text: string): number | undefined {
+  const m = /Vor\s+(\d+)\s+(Min|Std)/i.exec(text);
+  if (!m) return undefined;
+  return Number(m[1]) * (m[2].toLowerCase() === "std" ? 60 : 1);
+}
+
 /** Parses a LigaInsider news overview page (startpage or testspiele-news). */
 export function parseNewsList(html: string): ArticleRef[] {
   const $ = cheerio.load(html);
@@ -34,6 +41,7 @@ export function parseNewsList(html: string): ArticleRef[] {
       headline: cleanText(link.find("h3").text()),
       newsType: newsTypeFromLabel(col.find(".social_left_icon img").first().attr("alt")),
       playerPhotoUrl: photo || undefined,
+      listedAgoMinutes: minutesAgo(col.find("small.float-start").first().text()),
     });
   });
   return refs;
