@@ -70,7 +70,7 @@ async function load(token: string) {
   );
   const rosterMap = new Map(teamIds.flatMap((id) => (rosters.get(id) ? [[id, rosters.get(id)!.names] as const] : [])));
   const players = matchSquad(squad, mapClubs(g.__kbTable?.teams ?? [], snapshot?.lineups ?? []), rosterMap);
-  // Odds-based outlook per Kickbase player id; clean sheets only count for goalkeepers and defenders.
+  // Odds-based outlook per Kickbase player id; the clean sheet is the player's team's.
   const fixtures = toFixtures(snapshot?.lineups ?? []);
   const insights = new Map<object, ReturnType<typeof matchInsights>>();
   const outlook = new Map<string, PlayerOutlook>();
@@ -80,10 +80,9 @@ async function load(token: string) {
     if (!insights.has(fixture)) insights.set(fixture, matchInsights(fixture, snapshot?.state.odds, snapshot?.state.scorers));
     const mi = insights.get(fixture);
     if (!mi) continue;
-    const defends = p.kickbase.position === 1 || p.kickbase.position === 2;
     outlook.set(p.kickbase.id, {
       ...(p.ligainsider ? mi.player(p.ligainsider) : {}),
-      ...(defends ? { cleanSheet: fixture.home === p.lineup ? mi.cleanSheet.home : mi.cleanSheet.away } : {}),
+      cleanSheet: fixture.home === p.lineup ? mi.cleanSheet.home : mi.cleanSheet.away,
     });
   }
   return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), outlook };
@@ -162,7 +161,7 @@ let index = 0;
         <section class="mt-5">
           <h2 class="mb-2 text-[22px] font-bold tracking-[-0.02em]">Prognose</h2>
           <Outlook rows={outlookRows} />
-          <p class="mt-3 text-xs text-muted">Aus Wettquoten, Buchmacher-Marge herausgerechnet. Scorer heißt Tor oder Vorlage, Zu Null zählt für Torwart und Abwehr.</p>
+          <p class="mt-3 text-xs text-muted">Aus Wettquoten, Buchmacher-Marge herausgerechnet. Scorer heißt Tor oder Vorlage, Zu Null heißt kein Gegentor für sein Team.</p>
         </section>
       )}
       {benchPlayers.length > 0 && (

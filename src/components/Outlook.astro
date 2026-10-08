@@ -8,7 +8,7 @@ export type OutlookRow = {
   goal?: number;
   scorer?: number;
   card?: number;
-  /** Only for goalkeepers and defenders (Mein Team; the team page shows it once in its header). */
+  /** The player's team keeps a clean sheet. */
   cleanSheet?: number;
 };
 interface Props { rows: OutlookRow[] }
