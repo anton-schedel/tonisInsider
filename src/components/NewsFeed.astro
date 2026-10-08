@@ -24,7 +24,7 @@ let index = 0;
 {groups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section class="mb-4">
-    <h2 class="sticky top-0 z-10 -mx-1 bg-bg/90 px-1 pt-3 pb-1.5 text-[15px] font-semibold backdrop-blur" data-day={g.first}>
+    <h2 class="sticky top-0 z-10 -mx-1 bg-bg px-1 pt-3 pb-1.5 text-[15px] font-semibold" data-day={g.first}>
       {(() => {
         const [rel, date] = dayLabel(g.first, now).split(" · ");
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
