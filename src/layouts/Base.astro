@@ -82,6 +82,17 @@ const tabs = [
             a.classList.toggle("is-active", a.dataset.tab === tab);
           });
         };
+        // The pill slides only once the new page is in: the router briefly takes the bar out of the page
+        // during the swap, which would cut a running slide short.
+        const movePill = (tab) => {
+          const nav = document.querySelector("nav.tabbar");
+          const pill = nav?.querySelector(".tab-pill");
+          if (!nav || !pill) return;
+          const i = [...nav.querySelectorAll("[data-tab]")].findIndex((a) => a.dataset.tab === tab);
+          getComputedStyle(pill).transform; // start from where it is now
+          nav.style.setProperty("--tab", String(Math.max(0, i)));
+          nav.classList.toggle("no-tab", i < 0);
+        };
         const tabFor = (path) =>
           /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen"
           : /^\/mein-team\//.test(path) ? "mein-team"
@@ -100,10 +111,15 @@ const tabs = [
           clearTimeout(slow);
           bar()?.classList.remove("is-loading");
         });
+        document.addEventListener("astro:after-swap", () => {
+          movePill(document.querySelector("[data-active-tab]")?.dataset.activeTab);
+        });
         document.addEventListener("astro:page-load", () => {
           clearTimeout(slow);
           bar()?.classList.remove("is-loading");
-          highlight(document.querySelector("[data-active-tab]")?.dataset.activeTab);
+          const tab = document.querySelector("[data-active-tab]")?.dataset.activeTab;
+          highlight(tab);
+          movePill(tab);
           // Settings is swapped in by the client router, so account rows and the theme choice are applied here too.
           if (location.pathname.startsWith("/einstellungen")) {
             const signedIn = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
@@ -165,11 +181,16 @@ const tabs = [
         });
       }
     </script>
-    <ClientRouter />
+    <script is:inline>
+      // Page switches swap the content directly instead of using the browser's view transitions: those
+      // screenshot the whole page (slow on phones) and the glass tab bar, which loses its blur and corners.
+      document.startViewTransition = undefined;
+    </script>
+    <ClientRouter fallback="swap" />
   </head>
   <body class="min-h-dvh bg-bg font-sans text-fg">
-    <!-- Page transitions are defined in global.css (view transitions). -->
-    <div class="mx-auto max-w-[720px] px-4 pb-28 sm:px-6" data-active-tab={tab}>
+    <!-- New pages fade in (.page-in in global.css); the tab bar stays. -->
+    <div class="page-in mx-auto max-w-[720px] px-4 pb-28 sm:px-6" data-active-tab={tab}>
       <header class="flex items-end justify-between pt-6 pb-3">
         <div class="min-w-0">
           {back && (
@@ -194,13 +215,14 @@ const tabs = [
         <p class="mt-1">Inhalte von <a class="underline" href="https://www.ligainsider.de/" target="_blank" rel="noopener noreferrer">ligainsider.de</a></p>
       </footer>
     </div>
-    <nav class="tabbar fixed inset-x-3 bottom-[max(10px,env(safe-area-inset-bottom))] z-50 mx-auto max-w-[480px] rounded-[30px]" transition:persist="tabbar">
+    <nav style={`--tab:${Math.max(0, tabs.findIndex((t) => t.id === tab))}`} class:list={["tabbar fixed inset-x-3 bottom-[max(10px,env(safe-area-inset-bottom))] z-50 mx-auto max-w-[480px] rounded-[30px]", !tab && "no-tab"]} transition:persist="tabbar">
       <div class="nav-progress" data-nav-progress aria-hidden="true"></div>
       <button type="button" class="news-notice press" data-news-notice hidden>
         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         Neue Meldungen
       </button>
-      <div class="grid grid-cols-4 gap-1 p-1.5">
+      <div class="relative grid grid-cols-4 gap-1 p-1.5">
+        <span class="tab-pill" aria-hidden="true"></span>
         {tabs.map((t) => (
           <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["tab-item press flex flex-col items-center gap-0.5 rounded-[24px] px-0.5 py-1.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent is-active" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>

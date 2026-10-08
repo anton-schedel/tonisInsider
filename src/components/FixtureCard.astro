@@ -29,7 +29,6 @@ const sides: { lineup?: Lineup; name: string }[] = [
   { lineup: f.away, name: f.awayName },
 ];
 ---
-{/* The crests share a view-transition-name between the matchday page and the team page, so they glide across. */}
 <div
   class:list={["rounded-[22px] bg-surface", hero ? "px-3 py-6" : "enter px-2 py-4"]}
   style={hero ? undefined : `--i:${index}`}
@@ -39,9 +38,7 @@ const sides: { lineup?: Lineup; name: string }[] = [
     const slug = s.lineup?.club.slug;
     const inner = (
       <>
-        <span style={slug ? `view-transition-name:crest-${slug};view-transition-class:crest` : undefined}>
-          <Crest src={s.lineup?.club.crest} name={s.name} size={crest} />
-        </span>
+        <Crest src={s.lineup?.club.crest} name={s.name} size={crest} />
         <span class:list={["mt-2 line-clamp-2 text-center leading-tight font-semibold", hero ? "text-[14px]" : "text-[12px]"]}>{s.name}</span>
       </>
     );
