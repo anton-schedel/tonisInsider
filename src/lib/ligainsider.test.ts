@@ -80,25 +80,24 @@ describe("ligainsider writes", () => {
     expect(sent).toContain("csrf_form=comment_graph");
   });
 
-  it("asks for the token again when LigaInsider is slow, but sends the vote exactly once", async () => {
+  it("loads the token once while it is slow, then sends the vote once", async () => {
     vi.useFakeTimers();
     const calls: string[] = [];
-    let pageLoads = 0;
+    let release: ((res: Response) => void) | undefined;
     const fn = (async (url: string | URL | Request, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${String(url)}`);
       if (String(url).includes("newscomments")) {
-        // The first page load hangs (until cancelled), the second answers.
-        if (pageLoads++ === 0) {
-          return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
-        }
-        return new Response(csrf);
+        return new Promise<Response>((resolve) => { release = resolve; });
       }
       return new Response(JSON.stringify({ success: true }));
     }) as typeof fetch;
     const done = upvote(fn, session, 418778, 9, 0);
     await vi.advanceTimersByTimeAsync(3000);
+    expect(calls.filter((c) => c.includes("newscomments"))).toHaveLength(1);
+    expect(calls.filter((c) => c.startsWith("POST"))).toHaveLength(0);
+    release!(new Response(csrf));
     await done;
-    expect(calls.filter((c) => c.includes("newscomments"))).toHaveLength(2);
+    expect(calls.filter((c) => c.includes("newscomments"))).toHaveLength(1);
     expect(calls.filter((c) => c.startsWith("POST"))).toHaveLength(1);
     vi.useRealTimers();
   });

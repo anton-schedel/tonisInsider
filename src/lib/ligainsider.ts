@@ -1,4 +1,4 @@
-import { commentsUrl, hedged } from "./comments.ts";
+import { commentsUrl } from "./comments.ts";
 
 const ORIGIN = "https://www.ligainsider.de";
 /**
@@ -103,27 +103,27 @@ export async function login(fetchFn: Fetch, username: string, password: string):
 }
 
 /**
- * The form token comes from LigaInsider's comment page, whose answer times are random (0.2 s to 15 s measured).
- * It's only read here, so a second request may run in parallel when the first is slow (see hedged).
- * The write itself (graph) is always sent exactly once.
+ * The form token comes from LigaInsider's comment page, whose answer times are random (0.2 s to 12 s measured).
+ * One request only. A second copy in parallel takes LigaInsider's PHP session lock, so the first one
+ * cannot finish and both are cut off — the like and the poll then come back as unreachable.
  */
+const TOKEN_TIMEOUT_MS = 25_000;
+
 async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number, referer: string): Promise<string> {
-  return hedged(async (signal) => {
-    const res = await request(fetchFn, commentsUrl(articleId), {
-      cookie: session.cookie,
-      headers: {
-        accept: "text/html, */*; q=0.01",
-        "x-requested-with": "XMLHttpRequest",
-        referer,
-      },
-      signal,
-    });
-    if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
-    if (!res.ok) throw new LigaInsiderUnavailableError(`token page HTTP ${res.status}`);
-    const token = (await res.text()).match(/name="csrf_token" value="([^"]+)"/)?.[1];
-    if (!token) throw new LigaInsiderAuthError("session expired");
-    return token;
-  }, undefined, undefined, (err) => !(err instanceof LigaInsiderAuthError));
+  const res = await request(fetchFn, commentsUrl(articleId), {
+    cookie: session.cookie,
+    headers: {
+      accept: "text/html, */*; q=0.01",
+      "x-requested-with": "XMLHttpRequest",
+      referer,
+    },
+    signal: AbortSignal.timeout(TOKEN_TIMEOUT_MS),
+  });
+  if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
+  if (!res.ok) throw new LigaInsiderUnavailableError(`token page HTTP ${res.status}`);
+  const token = (await res.text()).match(/name="csrf_token" value="([^"]+)"/)?.[1];
+  if (!token) throw new LigaInsiderAuthError("session expired");
+  return token;
 }
 
 async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fields: Record<string, string>, referer = `${ORIGIN}/`): Promise<{ commentId?: string }> {
