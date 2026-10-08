@@ -37,7 +37,7 @@ const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
     </p>
     {a.banner && (
       // LigaInsider's banner photo (photographer credit is printed on the image).
-      <img src={a.banner} alt="" width="1200" height="675" decoding="async" class="mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" />
+      <img src={a.banner} alt="" width="1200" height="675" decoding="async" class="img-fade mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" onload="this.classList.add('is-loaded')" />
     )}
     <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
     <a

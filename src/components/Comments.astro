@@ -33,7 +33,19 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     <a data-li-login href="/einstellungen/#ligainsider" class="font-medium text-accent">Mit LigaInsider anmelden</a>, um zu kommentieren, zu antworten und abzustimmen.
   </p>
 
-  <p class="text-sm text-muted" data-comments-status>Kommentare werden geladen …</p>
+  <p class="hidden text-sm text-muted" data-comments-status></p>
+  <div data-comments-skeleton role="status" aria-label="Kommentare werden geladen">
+    {[0.9, 0.6, 0.75].map((w) => (
+      <div class="flex gap-2.5 py-3.5">
+        <span class="skeleton size-8 shrink-0 rounded-full"></span>
+        <span class="flex-1">
+          <span class="skeleton block h-3 w-24 rounded-full"></span>
+          <span class="skeleton mt-2.5 block h-3 rounded-full" style={`width:${w * 100}%`}></span>
+          <span class="skeleton mt-2 block h-3 w-1/2 rounded-full"></span>
+        </span>
+      </div>
+    ))}
+  </div>
   <ul class="flex flex-col" data-comments-list></ul>
   <a
     href={url}
@@ -224,10 +236,12 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const status = section.querySelector<HTMLElement>("[data-comments-status]");
     const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
     const more = section.querySelector<HTMLElement>("[data-comments-more]")!;
+    const skeleton = section.querySelector("[data-comments-skeleton]");
     try {
       const res = await fetch(`/api/comments/${section.dataset.comments}/`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as Comments;
+      skeleton?.remove();
       const now = new Date();
       section.querySelector("[data-comments-count]")!.textContent = data.total ? String(data.total) : "";
       list.replaceChildren();
@@ -248,6 +262,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
         more.classList.add("hidden");
       }
     } catch {
+      skeleton?.remove();
       if (status) {
         status.textContent = "Kommentare gerade nicht erreichbar.";
         status.classList.remove("hidden");

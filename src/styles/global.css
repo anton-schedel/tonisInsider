@@ -98,6 +98,18 @@ html {
 /* A comment or reply that is still being sent. */
 .comment.is-pending { opacity: 0.55; }
 
+/* Photos fade in once loaded (the initials or grey box show until then). */
+.img-fade { opacity: 0; transition: opacity 220ms ease; }
+.img-fade.is-loaded { opacity: 1; }
+
+/* Placeholder shapes while content loads. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, color-mix(in srgb, var(--surface) 55%, var(--hairline)) 50%, var(--surface) 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+
 /* A form button whose request is on its way (Base.astro). */
 .is-busy { position: relative; color: transparent !important; pointer-events: none; }
 .is-busy::after {
@@ -236,4 +248,6 @@ html:not([data-navigated]) .enter {
   .press, .press:active { transition: none; transform: none; }
   .vote-btn.is-on .vote-chevron { animation: none; }
   .toast { transition: none; }
+  .img-fade { transition: none; }
+  .skeleton { animation: none; }
 }
