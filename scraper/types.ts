@@ -13,6 +13,8 @@ export type ArticleRef = {
   headline: string;
   newsType: NewsType;
   playerPhotoUrl?: string;
+  /** The player in the overview photo's caption ("Sebastiaan Bornauw"). */
+  playerName?: string;
   /** "Vor 46 Min." / "Vor 2 Std." in the overview, in minutes; reveals republished articles. */
   listedAgoMinutes?: number;
 };

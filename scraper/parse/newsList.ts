@@ -34,13 +34,16 @@ export function parseNewsList(html: string): ArticleRef[] {
     const id = parseArticleId(href);
     if (id === undefined || seen.has(id)) return;
     seen.add(id);
-    const photo = col.find(".player_photo img").first().attr("src");
+    const photoImg = col.find(".player_photo img").first();
+    const photo = photoImg.attr("src");
+    const photoName = cleanText(photoImg.attr("alt") ?? "");
     refs.push({
       id,
       url: absoluteUrl(href),
       headline: cleanText(link.find("h3").text()),
       newsType: newsTypeFromLabel(col.find(".social_left_icon img").first().attr("alt")),
       playerPhotoUrl: photo || undefined,
+      ...(photoName ? { playerName: photoName } : {}),
       listedAgoMinutes: minutesAgo(col.find("small.float-start").first().text()),
     });
   });

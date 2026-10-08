@@ -1,13 +1,13 @@
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Store } from "./store.ts";
 import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
-import { BASE_URL } from "./text.ts";
+import { BASE_URL, playerOfArticleUrl } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { pinnedIds } from "./pinned.ts";
 import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
 import { assistsUrl, parseAssists, parseFullOdds, parseScorerOdds, propsUrl, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
-import { parseArticle } from "./parse/article.ts";
+import { NON_PLAYER_SLUGS, parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
@@ -123,7 +123,10 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     const listedAt = ref.listedAgoMinutes !== undefined ? now.getTime() - ref.listedAgoMinutes * MINUTE : undefined;
     const known = existing ? Math.max(Date.parse(existing.publishedAt), existing.listedAt ? Date.parse(existing.listedAt) : 0) : 0;
     const republished = existing && listedAt !== undefined && listedAt - known > REPUBLISH_TOLERANCE_MIN * MINUTE;
-    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished) continue;
+    // Articles stored before the player was read from the URL get re-read once (they then have the player).
+    const missingPlayer = existing && !existing.player && !!ref.playerName && !!playerOfArticleUrl(ref.url)
+      && !NON_PLAYER_SLUGS.has(playerOfArticleUrl(ref.url)!.slug);
+    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished && !missingPlayer) continue;
     if (state.unavailable?.[ref.id] === ref.headline) {
       unavailable[ref.id] = ref.headline;
       continue;

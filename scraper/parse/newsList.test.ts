@@ -20,6 +20,7 @@ describe("parseNewsList", () => {
       headline: "Kobel kann sich langfristigen BVB-Verbleib vorstellen",
       newsType: "sonstiges",
       playerPhotoUrl: "https://cdn.ligainsider.de/images/player/team/minor/gregor-kobel-dortmund-2627.jpg",
+      playerName: "Gregor Kobel",
       listedAgoMinutes: 60,
     });
     expect(refs.find((r) => r.id === 418776)?.newsType).toBe("verletzung");

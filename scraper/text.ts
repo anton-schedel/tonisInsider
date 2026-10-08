@@ -11,6 +11,13 @@ export function parsePlayerHref(href: string): { slug: string; id: number } | un
   return m ? { slug: m[1], id: Number(m[2]) } : undefined;
 }
 
+/** The player an article belongs to, from its URL: "…/sebastiaan-bornauw_18822/hsv-…-418850/" → slug and id. */
+export function playerOfArticleUrl(url: string): { slug: string; id: number } | undefined {
+  const path = url.startsWith("http") ? new URL(url).pathname : url;
+  const m = path.match(/^\/([a-z0-9-]+)_(\d+)\/[^/]+\/$/i);
+  return m ? { slug: m[1], id: Number(m[2]) } : undefined;
+}
+
 /** "/borussia-dortmund/14/" → { slug: "borussia-dortmund", id: 14 } */
 export function parseClubHref(href: string): { slug: string; id: number } | undefined {
   const m = href.match(/^\/([a-z0-9-]+)\/(\d+)\/$/i);

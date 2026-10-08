@@ -1,10 +1,11 @@
 import * as cheerio from "cheerio";
 import type { Article, ArticleRef, Category } from "../types.ts";
-import { cleanText, parseClubHref, parseGermanDateTime, parsePlayerHref } from "../text.ts";
+import { cleanText, parseClubHref, parseGermanDateTime, parsePlayerHref, playerOfArticleUrl } from "../text.ts";
 import { sanitizeBody } from "../sanitize.ts";
 
 /** Slugs that look like players in URLs but are editorial accounts. */
-const NON_PLAYER_SLUGS = new Set(["ligainsider"]);
+/** "Players" that are really LigaInsider itself (its own articles). */
+export const NON_PLAYER_SLUGS = new Set(["ligainsider"]);
 
 export function parseArticle(html: string, ref: ArticleRef, category: Category, now: Date): Article {
   const $ = cheerio.load(html);
@@ -20,6 +21,12 @@ export function parseArticle(html: string, ref: ArticleRef, category: Category, 
     const c = parseClubHref(href);
     if (c && !club) club = { ...c, name };
   });
+
+  // Some articles name only the club in their header; their URL (and the overview photo) still has the player.
+  if (!player) {
+    const p = playerOfArticleUrl(ref.url);
+    if (p && !NON_PLAYER_SLUGS.has(p.slug) && ref.playerName) player = { ...p, name: ref.playerName };
+  }
 
   const headline = cleanText($("h1[itemprop=name]").first().text()) || cleanText(titleBox.find("h2").text()) || ref.headline;
   const info = $(".news_banner_info").first();

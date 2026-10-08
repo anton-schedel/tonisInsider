@@ -56,6 +56,17 @@ describe("parseArticle", () => {
     expect(a.bodyHtml).toContain('<a href="https://www.youtube.com/');
   });
 
+  it("takes the player from the URL when the header names only the club", () => {
+    const html = `<div class="news_title_box"><strong><a href="/hamburger-sv/9/">Hamburger SV</a></strong><h2>HSV-Abwehr</h2></div>`;
+    const withPlayer = { ...ref(418850), url: "https://www.ligainsider.de/sebastiaan-bornauw_18822/hsv-abwehr-418850/", playerName: "Sebastiaan Bornauw" };
+    const a = parseArticle(html, withPlayer, "bundesliga", NOW);
+    expect(a.player).toEqual({ slug: "sebastiaan-bornauw", id: 18822, name: "Sebastiaan Bornauw" });
+    expect(a.club?.slug).toBe("hamburger-sv");
+    // LigaInsider's own articles stay without a player.
+    const own = { ...ref(418731), url: "https://www.ligainsider.de/ligainsider_1381/pk-termine-418731/", playerName: "LigaInsider" };
+    expect(parseArticle(html, own, "bundesliga", NOW).player).toBeUndefined();
+  });
+
   it("returns an empty body and date for a page that is not an article (validation catches it)", () => {
     const a = parseArticle("<html><body>Wartung</body></html>", ref(1, "X"), "bundesliga", NOW);
     expect(a.bodyHtml).toBe("");

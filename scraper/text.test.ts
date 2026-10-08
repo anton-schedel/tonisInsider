@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { berlinToIso, cleanText, parseArticleId, parseClubHref, parseGermanDateTime, parsePlayerHref } from "./text.ts";
+import { berlinToIso, cleanText, parseArticleId, parseClubHref, parseGermanDateTime, parsePlayerHref, playerOfArticleUrl } from "./text.ts";
 
 describe("text helpers", () => {
   it("removes soft hyphens and collapses whitespace", () => {
@@ -35,5 +35,11 @@ describe("text helpers", () => {
     expect(parseGermanDateTime("Heute 15:30", new Date("2026-10-08T22:30:00Z"))).toBe("2026-10-09T13:30:00.000Z");
     // Without a reference time a relative date can't be resolved.
     expect(parseGermanDateTime("Morgen 20:30")).toBeUndefined();
+  });
+
+  it("reads the player from an article URL", () => {
+    expect(playerOfArticleUrl("https://www.ligainsider.de/sebastiaan-bornauw_18822/hsv-abwehr-heiss-umkaempft-418850/")).toEqual({ slug: "sebastiaan-bornauw", id: 18822 });
+    // Club articles have "/club/id/…" and aren't players.
+    expect(playerOfArticleUrl("https://www.ligainsider.de/deutschland-u21/33166/em-quali-fix-418765/")).toBeUndefined();
   });
 });
