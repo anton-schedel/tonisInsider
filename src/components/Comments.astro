@@ -20,7 +20,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       <div class="flex items-center gap-2">
         <button type="button" data-li-mode="text" class="press rounded-full bg-fg px-3 py-1.5 text-[13px] font-semibold text-bg">Kommentar</button>
         <button type="button" data-li-mode="poll" class="press rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold">Umfrage</button>
-        <span data-li-hint class="min-w-0 flex-1 truncate text-xs text-muted"></span>
+        <span class="flex-1"></span>
         <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
       </div>
     </form>
@@ -77,13 +77,16 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     up.setAttribute("type", "button");
     up.dataset.up = String(c.id);
     up.dataset.vote = String(c.vote);
+    up.dataset.score = String(c.score);
+    up.setAttribute("aria-pressed", String(mine));
     up.setAttribute("aria-label", mine ? "Deine Stimme" : "Hochvoten");
     up.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", label));
     return up;
   }
 
-  function renderComment(c: Comment, now: Date, reply = false): HTMLElement {
+  function renderComment(c: Comment, now: Date, reply = false, pending = false): HTMLElement {
     const li = h("li", reply ? "comment comment-reply" : "comment");
+    if (pending) li.classList.add("is-pending");
     const row = h("div", "flex items-start gap-2");
     const main = h("div", "min-w-0 flex-1");
     const head = h("div", "flex items-center gap-2.5");
@@ -91,12 +94,12 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     head.append(
       h("span", `flex ${size} shrink-0 items-center justify-center rounded-full bg-surface font-semibold text-muted`, initials(c.user) || "?"),
       h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
-      h("span", "shrink-0 text-xs text-muted", c.date ? ago(c.date, now) : ""),
+      h("span", "shrink-0 text-xs text-muted", pending ? "Wird gesendet …" : c.date ? ago(c.date, now) : ""),
     );
     main.append(head);
     if (c.text) main.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
     if (c.poll) main.append(renderPoll(c.poll));
-    if (loggedIn() && c.id) {
+    if (loggedIn() && c.id && !pending) {
       const replyBtn = h("button", "mt-1 text-xs font-medium text-muted", "Antworten");
       replyBtn.type = "button";
       replyBtn.dataset.reply = String(c.id);
@@ -114,10 +117,13 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     return li;
   }
 
-  function renderPoll(poll: Poll): HTMLElement {
+  const polls = new WeakMap<HTMLElement, Poll>();
+
+  function renderPoll(poll: Poll, mine?: number): HTMLElement {
     // Results are always shown (like the rest of the comments). Note: Tailwind only sees whole class
     // words, so classes must not touch a ${…} placeholder.
     const box = h("div", "poll mt-2 rounded-xl bg-surface p-3");
+    polls.set(box, poll);
     box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
     const voted = poll.voted;
     const best = Math.max(...poll.options.map((o) => o.pct));
@@ -138,7 +144,12 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       fill.dataset.pct = String(o.pct);
       fill.style.width = `${o.pct}%`;
       if (o.pct === best && o.pct > 0) fill.classList.add("is-best");
-      row.append(fill, h("span", "relative", o.label), h("span", "poll-pct relative float-right font-semibold tabular-nums", `${o.pct}%`));
+      const label = h("span", "relative", o.label);
+      if (mine !== undefined && o.id === mine) {
+        row.classList.add("is-mine");
+        label.append(h("span", "poll-check", " ✓"));
+      }
+      row.append(fill, label, h("span", "poll-pct relative float-right font-semibold tabular-nums", `${o.pct}%`));
       box.append(row);
     }
     box.append(h("p", "poll-total mt-1 text-xs text-muted", `${poll.total} Stimmen`));
@@ -149,7 +160,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     return document.querySelector<HTMLElement>("[data-comments]");
   }
 
-  async function send(payload: Record<string, unknown>) {
+  async function post(payload: Record<string, unknown>) {
     const section = sectionOf();
     const res = await fetch("/api/li-comment/", {
       method: "POST",
@@ -158,7 +169,53 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) throw new Error(data.error || "Konnte nicht gesendet werden.");
-    await load();
+  }
+
+  // Short message above the tab bar, so it's seen wherever on the page the tap was.
+  let toastTimer = 0;
+  function toast(err: unknown) {
+    let el = document.querySelector<HTMLElement>("[data-toast]");
+    if (!el) {
+      el = h("div", "toast");
+      el.dataset.toast = "";
+      el.setAttribute("role", "status");
+      document.body.append(el);
+    }
+    el.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden.";
+    el.classList.add("is-on");
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => el!.classList.remove("is-on"), 3500);
+  }
+
+  // Changes show at once; the request runs in the background and a failure undoes the change.
+  function setVote(btn: HTMLElement, vote: number, score: number) {
+    btn.dataset.vote = String(vote);
+    btn.dataset.score = String(score);
+    btn.classList.toggle("is-on", vote === 1);
+    btn.setAttribute("aria-pressed", String(vote === 1));
+    btn.setAttribute("aria-label", vote === 1 ? "Deine Stimme" : "Hochvoten");
+    btn.querySelector(".vote-count")!.textContent = score ? String(score) : "";
+  }
+
+  function withVote(poll: Poll, optionId: number): Poll {
+    const counts = poll.options.map((o) => Math.round((o.pct * poll.total) / 100) + (o.id === optionId ? 1 : 0));
+    const total = poll.total + 1;
+    // Whole percentages that add up to 100 (largest remainders get the leftover points).
+    const exact = counts.map((n) => (n / total) * 100);
+    const pct = exact.map(Math.floor);
+    const order = exact.map((x, i) => i).sort((i, j) => (exact[j] - pct[j]) - (exact[i] - pct[i]));
+    const left = 100 - pct.reduce((s, x) => s + x, 0);
+    for (let k = 0; k < left; k++) pct[order[k % order.length]]++;
+    return { ...poll, voted: true, total, options: poll.options.map((o, i) => ({ ...o, pct: pct[i] })) };
+  }
+
+  function myName() {
+    const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
+    try { return decodeURIComponent(raw) || "Du"; } catch { return raw || "Du"; }
+  }
+
+  function pendingComment(text: string): Comment {
+    return { id: 0, user: myName(), date: new Date().toISOString(), text, score: 0, vote: 0, replies: [] };
   }
 
   async function load() {
@@ -222,7 +279,6 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const poll = section.querySelector<HTMLElement>("[data-li-poll]")!;
     const options = section.querySelector<HTMLElement>("[data-li-options]")!;
     const body = section.querySelector<HTMLTextAreaElement>("[data-li-body]")!;
-    const hint = section.querySelector<HTMLElement>("[data-li-hint]")!;
     options.append(optionInput(), optionInput());
 
     section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((btn) => {
@@ -243,24 +299,39 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       options.append(optionInput());
     });
 
-    section.querySelector<HTMLFormElement>("[data-li-form]")!.addEventListener("submit", async (e) => {
+    const form = section.querySelector<HTMLFormElement>("[data-li-form]")!;
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      hint.textContent = "Wird gesendet …";
+      if (submit.disabled) return;
       const polling = !poll.classList.contains("hidden");
+      const questionInput = section.querySelector<HTMLInputElement>("[data-li-question]")!;
+      const question = questionInput.value;
+      const labels = [...options.querySelectorAll<HTMLInputElement>("[data-li-option]")].map((i) => i.value);
+      const text = body.value;
+      if (polling ? !question.trim() : !text.trim()) return;
+      // Shown at once (greyed out), the form is cleared; a failure puts everything back.
+      const draft = pendingComment(polling ? "" : text);
+      if (polling) draft.poll = { question, total: 0, voted: true, options: labels.filter((l) => l.trim()).map((label) => ({ label, pct: 0 })) };
+      const shown = renderComment(draft, new Date(), false, true);
+      list.prepend(shown);
+      section.querySelector("[data-comments-status]")?.classList.add("hidden");
+      body.value = "";
+      questionInput.value = "";
+      options.replaceChildren(optionInput(), optionInput());
+      submit.disabled = true;
       try {
-        if (polling) {
-          const question = section.querySelector<HTMLInputElement>("[data-li-question]")!.value;
-          const labels = [...options.querySelectorAll<HTMLInputElement>("[data-li-option]")].map((i) => i.value);
-          await send({ kind: "poll", question, options: labels });
-        } else {
-          await send({ kind: "comment", body: body.value });
-        }
-        body.value = "";
-        section.querySelector<HTMLInputElement>("[data-li-question]")!.value = "";
-        options.replaceChildren(optionInput(), optionInput());
-        hint.textContent = "Gesendet.";
+        await post(polling ? { kind: "poll", question, options: labels } : { kind: "comment", body: text });
+        await load();
       } catch (err) {
-        hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden.";
+        shown.remove();
+        body.value = text;
+        questionInput.value = question;
+        options.replaceChildren(...labels.map((l) => optionInput(l)));
+        toast(err);
+      } finally {
+        submit.disabled = false;
       }
     });
 
@@ -270,13 +341,24 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       const replyBtn = target?.closest<HTMLButtonElement>("[data-reply]");
       const option = target?.closest<HTMLButtonElement>("[data-option]");
       if (up) {
-        up.disabled = true;
-        try { await send({ kind: "vote", commentId: Number(up.dataset.up), currentVote: Number(up.dataset.vote) }); }
-        catch (err) { hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden."; up.disabled = false; }
+        // One request at a time per comment; taps meanwhile are ignored.
+        if (up.dataset.busy) return;
+        up.dataset.busy = "1";
+        const vote = Number(up.dataset.vote);
+        const score = Number(up.dataset.score);
+        const next = vote === 1 ? 0 : 1;
+        setVote(up, next, score + next - vote);
+        try { await post({ kind: "vote", commentId: Number(up.dataset.up), currentVote: vote }); }
+        catch (err) { setVote(up, vote, score); toast(err); }
+        finally { delete up.dataset.busy; }
       } else if (option) {
-        option.disabled = true;
-        try { await send({ kind: "pollvote", votingId: Number(option.dataset.voting), optionId: Number(option.dataset.option) }); }
-        catch (err) { hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden."; option.disabled = false; }
+        const box = option.closest<HTMLElement>(".poll")!;
+        const before = polls.get(box)!;
+        const optionId = Number(option.dataset.option);
+        const after = renderPoll(withVote(before, optionId), optionId);
+        box.replaceWith(after);
+        try { await post({ kind: "pollvote", votingId: Number(option.dataset.voting), optionId }); }
+        catch (err) { after.replaceWith(renderPoll(before)); toast(err); }
       } else if (replyBtn && !replyBtn.nextElementSibling?.matches("[data-reply-row]")) {
         const row = h("form", "mt-2 flex gap-2");
         row.dataset.replyRow = "";
@@ -289,9 +371,27 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
         replyBtn.after(row);
         row.addEventListener("submit", async (ev) => {
           ev.preventDefault();
-          go.disabled = true;
-          try { await send({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: input.value }); }
-          catch (err) { hint.textContent = err instanceof Error ? err.message : "Konnte nicht gesendet werden."; go.disabled = false; }
+          const text = input.value;
+          if (go.disabled || !text.trim()) return;
+          // The reply shows at once under its comment; the box closes and comes back on failure.
+          const li = replyBtn.closest<HTMLElement>("li")!;
+          let replies = li.querySelector<HTMLElement>(":scope > ul");
+          if (!replies) {
+            replies = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
+            li.append(replies);
+          }
+          const shown = renderComment(pendingComment(text), new Date(), true, true);
+          replies.append(shown);
+          row.remove();
+          try {
+            await post({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: text });
+            await load();
+          } catch (err) {
+            shown.remove();
+            replyBtn.after(row);
+            input.value = text;
+            toast(err);
+          }
         });
         input.focus();
       }

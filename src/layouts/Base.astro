@@ -149,6 +149,19 @@ const tabs = [
           apply(document);
           markTheme();
         });
+        // Login/logout forms load a new page: show at once that the tap registered, and block double sends.
+        document.addEventListener("submit", (e) => {
+          const form = e.target;
+          if (!(form instanceof HTMLFormElement) || form.method !== "post" || !form.hasAttribute("data-astro-reload")) return;
+          const btn = form.querySelector('button[type="submit"]');
+          if (btn?.classList.contains("is-busy")) { e.preventDefault(); return; }
+          btn?.classList.add("is-busy");
+          btn?.setAttribute("aria-busy", "true");
+        });
+        // Back to a page from the browser cache: the buttons work again.
+        addEventListener("pageshow", (e) => {
+          if (e.persisted) document.querySelectorAll(".is-busy").forEach((b) => { b.classList.remove("is-busy"); b.removeAttribute("aria-busy"); });
+        });
       }
     </script>
     <ClientRouter />
