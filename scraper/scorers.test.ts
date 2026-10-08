@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseScorerOdds, scorerOddsUrl, scorersToFetch, pruneScorers, sameScorers } from "./scorers.ts";
+import { matchdayRelease, parseScorerOdds, scorerOddsUrl, scorersToFetch, pruneScorers, sameScorers } from "./scorers.ts";
 import type { OddsEvent } from "./odds.ts";
 
 const NOW = new Date("2026-10-08T12:00:00Z");
@@ -36,16 +36,47 @@ describe("parseScorerOdds", () => {
   });
 });
 
+describe("matchdayRelease", () => {
+  it("is Thursday 18:00 Berlin time before the matchday", () => {
+    expect(matchdayRelease(new Date("2026-10-09T18:30:00Z")).toISOString()).toBe("2026-10-08T16:00:00.000Z"); // summer time
+    expect(matchdayRelease(new Date("2026-11-21T14:30:00Z")).toISOString()).toBe("2026-11-19T17:00:00.000Z"); // winter time
+  });
+
+  it("is at least a day before the first kickoff", () => {
+    expect(matchdayRelease(new Date("2026-10-08T18:30:00Z")).toISOString()).toBe("2026-10-07T18:30:00.000Z");
+  });
+});
+
 describe("scorersToFetch", () => {
-  it("fetches a match once it is within 40 hours, then again after a day (≈2 requests per match)", () => {
-    const soon = ev("soon", "2026-10-09T18:30:00Z"); // in 30.5 h
-    const later = ev("later", "2026-10-11T13:30:00Z"); // in 73.5 h
-    const past = ev("past", "2026-10-08T10:00:00Z");
-    expect(scorersToFetch([soon, later, past], {}, NOW)).toEqual(["soon"]);
-    const fetched = { soon: { fetchedAt: "2026-10-08T00:00:00Z" } } as never;
-    expect(scorersToFetch([soon], fetched, NOW)).toEqual([]);
-    const yesterday = { soon: { fetchedAt: "2026-10-07T11:00:00Z" } } as never;
-    expect(scorersToFetch([soon], yesterday, NOW)).toEqual(["soon"]);
+  // Friday 20:30 to Sunday 17:30, then the next matchday a week later.
+  const fri = ev("fri", "2026-10-09T18:30:00Z");
+  const sun = ev("sun", "2026-10-11T15:30:00Z");
+  const next = ev("next", "2026-10-16T18:30:00Z");
+  const all = [next, sun, fri];
+  const got = (fetchedAt: string, players = [{}]) => ({ fetchedAt, players }) as never;
+
+  it("fetches the whole matchday together from Thursday 18:00, not before", () => {
+    expect(scorersToFetch(all, {}, new Date("2026-10-08T15:55:00Z"))).toEqual([]);
+    expect(scorersToFetch(all, {}, new Date("2026-10-08T16:00:00Z"))).toEqual(["fri", "sun"]);
+  });
+
+  it("fetches each match once more within 6 h of kickoff", () => {
+    const have = { fri: got("2026-10-08T16:00:00Z"), sun: got("2026-10-08T16:00:00Z") };
+    expect(scorersToFetch(all, have, new Date("2026-10-09T10:00:00Z"))).toEqual([]);
+    expect(scorersToFetch(all, have, new Date("2026-10-09T13:00:00Z"))).toEqual(["fri"]);
+    const refreshed = { ...have, fri: got("2026-10-09T13:00:00Z") };
+    expect(scorersToFetch(all, refreshed, new Date("2026-10-09T14:00:00Z"))).toEqual([]);
+  });
+
+  it("retries every 6 h while no bookmaker lists players", () => {
+    const have = { fri: got("2026-10-08T16:00:00Z"), sun: got("2026-10-08T16:00:00Z", []) };
+    expect(scorersToFetch(all, have, new Date("2026-10-08T20:00:00Z"))).toEqual([]);
+    expect(scorersToFetch(all, have, new Date("2026-10-08T22:00:00Z"))).toEqual(["sun"]);
+  });
+
+  it("skips matches that started", () => {
+    const have = { sun: got("2026-10-08T16:00:00Z") };
+    expect(scorersToFetch(all, have, new Date("2026-10-10T12:00:00Z"))).toEqual([]);
   });
 });
 

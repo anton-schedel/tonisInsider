@@ -229,7 +229,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     }
   }
 
-  // Goalscorer odds for matches close to kickoff (match ids come from the win-chance odds above).
+  // Goalscorer odds for the coming matchday, released together on Thursday evening (match ids come from the win-chance odds above).
   if (oddsApiKey && state.odds) {
     const before = state.scorers;
     const scorers = pruneScorers({ ...state.scorers }, now);

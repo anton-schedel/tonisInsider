@@ -97,13 +97,13 @@ describe("run", () => {
   });
 
   // NOW is 2026-10-07T09:00Z; this kickoff is 33.5 h later, inside the 40 h window.
-  const ODDS_WITH_ID = JSON.stringify([{ ...JSON.parse(ODDS)[0], id: "e1", commence_time: "2026-10-08T18:30:00Z" }]);
+  const ODDS_WITH_ID = JSON.stringify([{ ...JSON.parse(ODDS)[0], id: "e1", commence_time: "2026-10-07T18:30:00Z" }]);
   const SCORERS = JSON.stringify({
-    id: "e1", home_team: "Borussia Dortmund", away_team: "Werder Bremen", commence_time: "2026-10-08T18:30:00Z",
+    id: "e1", home_team: "Borussia Dortmund", away_team: "Werder Bremen", commence_time: "2026-10-07T18:30:00Z",
     bookmakers: [{ key: "a", markets: [{ key: "player_goal_scorer_anytime", outcomes: [{ name: "Yes", description: "Serhou Guirassy", price: 1.6 }] }] }],
   });
 
-  it("fetches goalscorer odds for matches within 40 hours and stores them", async () => {
+  it("fetches goalscorer odds for the coming matchday and stores them", async () => {
     const { fetcher, calls } = fakeFetcher({ [oddsUrl("K")]: ODDS_WITH_ID, [scorerOddsUrl("K", "e1")]: SCORERS });
     const r = await run({ store, fetcher, publicDir, now: NOW, oddsApiKey: "K" });
     expect(calls).toContain(scorerOddsUrl("K", "e1"));

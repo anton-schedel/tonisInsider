@@ -5,10 +5,29 @@
 import type { OddsEvent } from "./odds.ts";
 
 const HOUR = 60 * 60_000;
-/** Start fetching a match this long before kickoff… */
-const WINDOW_HOURS = 40;
-/** …and refresh it after this long (so ≈2 requests per match). */
-const REFRESH_HOURS = 24;
+/** Matches kicking off within this long of the matchday's first match belong to the same matchday. */
+const MATCHDAY_HOURS = 80;
+/** One more fetch per match this close to kickoff (late lineup news)… */
+const REFRESH_HOURS = 6;
+/** …and a retry this often while a bookmaker has no players listed yet. */
+const RETRY_HOURS = 6;
+
+/** Thursday 18:00 Berlin time before the matchday: all of its matches get their goal chances together. */
+export function matchdayRelease(firstKickoff: Date): Date {
+  const parts = (d: Date) => {
+    const f = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    return Object.fromEntries(f.formatToParts(d).map((p) => [p.type, p.value]));
+  };
+  const k = parts(firstKickoff);
+  const days = ({ Thu: 0, Fri: 1, Sat: 2, Sun: 3, Mon: 4, Tue: 5, Wed: 6 } as Record<string, number>)[k.weekday];
+  // Berlin wall time Thursday 18:00 → UTC (the offset is +1 h or +2 h).
+  const wall = Date.UTC(+k.year, +k.month - 1, +k.day - days, 18);
+  let utc = wall - HOUR;
+  const p = parts(new Date(utc));
+  if (+p.hour !== 18) utc = wall - 2 * HOUR;
+  // Never later than a day before kickoff (e.g. a matchday that starts on Thursday).
+  return new Date(Math.min(utc, firstKickoff.getTime() - 24 * HOUR));
+}
 
 /** p: average implied chance to score (still includes the bookmaker margin; calibrated on the site). */
 export type ScorerPlayer = { name: string; p: number; books: number };
@@ -48,15 +67,30 @@ export function parseScorerOdds(json: unknown, now: Date): ScorerMatch {
   };
 }
 
-/** Ids of matches to fetch now: kickoff within 40 h, and not fetched in the last 24 h. */
-export function scorersToFetch(events: OddsEvent[], have: Record<string, Pick<ScorerMatch, "fetchedAt">>, now: Date): string[] {
-  return events
+/**
+ * Ids of matches to fetch now. All matches of the coming matchday are fetched together from Thursday 18:00,
+ * then once more within 6 h of their kickoff; retried every 6 h while no bookmaker lists players yet.
+ */
+export function scorersToFetch(
+  events: OddsEvent[],
+  have: Record<string, Pick<ScorerMatch, "fetchedAt"> & { players?: unknown[] }>,
+  now: Date,
+): string[] {
+  const t = now.getTime();
+  const upcoming = events.filter((e) => e.id && Date.parse(e.kickoff) > t).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  if (!upcoming.length) return [];
+  const first = Date.parse(upcoming[0].kickoff);
+  if (t < matchdayRelease(new Date(first)).getTime()) return [];
+  return upcoming
     .filter((e) => {
-      if (!e.id) return false;
-      const until = Date.parse(e.kickoff) - now.getTime();
-      if (until <= 0 || until > WINDOW_HOURS * HOUR) return false;
-      const last = have[e.id]?.fetchedAt;
-      return !last || now.getTime() - Date.parse(last) >= (REFRESH_HOURS - 0.1) * HOUR;
+      const kickoff = Date.parse(e.kickoff);
+      if (kickoff - first > MATCHDAY_HOURS * HOUR) return false;
+      const got = have[e.id!];
+      if (!got) return true;
+      const last = Date.parse(got.fetchedAt);
+      if (!got.players?.length) return t - last >= RETRY_HOURS * HOUR;
+      // The late refresh: due once the match is within 6 h and the last fetch was before that.
+      return kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR;
     })
     .map((e) => e.id!);
 }
