@@ -90,7 +90,7 @@ async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number):
       signal,
     });
     if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
-    if (!res.ok) throw new LigaInsiderUnavailableError(`HTTP ${res.status}`);
+    if (!res.ok) throw new LigaInsiderUnavailableError(`token page HTTP ${res.status}`);
     const token = (await res.text()).match(/name="csrf_token" value="([^"]+)"/)?.[1];
     if (!token) throw new LigaInsiderAuthError("session expired");
     return token;
@@ -112,7 +112,7 @@ async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fiel
     body: new URLSearchParams({ csrf_token: token, csrf_form: "comment_graph", ...fields }),
   });
   if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
-  if (!res.ok) throw new LigaInsiderUnavailableError(`HTTP ${res.status}`);
+  if (!res.ok) throw new LigaInsiderUnavailableError(`post HTTP ${res.status}`);
   let data: { success?: boolean; message?: string; commentID?: string };
   try {
     data = await res.json();
