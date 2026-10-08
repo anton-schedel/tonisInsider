@@ -110,7 +110,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     );
     main.append(head);
     if (c.text) main.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
-    if (c.poll) main.append(renderPoll(c.poll));
+    if (c.poll) main.append(renderPoll(c.poll, c.poll.votingId ? myVotes()[c.poll.votingId] : undefined));
     if (loggedIn() && c.id && !pending) {
       const replyBtn = h("button", "mt-1 text-xs font-medium text-muted", "Antworten");
       replyBtn.type = "button";
@@ -131,13 +131,30 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
   const polls = new WeakMap<HTMLElement, Poll>();
 
+  // LigaInsider only says whether you voted, not for what: the choice is remembered in this browser.
+  const VOTES_KEY = "pollVotes";
+  const MAX_VOTES = 300;
+  function myVotes(): Record<string, number> {
+    try { return JSON.parse(localStorage.getItem(VOTES_KEY) || "{}") as Record<string, number>; } catch { return {}; }
+  }
+  function rememberVote(votingId: number, optionId: number) {
+    try {
+      const votes = myVotes();
+      votes[votingId] = optionId;
+      // Integer keys iterate in ascending order: the oldest polls go first.
+      const keys = Object.keys(votes);
+      for (const k of keys.slice(0, Math.max(0, keys.length - MAX_VOTES))) delete votes[k];
+      localStorage.setItem(VOTES_KEY, JSON.stringify(votes));
+    } catch {}
+  }
+
   function renderPoll(poll: Poll, mine?: number): HTMLElement {
     // Results are always shown (like the rest of the comments). Note: Tailwind only sees whole class
     // words, so classes must not touch a ${…} placeholder.
     const box = h("div", "poll mt-2 rounded-xl bg-surface p-3");
     polls.set(box, poll);
     box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
-    const voted = poll.voted;
+    const voted = poll.voted || mine !== undefined;
     const best = Math.max(...poll.options.map((o) => o.pct));
     for (const o of poll.options) {
       const canVote = !voted && loggedIn() && poll.votingId && o.id;
@@ -372,7 +389,10 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
         const optionId = Number(option.dataset.option);
         const after = renderPoll(withVote(before, optionId), optionId);
         box.replaceWith(after);
-        try { await post({ kind: "pollvote", votingId: Number(option.dataset.voting), optionId }); }
+        try {
+          await post({ kind: "pollvote", votingId: Number(option.dataset.voting), optionId });
+          rememberVote(Number(option.dataset.voting), optionId);
+        }
         catch (err) { after.replaceWith(renderPoll(before)); toast(err); }
       } else if (replyBtn && !replyBtn.nextElementSibling?.matches("[data-reply-row]")) {
         const row = h("form", "mt-2 flex gap-2");
