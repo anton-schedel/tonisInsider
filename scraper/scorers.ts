@@ -47,6 +47,8 @@ export type ScorerMatch = {
   whGoal?: ScorerPlayer[];
   /** "To score or assist" (William Hill). */
   scoreOrAssist?: ScorerPlayer[];
+  /** Last request for the William Hill part (it often comes later than the US markets). */
+  euAt?: string;
   /** "To receive a card" (US books). */
   cards?: ScorerPlayer[];
   /** Chance (0–1, margin removed) that each team keeps a clean sheet, by the API's team name. */
@@ -136,19 +138,29 @@ export function parseFullOdds(us: unknown, eu: unknown, now: Date): ScorerMatch 
   return {
     ...parseScorerOdds(us, now),
     fullAt: now.toISOString(),
-    whGoal: playerMarket(eu, "player_goal_scorer_anytime"),
-    scoreOrAssist: playerMarket(eu, "player_to_score_or_assist"),
+    ...parseWilliamHill(eu, now),
     cards: playerMarket(us, "player_to_receive_card"),
     cleanSheet: cleanSheets(us),
   };
 }
 
-export type ScorerFetch = { id: string; full: boolean };
+/** The William Hill part on its own (fetched again while it's missing). */
+export function parseWilliamHill(eu: unknown, now: Date): Pick<ScorerMatch, "whGoal" | "scoreOrAssist" | "euAt"> {
+  return {
+    whGoal: playerMarket(eu, "player_goal_scorer_anytime"),
+    scoreOrAssist: playerMarket(eu, "player_to_score_or_assist"),
+    euAt: now.toISOString(),
+  };
+}
+
+/** full: all markets (5 credits); goals: the goalscorer refresh (1); eu: William Hill again (2, free while empty). */
+export type ScorerFetch = { id: string; kind: "full" | "goals" | "eu" };
 
 /**
  * What to fetch now. All matches of the coming matchday get the full set together from Thursday 18:00
  * (retried every 6 h while no bookmaker lists players yet), then each match's goalscorer odds once more
- * within 6 h of its kickoff.
+ * within 6 h of its kickoff. William Hill's "score or assist" often comes later: asked again every 6 h
+ * until it's there (an empty answer costs nothing).
  */
 export function scorersToFetch(events: OddsEvent[], have: Record<string, ScorerMatch>, now: Date): ScorerFetch[] {
   const t = now.getTime();
@@ -162,10 +174,14 @@ export function scorersToFetch(events: OddsEvent[], have: Record<string, ScorerM
     if (kickoff - first > MATCHDAY_HOURS * HOUR) continue;
     const got = have[e.id!];
     const last = got ? Date.parse(got.fetchedAt) : 0;
-    if (!got?.fullAt) out.push({ id: e.id!, full: true });
-    else if (!got.players.length) { if (t - last >= RETRY_HOURS * HOUR) out.push({ id: e.id!, full: true }); }
+    if (!got?.fullAt) { out.push({ id: e.id!, kind: "full" }); continue; }
+    if (!got.players.length) {
+      if (t - last >= RETRY_HOURS * HOUR) out.push({ id: e.id!, kind: "full" });
+      continue;
+    }
     // The late refresh: once the match is within 6 h and the last fetch was before that.
-    else if (kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR) out.push({ id: e.id!, full: false });
+    if (kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR) out.push({ id: e.id!, kind: "goals" });
+    if (!got.scoreOrAssist?.length && t - Date.parse(got.euAt ?? got.fullAt) >= RETRY_HOURS * HOUR) out.push({ id: e.id!, kind: "eu" });
   }
   return out;
 }

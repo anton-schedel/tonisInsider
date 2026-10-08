@@ -139,6 +139,17 @@ describe("run", () => {
     expect(store.state().scorers?.e1.scoreOrAssist).toEqual([]);
   });
 
+  it("asks William Hill again later when its part was missing, keeping the rest", async () => {
+    await run({ store, fetcher: fakeFetcher({ [oddsUrl("K")]: ODDS_WITH_ID, [usPropsUrl("K", "e1")]: SCORERS, [euPropsUrl("K", "e1")]: "{}" }).fetcher, publicDir, now: NOW, oddsApiKey: "K" });
+    expect(store.state().scorers?.e1.scoreOrAssist).toEqual([]);
+    const later = fakeFetcher({ [oddsUrl("K")]: ODDS_WITH_ID, [euPropsUrl("K", "e1")]: WH });
+    await run({ store, fetcher: later.fetcher, publicDir, now: new Date(NOW.getTime() + 6 * 3600_000), oddsApiKey: "K" });
+    expect(later.calls).toContain(euPropsUrl("K", "e1"));
+    expect(later.calls).not.toContain(usPropsUrl("K", "e1"));
+    expect(store.state().scorers?.e1.scoreOrAssist?.[0].name).toBe("Serhou Guirassy");
+    expect(store.state().scorers?.e1.players[0].name).toBe("Serhou Guirassy");
+  });
+
   it("keeps going when player odds fail, without printing the key", async () => {
     const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: ODDS_WITH_ID, [usPropsUrl("SECRET", "e1")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
     expect(r.problems).toEqual([]);

@@ -5,7 +5,7 @@ import { BASE_URL } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { pinnedIds } from "./pinned.ts";
 import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
-import { euPropsUrl, parseFullOdds, parseScorerOdds, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch, usPropsUrl } from "./scorers.ts";
+import { euPropsUrl, parseFullOdds, parseScorerOdds, parseWilliamHill, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch, usPropsUrl } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
@@ -234,10 +234,13 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   if (oddsApiKey && state.odds) {
     const before = state.scorers;
     const scorers = pruneScorers({ ...state.scorers }, now);
-    for (const { id, full } of scorersToFetch(state.odds, scorers, now)) {
+    for (const { id, kind } of scorersToFetch(state.odds, scorers, now)) {
       try {
         const json = async (url: string) => JSON.parse(await fetcher.text(url)) as unknown;
-        if (full) {
+        if (kind === "eu") {
+          const eu = await json(euPropsUrl(oddsApiKey, id)).catch(() => ({}));
+          scorers[id] = { ...scorers[id], ...parseWilliamHill(eu, now) };
+        } else if (kind === "full") {
           const us = await json(usPropsUrl(oddsApiKey, id));
           // The William Hill part is optional: retrying it would fetch (and pay for) the US part again every run.
           const eu = await json(euPropsUrl(oddsApiKey, id)).catch(() => ({}));

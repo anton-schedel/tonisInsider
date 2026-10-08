@@ -53,9 +53,10 @@ describe("scorersToFetch", () => {
   const sun = ev("sun", "2026-10-11T15:30:00Z");
   const next = ev("next", "2026-10-16T18:30:00Z");
   const all = [next, sun, fri];
-  const got = (fetchedAt: string, players = [{}], fullAt: string | null = fetchedAt) => ({ fetchedAt, fullAt: fullAt ?? undefined, players }) as never;
-  const full = (id: string) => ({ id, full: true });
-  const refresh = (id: string) => ({ id, full: false });
+  // scoreOrAssist present unless a test says otherwise (its retry has its own test).
+  const got = (fetchedAt: string, players = [{}], fullAt: string | null = fetchedAt) => ({ fetchedAt, fullAt: fullAt ?? undefined, players, scoreOrAssist: [{}] }) as never;
+  const full = (id: string) => ({ id, kind: "full" });
+  const refresh = (id: string) => ({ id, kind: "goals" });
 
   it("fetches the whole matchday's full set together from Thursday 18:00, not before", () => {
     expect(scorersToFetch(all, {}, new Date("2026-10-08T15:55:00Z"))).toEqual([]);
@@ -79,6 +80,15 @@ describe("scorersToFetch", () => {
     const have = { fri: got("2026-10-08T16:00:00Z"), sun: got("2026-10-08T16:00:00Z", []) };
     expect(scorersToFetch(all, have, new Date("2026-10-08T20:00:00Z"))).toEqual([]);
     expect(scorersToFetch(all, have, new Date("2026-10-08T22:00:00Z"))).toEqual([full("sun")]);
+  });
+
+  it("asks William Hill again every 6 h while its score-or-assist odds are missing", () => {
+    const missing = { fetchedAt: "2026-10-08T16:00:00Z", fullAt: "2026-10-08T16:00:00Z", players: [{}], scoreOrAssist: [] } as never;
+    const have = { fri: missing, sun: got("2026-10-08T16:00:00Z") };
+    expect(scorersToFetch(all, have, new Date("2026-10-08T20:00:00Z"))).toEqual([]);
+    expect(scorersToFetch(all, have, new Date("2026-10-08T22:00:00Z"))).toEqual([{ id: "fri", kind: "eu" }]);
+    const askedAgain = { ...have, fri: { ...(missing as object), euAt: "2026-10-08T22:00:00Z" } as never };
+    expect(scorersToFetch(all, askedAgain, new Date("2026-10-09T01:00:00Z"))).toEqual([]);
   });
 
   it("skips matches that started", () => {
