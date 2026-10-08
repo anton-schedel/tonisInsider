@@ -5,7 +5,7 @@ import { BASE_URL } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { pinnedIds } from "./pinned.ts";
 import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
-import { parseScorerOdds, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
+import { euPropsUrl, parseFullOdds, parseScorerOdds, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch, usPropsUrl } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
@@ -216,7 +216,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   }
 
   // Win chances. Errors are reported by status only: the URL contains the API key.
-  if (oddsApiKey && oddsDue(state.oddsFetchedAt, now)) {
+  if (oddsApiKey && oddsDue(state.oddsFetchedAt, now, state.odds)) {
     state.oddsFetchedAt = now.toISOString();
     try {
       const odds = parseOdds(JSON.parse(await fetcher.text(oddsUrl(oddsApiKey))));
@@ -225,20 +225,31 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     } catch (err) {
       const status = err instanceof HttpError ? err.status : undefined;
       if (status === 401 || status === 403) result.problems.push(`odds: HTTP ${status}, check the ODDS_API_KEY secret`);
-      else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying in 3 hours`);
+      else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying later`);
     }
   }
 
-  // Goalscorer odds for the coming matchday, released together on Thursday evening (match ids come from the win-chance odds above).
+  // Player and team odds for the coming matchday, released together on Thursday evening (match ids come from
+  // the win-chance odds above); shortly before kickoff only the goalscorer odds are refreshed.
   if (oddsApiKey && state.odds) {
     const before = state.scorers;
     const scorers = pruneScorers({ ...state.scorers }, now);
-    for (const id of scorersToFetch(state.odds, scorers, now)) {
+    for (const { id, full } of scorersToFetch(state.odds, scorers, now)) {
       try {
-        scorers[id] = parseScorerOdds(JSON.parse(await fetcher.text(scorerOddsUrl(oddsApiKey, id))), now);
+        const json = async (url: string) => JSON.parse(await fetcher.text(url)) as unknown;
+        if (full) {
+          const us = await json(usPropsUrl(oddsApiKey, id));
+          // The William Hill part is optional: retrying it would fetch (and pay for) the US part again every run.
+          const eu = await json(euPropsUrl(oddsApiKey, id)).catch(() => ({}));
+          scorers[id] = parseFullOdds(us, eu, now);
+        } else {
+          const fresh = parseScorerOdds(await json(scorerOddsUrl(oddsApiKey, id)), now);
+          // Keep the other markets from the full fetch; an empty answer keeps the old goalscorer odds too.
+          scorers[id] = { ...scorers[id], fetchedAt: fresh.fetchedAt, ...(fresh.players.length ? { players: fresh.players } : {}) };
+        }
       } catch (err) {
         const status = err instanceof HttpError ? err.status : undefined;
-        console.warn(`goalscorer odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying later`);
+        console.warn(`player odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying later`);
       }
     }
     if (!sameScorers(before, scorers)) result.changed = true;

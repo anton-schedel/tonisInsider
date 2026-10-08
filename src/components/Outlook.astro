@@ -1,0 +1,55 @@
+---
+import Avatar from "./Avatar.astro";
+
+export type OutlookRow = {
+  name: string;
+  photo?: string;
+  crest?: string;
+  goal?: number;
+  scorer?: number;
+  card?: number;
+  /** Only for goalkeepers and defenders (Mein Team; the team page shows it once in its header). */
+  cleanSheet?: number;
+};
+interface Props { rows: OutlookRow[] }
+const { rows } = Astro.props;
+// A column only appears when at least one player has a value for it.
+const columns = ([
+  { key: "goal", label: "Tor", title: "Chance auf ein Tor" },
+  { key: "scorer", label: "Scorer", title: "Chance auf Tor oder Vorlage" },
+  { key: "cleanSheet", label: "Zu Null", title: "Chance, dass sein Team kein Gegentor bekommt" },
+  { key: "card", label: "Karte", title: "Gefahr einer Karte" },
+] as const).filter((c) => rows.some((r) => r[c.key] !== undefined));
+// Cards cost points: a high risk is marked.
+const CARD_WARN = 30;
+---
+{columns.length > 0 && (
+  <div>
+    <div class="flex items-center gap-3 pb-1 text-[11px] font-medium text-muted">
+      <span class="flex-1"></span>
+      <span class="flex shrink-0">{columns.map((c) => <span class="w-[46px] text-right" title={c.title}>{c.label}</span>)}</span>
+    </div>
+    <div class="divide-y divide-hairline">
+      {rows.map((r) => (
+        <div class="flex items-center gap-3 py-2.5">
+          <span class="relative shrink-0">
+            <Avatar src={r.photo} name={r.name} size={34} />
+            {r.crest && <img src={r.crest} alt="" class="absolute -right-1 -bottom-0.5 size-4 object-contain" />}
+          </span>
+          <span class="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">{r.name}</span>
+          <span class="flex shrink-0">
+            {columns.map((c) => {
+              const v = r[c.key];
+              const warn = c.key === "card" && v !== undefined && v >= CARD_WARN;
+              return (
+                <span class:list={["w-[46px] text-right text-[14px] tabular-nums", v === undefined ? "text-muted" : "font-semibold"]} style={warn ? "color:var(--yellow-fg)" : undefined}>
+                  {v === undefined ? "–" : `${v}%`}
+                </span>
+              );
+            })}
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
+)}

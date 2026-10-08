@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calibrate, findScorer, goalChances } from "./scorers.ts";
+import { calibrate, findScorer, goalChances, matchInsights } from "./scorers.ts";
 import type { ScorerMatch } from "../../scraper/scorers.ts";
 import type { OddsEvent } from "../../scraper/odds.ts";
 import type { Fixture } from "./fixtures.ts";
@@ -78,5 +78,51 @@ describe("goalChances", () => {
   it("returns nothing without goalscorer odds for the match", () => {
     expect(goalChances(fixture, odds, {})(ref("Guirassy", "serhou-guirassy"))).toBeUndefined();
     expect(goalChances(fixture, undefined, { e1: match })(ref("Guirassy", "serhou-guirassy"))).toBeUndefined();
+  });
+});
+
+describe("matchInsights", () => {
+  const lineup = (names: [string, string][]) => ({ lines: [names.map(([name, slug]) => ({ id: 1, name, slug, status: "set" }))] });
+  const fixture = {
+    homeName: "Borussia Dortmund", awayName: "SV Werder Bremen", kickoff: "2026-10-09T18:30:00Z",
+    home: lineup([["Guirassy", "serhou-guirassy"], ["Beier", "maximilian-beier"], ["Can", "emre-can"]]),
+    away: lineup([["Schmid", "romano-schmid"]]),
+  } as unknown as Fixture;
+  const odds: OddsEvent[] = [{ id: "e1", home: "Borussia Dortmund", away: "Werder Bremen", kickoff: "2026-10-09T18:30:00Z", chances: { home: 70, draw: 17, away: 13 }, books: 22 }];
+  const full: ScorerMatch = {
+    home: "Borussia Dortmund", away: "Werder Bremen", kickoff: "2026-10-09T18:30:00Z", fetchedAt: "x", fullAt: "x",
+    players: [{ name: "Serhou Guirassy", p: 0.63, books: 4 }, { name: "Maximilian Beier", p: 0.38, books: 4 }, { name: "Romano Schmid", p: 0.25, books: 4 }],
+    whGoal: [{ name: "Serhou Guirassy", p: 0.66, books: 1 }, { name: "Maximilian Beier", p: 0.4, books: 1 }, { name: "Romano Schmid", p: 0.27, books: 1 }],
+    scoreOrAssist: [{ name: "Serhou Guirassy", p: 0.8, books: 1 }, { name: "Maximilian Beier", p: 0.6, books: 1 }, { name: "Romano Schmid", p: 0.5, books: 1 }],
+    cards: [{ name: "Emre Can", p: 0.4, books: 1 }, { name: "Romano Schmid", p: 0.2, books: 1 }],
+    cleanSheet: { "Borussia Dortmund": 0.38, "Werder Bremen": 0.11 },
+  };
+  const g = ref("Guirassy", "serhou-guirassy");
+
+  it("gives goal, scorer (goal or assist) and card chances per player", () => {
+    const i = matchInsights(fixture, odds, { e1: full })!;
+    const p = i.player(g);
+    expect(p.goal).toBe(goalChances(fixture, odds, { e1: full })(g));
+    expect(p.scorer!).toBeGreaterThanOrEqual(p.goal!); // scoring or assisting is at least as likely as scoring
+    expect(p.scorer!).toBeLessThanOrEqual(80); // never above the raw odds
+    expect(i.player(ref("Can", "emre-can")).card!).toBeGreaterThan(i.player(ref("Schmid", "romano-schmid")).card!);
+    expect(i.player(ref("Kobel", "gregor-kobel"))).toEqual({});
+  });
+
+  it("reads clean sheets from the team totals, turned to our home and away", () => {
+    expect(matchInsights(fixture, odds, { e1: full })!.cleanSheet).toEqual({ home: 38, away: 11 });
+    const swapped = { ...fixture, homeName: fixture.awayName, awayName: fixture.homeName, home: fixture.away, away: fixture.home } as Fixture;
+    expect(matchInsights(swapped, odds, { e1: full })!.cleanSheet).toEqual({ home: 11, away: 38 });
+  });
+
+  it("falls back to the goal expectations behind the win chances for clean sheets", () => {
+    const i = matchInsights(fixture, odds, {})!;
+    // The favourite at home keeps a clean sheet more often than the outsider.
+    expect(i.cleanSheet.home).toBeGreaterThan(i.cleanSheet.away);
+    expect(i.player(g)).toEqual({});
+  });
+
+  it("returns nothing without odds for the match", () => {
+    expect(matchInsights(fixture, undefined, { e1: full })).toBeUndefined();
   });
 });

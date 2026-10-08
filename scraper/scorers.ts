@@ -1,6 +1,8 @@
 /**
- * Anytime-goalscorer odds per match (The Odds API, US bookmakers; Bundesliga covered).
- * Fetched per match: 1 request each, ≈2 per match per matchday (see scorersToFetch).
+ * Player and team odds per match (The Odds API). Once per matchday (Thursday evening) a full fetch:
+ * US books for anytime goalscorer, team totals (→ clean sheets) and cards; William Hill (EU) for goalscorer and
+ * "to score or assist" (→ scorer chance). Costs ≈5 credits per match. Shortly before kickoff only the
+ * goalscorer odds are refreshed (1 credit), since that's where late lineup news shows.
  */
 import type { OddsEvent } from "./odds.ts";
 
@@ -29,27 +31,56 @@ export function matchdayRelease(firstKickoff: Date): Date {
   return new Date(Math.min(utc, firstKickoff.getTime() - 24 * HOUR));
 }
 
-/** p: average implied chance to score (still includes the bookmaker margin; calibrated on the site). */
+/** p: average implied chance (still includes the bookmaker margin; calibrated on the site). */
 export type ScorerPlayer = { name: string; p: number; books: number };
-export type ScorerMatch = { home: string; away: string; kickoff: string; fetchedAt: string; players: ScorerPlayer[] };
+export type ScorerMatch = {
+  home: string;
+  away: string;
+  kickoff: string;
+  /** Last fetch of any kind. */
+  fetchedAt: string;
+  /** Last full fetch (all markets); missing for matches fetched before the full set existed. */
+  fullAt?: string;
+  /** Anytime goalscorer, US books. */
+  players: ScorerPlayer[];
+  /** William Hill's anytime goalscorer, to calibrate its "score or assist" prices against. */
+  whGoal?: ScorerPlayer[];
+  /** "To score or assist" (William Hill). */
+  scoreOrAssist?: ScorerPlayer[];
+  /** "To receive a card" (US books). */
+  cards?: ScorerPlayer[];
+  /** Chance (0–1, margin removed) that each team keeps a clean sheet, by the API's team name. */
+  cleanSheet?: Record<string, number>;
+};
 
-export const scorerOddsUrl = (apiKey: string, eventId: string) =>
-  `https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/events/${encodeURIComponent(eventId)}/odds/?apiKey=${encodeURIComponent(apiKey)}&regions=us&markets=player_goal_scorer_anytime&oddsFormat=decimal`;
+const BASE = "https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/events";
+const eventUrl = (apiKey: string, eventId: string, regions: string, markets: string[]) =>
+  `${BASE}/${encodeURIComponent(eventId)}/odds/?apiKey=${encodeURIComponent(apiKey)}&regions=${regions}&markets=${markets.join(",")}&oddsFormat=decimal`;
 
-type ApiOutcome = { name?: string; description?: string; price?: number };
+/** Goalscorer only (the refresh before kickoff). */
+export const scorerOddsUrl = (apiKey: string, eventId: string) => eventUrl(apiKey, eventId, "us", ["player_goal_scorer_anytime"]);
+/** Full fetch, US part: goalscorer, team totals (clean sheets), cards. 3 credits. */
+export const usPropsUrl = (apiKey: string, eventId: string) =>
+  eventUrl(apiKey, eventId, "us", ["player_goal_scorer_anytime", "alternate_team_totals", "player_to_receive_card"]);
+/** Full fetch, EU part (William Hill): goalscorer and "score or assist". 2 credits. */
+export const euPropsUrl = (apiKey: string, eventId: string) =>
+  eventUrl(apiKey, eventId, "eu", ["player_goal_scorer_anytime", "player_to_score_or_assist"]);
+
+type ApiOutcome = { name?: string; description?: string; price?: number; point?: number };
 type ApiBody = {
   home_team?: string;
   away_team?: string;
   commence_time?: string;
-  bookmakers?: { markets?: { key?: string; outcomes?: ApiOutcome[] }[] }[];
+  bookmakers?: { key?: string; markets?: { key?: string; outcomes?: ApiOutcome[] }[] }[];
 };
 
-export function parseScorerOdds(json: unknown, now: Date): ScorerMatch {
+/** Average implied chance per player of the "Yes" outcomes of one player market. */
+export function playerMarket(json: unknown, market: string): ScorerPlayer[] {
   const body = (json ?? {}) as ApiBody;
   const implied = new Map<string, number[]>();
   for (const b of body.bookmakers ?? []) {
     for (const m of b.markets ?? []) {
-      if (m.key !== "player_goal_scorer_anytime") continue;
+      if (m.key !== market) continue;
       for (const o of m.outcomes ?? []) {
         if (o.name !== "Yes" || !o.description || !(o.price && o.price > 1)) continue;
         const list = implied.get(o.description) ?? [];
@@ -58,41 +89,85 @@ export function parseScorerOdds(json: unknown, now: Date): ScorerMatch {
       }
     }
   }
+  return [...implied].map(([name, ps]) => ({ name, p: ps.reduce((s, x) => s + x, 0) / ps.length, books: ps.length }));
+}
+
+/** Typical margin on a one-sided price (when a bookmaker lists only "Under 0.5"). */
+const ONE_SIDED_MARGIN = 1.05;
+
+/**
+ * Clean sheets from team totals: "Augsburg under 0.5 goals" is Bayern's clean sheet. Per bookmaker the
+ * over/under pair is normalised to remove the margin; averaged over bookmakers.
+ */
+export function cleanSheets(json: unknown): Record<string, number> {
+  const body = (json ?? {}) as ApiBody;
+  const { home_team: home, away_team: away } = body;
+  if (!home || !away) return {};
+  const fair = new Map<string, number[]>();
+  for (const b of body.bookmakers ?? []) {
+    const outcomes = b.markets?.find((m) => m.key === "alternate_team_totals")?.outcomes ?? [];
+    for (const team of [home, away]) {
+      const price = (side: string) => outcomes.find((o) => o.name === side && o.description === team && o.point === 0.5)?.price;
+      const under = price("Under");
+      const over = price("Over");
+      if (!(under && under > 1)) continue;
+      const p = over && over > 1 ? (1 / under) / (1 / under + 1 / over) : 1 / under / ONE_SIDED_MARGIN;
+      const keeper = team === home ? away : home;
+      fair.set(keeper, [...(fair.get(keeper) ?? []), p]);
+    }
+  }
+  return Object.fromEntries([...fair].map(([team, ps]) => [team, ps.reduce((s, x) => s + x, 0) / ps.length]));
+}
+
+/** Goalscorer-only answer (the refresh before kickoff). */
+export function parseScorerOdds(json: unknown, now: Date): ScorerMatch {
+  const body = (json ?? {}) as ApiBody;
   return {
     home: body.home_team ?? "",
     away: body.away_team ?? "",
     kickoff: body.commence_time ?? "",
     fetchedAt: now.toISOString(),
-    players: [...implied].map(([name, ps]) => ({ name, p: ps.reduce((s, x) => s + x, 0) / ps.length, books: ps.length })),
+    players: playerMarket(json, "player_goal_scorer_anytime"),
   };
 }
 
+/** The full fetch: both answers combined. */
+export function parseFullOdds(us: unknown, eu: unknown, now: Date): ScorerMatch {
+  return {
+    ...parseScorerOdds(us, now),
+    fullAt: now.toISOString(),
+    whGoal: playerMarket(eu, "player_goal_scorer_anytime"),
+    scoreOrAssist: playerMarket(eu, "player_to_score_or_assist"),
+    cards: playerMarket(us, "player_to_receive_card"),
+    cleanSheet: cleanSheets(us),
+  };
+}
+
+export type ScorerFetch = { id: string; full: boolean };
+
 /**
- * Ids of matches to fetch now. All matches of the coming matchday are fetched together from Thursday 18:00,
- * then once more within 6 h of their kickoff; retried every 6 h while no bookmaker lists players yet.
+ * What to fetch now. All matches of the coming matchday get the full set together from Thursday 18:00
+ * (retried every 6 h while no bookmaker lists players yet), then each match's goalscorer odds once more
+ * within 6 h of its kickoff.
  */
-export function scorersToFetch(
-  events: OddsEvent[],
-  have: Record<string, Pick<ScorerMatch, "fetchedAt"> & { players?: unknown[] }>,
-  now: Date,
-): string[] {
+export function scorersToFetch(events: OddsEvent[], have: Record<string, ScorerMatch>, now: Date): ScorerFetch[] {
   const t = now.getTime();
   const upcoming = events.filter((e) => e.id && Date.parse(e.kickoff) > t).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   if (!upcoming.length) return [];
   const first = Date.parse(upcoming[0].kickoff);
   if (t < matchdayRelease(new Date(first)).getTime()) return [];
-  return upcoming
-    .filter((e) => {
-      const kickoff = Date.parse(e.kickoff);
-      if (kickoff - first > MATCHDAY_HOURS * HOUR) return false;
-      const got = have[e.id!];
-      if (!got) return true;
-      const last = Date.parse(got.fetchedAt);
-      if (!got.players?.length) return t - last >= RETRY_HOURS * HOUR;
-      // The late refresh: due once the match is within 6 h and the last fetch was before that.
-      return kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR;
-    })
-    .map((e) => e.id!);
+  const out: ScorerFetch[] = [];
+  for (const e of upcoming) {
+    const kickoff = Date.parse(e.kickoff);
+    if (kickoff - first > MATCHDAY_HOURS * HOUR) continue;
+    const got = have[e.id!];
+    const last = got ? Date.parse(got.fetchedAt) : 0;
+    if (!got?.fullAt) out.push({ id: e.id!, full: true });
+    else if (!got.players.length) { if (t - last >= RETRY_HOURS * HOUR) out.push({ id: e.id!, full: true }); }
+    // The late refresh: once the match is within 6 h and the last fetch was before that.
+    else if (kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR) out.push({ id: e.id!, full: false });
+  }
+  return out;
 }
 
 /** Drops matches that kicked off more than a day ago. */
@@ -102,7 +177,11 @@ export function pruneScorers(all: Record<string, ScorerMatch>, now: Date): Recor
 
 /** True if the percentages shown on the site would not change. */
 export function sameScorers(a: Record<string, ScorerMatch> | undefined, b: Record<string, ScorerMatch>): boolean {
+  const pct = (list: ScorerPlayer[] | undefined) => (list ?? []).map((p) => [p.name, Math.round(p.p * 100)]).sort();
   const key = (all: Record<string, ScorerMatch>) =>
-    JSON.stringify(Object.entries(all).map(([id, m]) => [id, m.players.map((p) => [p.name, Math.round(p.p * 100)]).sort()]).sort());
+    JSON.stringify(Object.entries(all).map(([id, m]) => [
+      id, pct(m.players), pct(m.whGoal), pct(m.scoreOrAssist), pct(m.cards),
+      Object.entries(m.cleanSheet ?? {}).map(([t, p]) => [t, Math.round(p * 100)]).sort(),
+    ]).sort());
   return !!a && key(a) === key(b);
 }

@@ -1,8 +1,14 @@
 /** Win chances from bookmaker odds (The Odds API, free plan: 500 requests a month). */
 
 const MINUTE = 60_000;
-/** Every 3 hours ≈ 250 requests a month; with the goalscorer odds (≈70–90) well under the free 500. */
-const INTERVAL_MIN = 180;
+const HOUR = 60 * MINUTE;
+/**
+ * Every 4 hours while a match is within 3 days, otherwise twice a day: ≈150 requests a month. Together with
+ * the player odds (≈230–270, see scorers.ts) that stays under the free 500.
+ */
+const SOON_INTERVAL_MIN = 240;
+const QUIET_INTERVAL_MIN = 720;
+const SOON_HOURS = 72;
 
 export type Chances = { home: number; draw: number; away: number };
 /** One Bundesliga match with its chances in whole percent (summing to 100), names as the API spells them. */
@@ -11,9 +17,14 @@ export type OddsEvent = { id?: string; home: string; away: string; kickoff: stri
 export const oddsUrl = (apiKey: string) =>
   `https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/odds/?apiKey=${encodeURIComponent(apiKey)}&regions=eu&markets=h2h&oddsFormat=decimal`;
 
-export function oddsDue(lastFetchedAt: string | undefined, now: Date): boolean {
+export function oddsDue(lastFetchedAt: string | undefined, now: Date, events: Pick<OddsEvent, "kickoff">[] = []): boolean {
   if (!lastFetchedAt) return true;
-  return now.getTime() - Date.parse(lastFetchedAt) >= (INTERVAL_MIN - 1) * MINUTE;
+  const soon = events.some((e) => {
+    const until = Date.parse(e.kickoff) - now.getTime();
+    return until > -3 * HOUR && until < SOON_HOURS * HOUR;
+  });
+  const interval = soon ? SOON_INTERVAL_MIN : QUIET_INTERVAL_MIN;
+  return now.getTime() - Date.parse(lastFetchedAt) >= (interval - 1) * MINUTE;
 }
 
 type ApiOutcome = { name?: string; price?: number };

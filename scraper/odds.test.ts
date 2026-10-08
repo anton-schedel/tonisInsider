@@ -41,10 +41,14 @@ describe("parseOdds", () => {
 
 describe("odds schedule", () => {
   const now = new Date("2026-10-07T12:00:00Z");
-  it("fetches every 3 hours (≈250 of the 500 free requests a month)", () => {
+  it("fetches every 4 hours while a match is within 3 days, otherwise twice a day", () => {
+    const soon = [{ kickoff: "2026-10-09T18:30:00Z" }]; // in 54.5 h
+    const later = [{ kickoff: "2026-10-16T18:30:00Z" }];
     expect(oddsDue(undefined, now)).toBe(true);
-    expect(oddsDue("2026-10-07T09:00:00Z", now)).toBe(true);
-    expect(oddsDue("2026-10-07T10:00:00Z", now)).toBe(false);
+    expect(oddsDue("2026-10-07T08:00:00Z", now, soon)).toBe(true);
+    expect(oddsDue("2026-10-07T09:00:00Z", now, soon)).toBe(false);
+    expect(oddsDue("2026-10-07T01:00:00Z", now, later)).toBe(false);
+    expect(oddsDue("2026-10-07T00:00:00Z", now, later)).toBe(true);
   });
 
   it("builds the request for European bookmakers' 1X2 odds", () => {

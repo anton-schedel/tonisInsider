@@ -3,8 +3,9 @@ import Base from "../../layouts/Base.astro";
 import Pitch from "../../components/Pitch.astro";
 import FixtureCard from "../../components/FixtureCard.astro";
 import ArticleRow from "../../components/ArticleRow.astro";
+import Outlook from "../../components/Outlook.astro";
 import { clubArticles, lineups, odds, scorers } from "../../lib/data.ts";
-import { goalChances } from "../../lib/scorers.ts";
+import { goalChances, matchInsights } from "../../lib/scorers.ts";
 import { chancesFor } from "../../lib/odds.ts";
 import { toFixtures } from "../../lib/fixtures.ts";
 import type { Lineup } from "../../../scraper/types.ts";
@@ -19,6 +20,11 @@ export function getStaticPaths() {
 const { lineup, fixture } = Astro.props as { lineup: Lineup; fixture?: ReturnType<typeof toFixtures>[number] };
 const news = clubArticles(lineup.club.id);
 const goal = fixture ? goalChances(fixture, odds(), scorers()) : undefined;
+// Odds-based outlook: the team's clean sheet once, and per starter goal, scorer (goal or assist) and card chances.
+const insights = fixture ? matchInsights(fixture, odds(), scorers()) : undefined;
+const cleanSheet = insights && (fixture?.home === lineup ? insights.cleanSheet.home : insights.cleanSheet.away);
+const outlook = insights ? lineup.lines.flat().map((p) => ({ name: p.name, photo: p.photo, ...insights.player(p) })) : [];
+const playerOdds = outlook.some((r) => r.goal !== undefined || r.scorer !== undefined || r.card !== undefined);
 ---
 <Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
   {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chancesFor(fixture, odds())} />}
@@ -30,6 +36,19 @@ const goal = fixture ? goalChances(fixture, odds(), scorers()) : undefined;
     </div>
     <Pitch lineup={lineup} goal={goal} />
   </section>
+
+  {insights && (
+    <section class="mt-7">
+      <div class="mb-2 flex items-baseline justify-between">
+        <h2 class="text-[22px] font-bold tracking-[-0.02em]">Prognose</h2>
+        <span class="text-[15px] font-semibold text-muted tabular-nums" title="Chance, kein Gegentor zu bekommen">Zu Null {cleanSheet} %</span>
+      </div>
+      {playerOdds
+        ? <Outlook rows={outlook} />
+        : <p class="py-2 text-sm text-muted">Die Spielerquoten kommen am Donnerstag vor dem Spieltag ab 18 Uhr.</p>}
+      <p class="mt-3 text-xs text-muted">Aus Wettquoten, Buchmacher-Marge herausgerechnet. Scorer heißt Tor oder Vorlage.</p>
+    </section>
+  )}
 
   <section class="mt-7">
     <div class="mb-1 flex items-baseline justify-between">

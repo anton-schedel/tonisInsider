@@ -3,16 +3,19 @@ import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
 import MyPitch from "../components/MyPitch.astro";
 import ArticleRow from "../components/ArticleRow.astro";
+import Outlook, { type OutlookRow } from "../components/Outlook.astro";
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
 import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../lib/match.ts";
 import { toFixtures } from "../lib/fixtures.ts";
-import { goalChances } from "../lib/scorers.ts";
+import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
 
 export const prerender = false;
+
+type PlayerOutlook = PlayerInsight & { cleanSheet?: number };
 
 // Personal page: never cache it anywhere (shared phones, back button, link prefetch).
 Astro.response.headers.set("Cache-Control", "private, no-store");
@@ -33,7 +36,7 @@ async function load(token: string) {
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
   const league = leagues.find((l) => l.id === wanted) ?? leagues[0];
-  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, news: [] as Article[], goals: new Map<string, number>() };
+  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, news: [] as Article[], outlook: new Map<string, PlayerOutlook>() };
   // Only an explicit choice is remembered (not prefetches or defaults).
   if (picked && league.id === picked) {
     Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
@@ -67,19 +70,27 @@ async function load(token: string) {
   );
   const rosterMap = new Map(teamIds.flatMap((id) => (rosters.get(id) ? [[id, rosters.get(id)!.names] as const] : [])));
   const players = matchSquad(squad, mapClubs(g.__kbTable?.teams ?? [], snapshot?.lineups ?? []), rosterMap);
-  // Chance to score per Kickbase player id, from goalscorer odds (only for matches close to kickoff).
+  // Odds-based outlook per Kickbase player id; clean sheets only count for goalkeepers and defenders.
   const fixtures = toFixtures(snapshot?.lineups ?? []);
-  const goals = new Map<string, number>();
+  const insights = new Map<object, ReturnType<typeof matchInsights>>();
+  const outlook = new Map<string, PlayerOutlook>();
   for (const p of players) {
     const fixture = p.lineup && fixtures.find((f) => f.home === p.lineup || f.away === p.lineup);
-    const percent = fixture && p.ligainsider ? goalChances(fixture, snapshot?.state.odds, snapshot?.state.scorers)(p.ligainsider) : undefined;
-    if (percent !== undefined) goals.set(p.kickbase.id, percent);
+    if (!fixture) continue;
+    if (!insights.has(fixture)) insights.set(fixture, matchInsights(fixture, snapshot?.state.odds, snapshot?.state.scorers));
+    const mi = insights.get(fixture);
+    if (!mi) continue;
+    const defends = p.kickbase.position === 1 || p.kickbase.position === 2;
+    outlook.set(p.kickbase.id, {
+      ...(p.ligainsider ? mi.player(p.ligainsider) : {}),
+      ...(defends ? { cleanSheet: fixture.home === p.lineup ? mi.cleanSheet.home : mi.cleanSheet.away } : {}),
+    });
   }
-  return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), goals };
+  return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), outlook };
 }
 
 let error: string | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, news: [], goals: new Map() };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, news: [], outlook: new Map() };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -102,7 +113,15 @@ try {
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
-const { leagues, league, players, starterCount, news, goals } = data;
+const { leagues, league, players, starterCount, news, outlook } = data;
+// Chance to score on the pitch and in the rows.
+const goals = new Map([...outlook].flatMap(([id, o]) => (o.goal !== undefined ? [[id, o.goal] as const] : [])));
+const outlookRows: OutlookRow[] = players.slice(0, starterCount).map((p) => ({
+  name: p.ligainsider?.name ?? p.kickbase.name,
+  photo: p.ligainsider?.photo ?? p.kickbase.image,
+  crest: p.club?.crest,
+  ...outlook.get(p.kickbase.id),
+}));
 // matchSquad keeps the order: the first starterCount players are the XI.
 const pitch = pitchLines(players.slice(0, starterCount));
 const benchPlayers = players.slice(starterCount);
@@ -139,6 +158,13 @@ let index = 0;
         </div>
         <MyPitch lines={pitch.lines} goals={goals} />
       </section>
+      {outlookRows.some((r) => r.goal !== undefined || r.scorer !== undefined || r.card !== undefined || r.cleanSheet !== undefined) && (
+        <section class="mt-5">
+          <h2 class="mb-2 text-[22px] font-bold tracking-[-0.02em]">Prognose</h2>
+          <Outlook rows={outlookRows} />
+          <p class="mt-3 text-xs text-muted">Aus Wettquoten, Buchmacher-Marge herausgerechnet. Scorer heißt Tor oder Vorlage, Zu Null zählt für Torwart und Abwehr.</p>
+        </section>
+      )}
       {benchPlayers.length > 0 && (
         <section class="mt-5">
           <h2 class="mb-1 text-[22px] font-bold tracking-[-0.02em]">Bank</h2>
