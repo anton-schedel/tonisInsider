@@ -5,6 +5,7 @@ import Crest from "./Crest.astro";
 import StatusPill from "./StatusPill.astro";
 import { kickoffDay, time } from "../lib/format.ts";
 import { commentCount } from "../lib/data.ts";
+import { LOGO, NAME } from "../lib/brand.ts";
 
 interface Props {
   article: Article;
@@ -19,7 +20,9 @@ const comments = commentCount(a.id);
   <span class="relative">
     {a.player
       ? <Avatar src={a.player.photo} name={a.player.name} size={52} />
-      : <Crest src={a.club?.crest} name={a.club?.name ?? "LigaInsider"} size={52} />}
+      : a.club
+        ? <Crest src={a.club.crest} name={a.club.name} size={52} />
+        : <Avatar src={LOGO} name={NAME} size={52} />}
     {a.player && a.club?.crest && (
       <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[22px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
     )}
@@ -29,7 +32,7 @@ const comments = commentCount(a.id);
     <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
       {/* The name shortens on narrow rows; the time always stays visible. */}
-      <span class="min-w-0 truncate">{a.player?.name ?? a.club?.name ?? "LigaInsider"}</span>
+      <span class="min-w-0 truncate">{a.player?.name ?? a.club?.name ?? NAME}</span>
       <span class="-ml-1 shrink-0 tabular-nums">· {withDay && `${kickoffDay(a.publishedAt)} `}{time(a.publishedAt)}</span>
       {/* Refreshed live by the script below. Hidden while there are no comments. */}
       <span class:list={["ml-auto flex shrink-0 items-center gap-1 pl-2 tabular-nums", !comments && "hidden"]} data-comment-count={a.id} aria-label="Kommentare">
