@@ -19,7 +19,7 @@ const handle: APIRoute = async ({ request, cookies, redirect }) => {
   if (!email || !password) return redirect("/einstellungen/?error=credentials", 303);
   try {
     const session = await login(fetch, email, password);
-    setSession(cookies, session.token, parseExpiry(session.expires));
+    setSession(cookies, session.token, parseExpiry(session.expires), session.name);
     await rememberCredentials(cookies, env.CREDENTIALS_KEY, email, password);
     return redirect("/mein-team/", 303);
   } catch (err) {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AstroCookieSetOptions } from "astro";
-import { CREDENTIALS_COOKIE, isSameOrigin, LI_CREDENTIALS_COOKIE, LI_NAME_COOKIE, LOGGED_IN_COOKIE, parseExpiry, relogin, rememberCredentials, rememberLiga, safeNext, setLigaSession, setSession, TOKEN_COOKIE } from "./session.ts";
+import { CREDENTIALS_COOKIE, isSameOrigin, KB_NAME_COOKIE, LI_CREDENTIALS_COOKIE, LI_NAME_COOKIE, LOGGED_IN_COOKIE, parseExpiry, relogin, rememberCredentials, rememberLiga, safeNext, setLigaSession, setSession, TOKEN_COOKIE } from "./session.ts";
 import { KickbaseUnavailableError } from "./kickbase.ts";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
@@ -35,6 +35,13 @@ describe("cookies", () => {
     setSession(c, "T", exp);
     expect(c.store.get(TOKEN_COOKIE)).toEqual({ value: "T", opts: { httpOnly: true, secure: true, sameSite: "lax", path: "/", expires: exp } });
     expect(c.store.get(LOGGED_IN_COOKIE)?.opts).toMatchObject({ httpOnly: false, secure: true });
+    expect(c.store.has(KB_NAME_COOKIE)).toBe(false);
+  });
+
+  it("keeps the Kickbase name readable for the settings page", () => {
+    const c = jar();
+    setSession(c, "T", new Date("2026-10-14T10:00:00Z"), "Toni Ä");
+    expect(c.store.get(KB_NAME_COOKIE)).toMatchObject({ value: "Toni%20%C3%84", opts: { httpOnly: false, secure: true } });
   });
 
   it("falls back to one day when Kickbase sends an unparseable expiry", () => {
@@ -62,11 +69,13 @@ describe("relogin", () => {
     const seen: unknown[] = [];
     const login = async (email: string, password: string) => {
       seen.push([email, password]);
-      return { token: "NEW", expires: "2026-10-14T10:00:00Z", userId: "1" };
+      return { token: "NEW", expires: "2026-10-14T10:00:00Z", userId: "1", name: "Toni" };
     };
     expect(await relogin(c, KEY, login)).toBe("NEW");
     expect(seen).toEqual([["a@b.de", "pw"]]);
     expect(c.store.get(TOKEN_COOKIE)?.value).toBe("NEW");
+    // Older sessions get the name on their next automatic re-login.
+    expect(c.store.get(KB_NAME_COOKIE)?.value).toBe("Toni");
   });
 
   it("returns undefined without credentials, without key, or with a changed password (and clears the session)", async () => {

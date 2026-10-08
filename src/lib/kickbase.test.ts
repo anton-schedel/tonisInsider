@@ -13,9 +13,9 @@ function fakeFetch(status: number, body: unknown) {
 }
 
 describe("kickbase client", () => {
-  it("logs in with em/pass and returns token, expiry and user id", async () => {
-    const { fn, calls } = fakeFetch(200, { tkn: "T", tknex: "2026-10-14T10:00:00Z", u: { id: "42" } });
-    expect(await login(fn, "a@b.de", "pw")).toEqual({ token: "T", expires: "2026-10-14T10:00:00Z", userId: "42" });
+  it("logs in with em/pass and returns token, expiry, user id and name", async () => {
+    const { fn, calls } = fakeFetch(200, { tkn: "T", tknex: "2026-10-14T10:00:00Z", u: { id: "42", name: "Toni" } });
+    expect(await login(fn, "a@b.de", "pw")).toEqual({ token: "T", expires: "2026-10-14T10:00:00Z", userId: "42", name: "Toni" });
     expect(calls[0].url).toBe("https://api.kickbase.com/v4/user/login");
     expect(calls[0].init.method).toBe("POST");
     expect(JSON.parse(String(calls[0].init.body))).toMatchObject({ em: "a@b.de", pass: "pw" });

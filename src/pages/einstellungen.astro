@@ -2,15 +2,18 @@
 export const prerender = false;
 
 import Base from "../layouts/Base.astro";
-import { LI_LOGGED_IN_COOKIE, LI_NAME_COOKIE, LOGGED_IN_COOKIE, safeNext } from "../lib/session.ts";
+import { KB_NAME_COOKIE, LI_LOGGED_IN_COOKIE, LI_NAME_COOKIE, LOGGED_IN_COOKIE, safeNext } from "../lib/session.ts";
 
 Astro.response.headers.set("Cache-Control", "private, no-store");
 
 const kickbase = Astro.cookies.get(LOGGED_IN_COOKIE)?.value === "1";
 const liga = Astro.cookies.get(LI_LOGGED_IN_COOKIE)?.value === "1";
-const rawName = Astro.cookies.get(LI_NAME_COOKIE)?.value ?? "";
-let ligaName = rawName;
-try { ligaName = decodeURIComponent(rawName); } catch { /* already plain text */ }
+const cookieText = (name: string) => {
+  const raw = Astro.cookies.get(name)?.value ?? "";
+  try { return decodeURIComponent(raw); } catch { return raw; /* already plain text */ }
+};
+const ligaName = cookieText(LI_NAME_COOKIE);
+const kickbaseName = cookieText(KB_NAME_COOKIE);
 const requested = Astro.url.searchParams.get("next");
 const next = requested ? safeNext(requested) : "/einstellungen/";
 const errors: Record<string, string> = {
@@ -38,7 +41,7 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
   <section class="mb-8" id="kickbase">
     <h2 class="mb-1 text-[15px] font-semibold">Kickbase</h2>
     <div data-kb-in class:list={[!kickbase && "hidden"]}>
-      <p class="text-[15px]">Angemeldet. Dein Team bleibt unter Mein Team.</p>
+      <p class="text-[15px]">Angemeldet<span data-kb-as class:list={[!kickbaseName && "hidden"]}> als <b data-kb-name>{kickbaseName}</b></span>.</p>
       <form method="post" action="/api/logout/" class="mt-3" data-astro-reload>
         <input type="hidden" name="next" value="/einstellungen/" />
         <button type="submit" class="press rounded-xl bg-surface px-4 py-3 text-[15px] font-semibold">Abmelden</button>
@@ -74,9 +77,18 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
   <script is:inline>
     (() => {
       const has = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
+      const named = (cookie) => {
+        const raw = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
+        try { return decodeURIComponent(raw); } catch { return raw; }
+      };
       if (has("kbin")) {
         document.querySelector("[data-kb-form]")?.classList.add("hidden");
         document.querySelector("[data-kb-in]")?.classList.remove("hidden");
+        // Sessions from before the name was stored just say "Angemeldet."
+        const name = named("kbn");
+        const slot = document.querySelector("[data-kb-name]");
+        if (slot) slot.textContent = name;
+        document.querySelector("[data-kb-as]")?.classList.toggle("hidden", !name);
       }
       if (has("liin")) {
         document.querySelector("[data-li-form]")?.classList.add("hidden");

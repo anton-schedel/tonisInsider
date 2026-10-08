@@ -6,7 +6,7 @@ export class KickbaseAuthError extends Error {}
 /** Kickbase is unreachable or answered unexpectedly. */
 export class KickbaseUnavailableError extends Error {}
 
-export type KbLogin = { token: string; expires: string; userId: string };
+export type KbLogin = { token: string; expires: string; userId: string; name: string };
 export type KbLeague = { id: string; name: string };
 /** pos: 1 = TW, 2 = ABW, 3 = MF, 4 = ST */
 export type KbPlayer = { id: string; name: string; teamId: string; position: 1 | 2 | 3 | 4; image?: string };
@@ -41,12 +41,12 @@ async function call<T>(fetchFn: Fetch, path: string, init: { method?: string; to
 }
 
 export async function login(fetchFn: Fetch, email: string, password: string): Promise<KbLogin> {
-  const r = await call<{ tkn?: string; tknex?: string; u?: { id?: string } }>(fetchFn, "/v4/user/login", {
+  const r = await call<{ tkn?: string; tknex?: string; u?: { id?: string; name?: string } }>(fetchFn, "/v4/user/login", {
     method: "POST",
     body: { em: email, pass: password, loy: false, rep: {} },
   });
   if (!r.tkn) throw new KickbaseUnavailableError("login response without token");
-  return { token: r.tkn, expires: r.tknex ?? new Date(Date.now() + 86_400_000).toISOString(), userId: r.u?.id ?? "" };
+  return { token: r.tkn, expires: r.tknex ?? new Date(Date.now() + 86_400_000).toISOString(), userId: r.u?.id ?? "", name: r.u?.name ?? "" };
 }
 
 export async function leagues(fetchFn: Fetch, token: string): Promise<KbLeague[]> {

@@ -127,11 +127,16 @@ const tabs = [
             document.querySelector("[data-kb-in]")?.classList.toggle("hidden", !signedIn("kbin"));
             document.querySelector("[data-li-form]")?.classList.toggle("hidden", signedIn("liin"));
             document.querySelector("[data-li-in]")?.classList.toggle("hidden", !signedIn("liin"));
-            const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
-            let name = raw;
-            try { name = decodeURIComponent(raw); } catch {}
-            const slot = document.querySelector("[data-li-name]");
-            if (slot) slot.textContent = name;
+            const named = (cookie) => {
+              const raw = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
+              try { return decodeURIComponent(raw); } catch { return raw; }
+            };
+            const liSlot = document.querySelector("[data-li-name]");
+            if (liSlot) liSlot.textContent = named("lin");
+            const kbName = named("kbn");
+            const kbSlot = document.querySelector("[data-kb-name]");
+            if (kbSlot) kbSlot.textContent = kbName;
+            document.querySelector("[data-kb-as]")?.classList.toggle("hidden", !kbName);
             markTheme();
           }
         });
