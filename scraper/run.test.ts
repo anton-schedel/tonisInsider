@@ -63,13 +63,13 @@ describe("run", () => {
     expect(r.changed).toBe(true);
   });
 
-  it("doesn't fetch odds without a key, or again within 2 hours", async () => {
+  it("doesn't fetch odds without a key, or again within 3 hours", async () => {
     const a = fakeFetcher({ [oddsUrl("SECRET")]: ODDS });
     await run({ store, fetcher: a.fetcher, publicDir, now: NOW });
     expect(a.calls.some((u) => u.includes("the-odds-api"))).toBe(false);
     await run({ store, fetcher: a.fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
     const b = fakeFetcher({ [oddsUrl("SECRET")]: ODDS });
-    await run({ store, fetcher: b.fetcher, publicDir, now: new Date(NOW.getTime() + 60 * 60_000), oddsApiKey: "SECRET" });
+    await run({ store, fetcher: b.fetcher, publicDir, now: new Date(NOW.getTime() + 2.5 * 60 * 60_000), oddsApiKey: "SECRET" });
     expect(b.calls.some((u) => u.includes("the-odds-api"))).toBe(false);
   });
 
@@ -91,7 +91,7 @@ describe("run", () => {
     expect(store.state().oddsFetchedAt).toBe(later.toISOString());
   });
 
-  it("only logs other odds failures (they retry in 2 hours)", async () => {
+  it("only logs other odds failures (they retry in 3 hours)", async () => {
     const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
     expect(r.problems).toEqual([]);
   });

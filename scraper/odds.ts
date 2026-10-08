@@ -1,8 +1,8 @@
 /** Win chances from bookmaker odds (The Odds API, free plan: 500 requests a month). */
 
 const MINUTE = 60_000;
-/** Every 2 hours ≈ 360 requests a month, safely under the free 500. */
-const INTERVAL_MIN = 120;
+/** Every 3 hours ≈ 250 requests a month; with the goalscorer odds (≈70–90) well under the free 500. */
+const INTERVAL_MIN = 180;
 
 export type Chances = { home: number; draw: number; away: number };
 /** One Bundesliga match with its chances in whole percent (summing to 100), names as the API spells them. */

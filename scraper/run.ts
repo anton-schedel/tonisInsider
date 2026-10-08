@@ -225,7 +225,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     } catch (err) {
       const status = err instanceof HttpError ? err.status : undefined;
       if (status === 401 || status === 403) result.problems.push(`odds: HTTP ${status}, check the ODDS_API_KEY secret`);
-      else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying in 2 hours`);
+      else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying in 3 hours`);
     }
   }
 
