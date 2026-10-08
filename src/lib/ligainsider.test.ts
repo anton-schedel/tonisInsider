@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   LigaInsiderAuthError,
   LigaInsiderRejectedError,
@@ -77,6 +77,29 @@ describe("ligainsider writes", () => {
     expect(sent).toContain("body=Hallo");
     expect(sent).toContain("csrf_token=TOK");
     expect(sent).toContain("csrf_form=comment_graph");
+  });
+
+  it("asks for the token again when LigaInsider is slow, but sends the vote exactly once", async () => {
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    let pageLoads = 0;
+    const fn = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${String(url)}`);
+      if (String(url).includes("newscomments")) {
+        // The first page load hangs (until cancelled), the second answers.
+        if (pageLoads++ === 0) {
+          return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+        }
+        return new Response(csrf);
+      }
+      return new Response(JSON.stringify({ success: true }));
+    }) as typeof fetch;
+    const done = upvote(fn, session, 418778, 9, 0);
+    await vi.advanceTimersByTimeAsync(3000);
+    await done;
+    expect(calls.filter((c) => c.includes("newscomments"))).toHaveLength(2);
+    expect(calls.filter((c) => c.startsWith("POST"))).toHaveLength(1);
+    vi.useRealTimers();
   });
 
   it("posts a reply against the parent comment", async () => {

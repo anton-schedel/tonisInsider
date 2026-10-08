@@ -1,8 +1,9 @@
 import { USER_AGENT } from "../../scraper/fetch.ts";
-import { commentsUrl } from "./comments.ts";
+import { commentsUrl, hedged } from "./comments.ts";
 
 const ORIGIN = "https://www.ligainsider.de";
-const TIMEOUT_MS = 8000;
+/** LigaInsider sometimes takes 10 s and more; a write that times out may still have gone through. */
+const TIMEOUT_MS = 15000;
 
 /** LigaInsider rejected the username or password, or the session is no longer logged in. */
 export class LigaInsiderAuthError extends Error {}
@@ -46,7 +47,7 @@ async function request(fetchFn: Fetch, url: string, init: RequestInit & { cookie
   headers.set("accept-language", "de-DE,de;q=0.9");
   if (init.cookie) headers.set("cookie", init.cookie);
   try {
-    return await fetchFn(url, { ...init, headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    return await fetchFn(url, { ...init, headers, signal: init.signal ?? AbortSignal.timeout(TIMEOUT_MS) });
   } catch (err) {
     if (err instanceof LigaInsiderAuthError || err instanceof LigaInsiderRejectedError) throw err;
     throw new LigaInsiderUnavailableError("network error or timeout");
@@ -76,16 +77,24 @@ export async function login(fetchFn: Fetch, username: string, password: string):
   return { cookie };
 }
 
+/**
+ * The form token comes from LigaInsider's comment page, whose answer times are random (0.2 s to 15 s measured).
+ * It's only read here, so a second request may run in parallel when the first is slow (see hedged).
+ * The write itself (graph) is always sent exactly once.
+ */
 async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number): Promise<string> {
-  const res = await request(fetchFn, commentsUrl(articleId), {
-    cookie: session.cookie,
-    headers: { accept: "text/html" },
-  });
-  if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
-  if (!res.ok) throw new LigaInsiderUnavailableError(`HTTP ${res.status}`);
-  const token = (await res.text()).match(/name="csrf_token" value="([^"]+)"/)?.[1];
-  if (!token) throw new LigaInsiderAuthError("session expired");
-  return token;
+  return hedged(async (signal) => {
+    const res = await request(fetchFn, commentsUrl(articleId), {
+      cookie: session.cookie,
+      headers: { accept: "text/html" },
+      signal,
+    });
+    if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
+    if (!res.ok) throw new LigaInsiderUnavailableError(`HTTP ${res.status}`);
+    const token = (await res.text()).match(/name="csrf_token" value="([^"]+)"/)?.[1];
+    if (!token) throw new LigaInsiderAuthError("session expired");
+    return token;
+  }, undefined, undefined, (err) => !(err instanceof LigaInsiderAuthError));
 }
 
 async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fields: Record<string, string>): Promise<{ commentId?: string }> {

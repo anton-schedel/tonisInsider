@@ -44,8 +44,16 @@ export type Comments = { total: number; comments: Comment[] };
 export const commentsUrl = (articleId: number) =>
   `https://www.ligainsider.de/apiesi/desktop/newscomments/?newsid=${articleId}`;
 
-/** Runs `run`, and a second copy in parallel if the first is slow (or fails early); the first success wins. */
-export function hedged<T>(run: (signal: AbortSignal) => Promise<T>, afterMs = HEDGE_AFTER_MS, timeoutMs = TIMEOUT_MS): Promise<T> {
+/**
+ * Runs `run`, and a second copy in parallel if the first is slow (or fails early); the first success wins.
+ * Only for reads: a write must never run twice. Errors that `retryable` rejects end it at once.
+ */
+export function hedged<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  afterMs = HEDGE_AFTER_MS,
+  timeoutMs = TIMEOUT_MS,
+  retryable: (err: unknown) => boolean = () => true,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const attempts: AbortController[] = [];
     let failed = 0;
@@ -66,7 +74,8 @@ export function hedged<T>(run: (signal: AbortSignal) => Promise<T>, afterMs = HE
         (value) => end(true, value),
         (err) => {
           failed++;
-          if (attempts.length === 1) start(); // the first one failed fast: don't wait for the timer
+          if (!retryable(err)) end(false, err);
+          else if (attempts.length === 1) start(); // the first one failed fast: don't wait for the timer
           else if (failed >= attempts.length) end(false, err);
         },
       );
