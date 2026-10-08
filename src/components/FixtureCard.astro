@@ -5,7 +5,6 @@ import { kickoffDay, time } from "../lib/format.ts";
 import type { Lineup } from "../../scraper/types.ts";
 import type { Chances } from "../../scraper/odds.ts";
 import { likelyScore } from "../lib/odds.ts";
-import { matchTint } from "../lib/clubColors.ts";
 
 interface Props {
   fixture: Fixture;
@@ -24,7 +23,6 @@ const { fixture: f, size = "list", current, index = 0, matchday, chances } = Ast
 const strong = chances && (chances.home >= chances.away ? "home" : "away");
 const score = chances && likelyScore(chances);
 const hero = size === "hero";
-const tint = matchTint(f.home?.club.slug, f.away?.club.slug);
 const crest = hero ? 64 : 52;
 const sides: { lineup?: Lineup; name: string }[] = [
   { lineup: f.home, name: f.homeName },
@@ -34,7 +32,7 @@ const sides: { lineup?: Lineup; name: string }[] = [
 {/* The crests share a view-transition-name between the matchday page and the team page, so they glide across. */}
 <div
   class:list={["rounded-[22px] bg-surface", hero ? "px-3 py-6" : "enter px-2 py-4"]}
-  style={[hero ? undefined : `--i:${index}`, tint].filter(Boolean).join(";") || undefined}
+  style={hero ? undefined : `--i:${index}`}
 >
 <div class="flex items-center">
   {sides.map((s, i) => {
