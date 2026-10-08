@@ -128,8 +128,10 @@ const tabs = [
             document.querySelector("[data-li-form]")?.classList.toggle("hidden", signedIn("liin"));
             document.querySelector("[data-li-in]")?.classList.toggle("hidden", !signedIn("liin"));
             const named = (cookie) => {
-              const raw = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
-              try { return decodeURIComponent(raw); } catch { return raw; }
+              let s = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
+              // Names from older logins were encoded twice.
+              for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } }
+              return s.trim();
             };
             const liSlot = document.querySelector("[data-li-name]");
             if (liSlot) liSlot.textContent = named("lin");

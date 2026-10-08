@@ -8,9 +8,13 @@ Astro.response.headers.set("Cache-Control", "private, no-store");
 
 const kickbase = Astro.cookies.get(LOGGED_IN_COOKIE)?.value === "1";
 const liga = Astro.cookies.get(LI_LOGGED_IN_COOKIE)?.value === "1";
+// Astro decodes cookie values once; names from older logins were encoded twice.
 const cookieText = (name: string) => {
-  const raw = Astro.cookies.get(name)?.value ?? "";
-  try { return decodeURIComponent(raw); } catch { return raw; /* already plain text */ }
+  let s = Astro.cookies.get(name)?.value ?? "";
+  for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) {
+    try { s = decodeURIComponent(s); } catch { break; }
+  }
+  return s.trim();
 };
 const ligaName = cookieText(LI_NAME_COOKIE);
 const kickbaseName = cookieText(KB_NAME_COOKIE);
@@ -78,8 +82,10 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
     (() => {
       const has = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
       const named = (cookie) => {
-        const raw = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
-        try { return decodeURIComponent(raw); } catch { return raw; }
+        let s = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
+        // Names from older logins were encoded twice.
+        for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } }
+        return s.trim();
       };
       if (has("kbin")) {
         document.querySelector("[data-kb-form]")?.classList.add("hidden");
@@ -93,11 +99,8 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
       if (has("liin")) {
         document.querySelector("[data-li-form]")?.classList.add("hidden");
         document.querySelector("[data-li-in]")?.classList.remove("hidden");
-        const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
-        let name = raw;
-        try { name = decodeURIComponent(raw); } catch {}
         const slot = document.querySelector("[data-li-name]");
-        if (slot) slot.textContent = name;
+        if (slot) slot.textContent = named("lin");
       }
 
       // The stored choice, or the system's colour while nothing is chosen.

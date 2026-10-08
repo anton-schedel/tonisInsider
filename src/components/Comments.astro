@@ -239,8 +239,10 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   }
 
   function myName() {
-    const raw = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
-    try { return decodeURIComponent(raw) || "Du"; } catch { return raw || "Du"; }
+    let s = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
+    // Names from older logins were encoded twice.
+    for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } }
+    return s.trim() || "Du";
   }
 
   function pendingComment(text: string): Comment {

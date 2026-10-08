@@ -40,8 +40,9 @@ describe("cookies", () => {
 
   it("keeps the Kickbase name readable for the settings page", () => {
     const c = jar();
-    setSession(c, "T", new Date("2026-10-14T10:00:00Z"), "Toni Ä");
-    expect(c.store.get(KB_NAME_COOKIE)).toMatchObject({ value: "Toni%20%C3%84", opts: { httpOnly: false, secure: true } });
+    // Plain text: Astro URL-encodes cookie values itself (encoding here too showed "%20" on the page).
+    setSession(c, "T", new Date("2026-10-14T10:00:00Z"), "Manager Anton Ä ");
+    expect(c.store.get(KB_NAME_COOKIE)).toMatchObject({ value: "Manager Anton Ä", opts: { httpOnly: false, secure: true } });
   });
 
   it("falls back to one day when Kickbase sends an unparseable expiry", () => {

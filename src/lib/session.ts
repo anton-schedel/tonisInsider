@@ -43,10 +43,11 @@ export function parseExpiry(tknex: string | undefined, now = Date.now()): Date {
   return Number.isNaN(d.getTime()) ? new Date(now + 86_400_000) : d;
 }
 
-export function setSession(cookies: CookieJar, token: string, expires: Date, name?: string): void {
+export function setSession(cookies: CookieJar, token: string, expires: Date, name = ""): void {
   cookies.set(TOKEN_COOKIE, token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", expires });
   cookies.set(LOGGED_IN_COOKIE, "1", { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
-  if (name) cookies.set(KB_NAME_COOKIE, encodeURIComponent(name), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+  // Astro URL-encodes cookie values itself.
+  if (name.trim()) cookies.set(KB_NAME_COOKIE, name.trim(), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
 }
 
 /** Stores the credentials encrypted in the user's own browser — only if the Worker has a key. */
@@ -103,7 +104,7 @@ export function safeNext(value: string | null | undefined): string {
 export function setLigaSession(cookies: CookieJar, cookieHeader: string, username: string): void {
   cookies.set(LI_SESSION_COOKIE, cookieHeader, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
   cookies.set(LI_LOGGED_IN_COOKIE, "1", { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
-  cookies.set(LI_NAME_COOKIE, encodeURIComponent(username), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+  cookies.set(LI_NAME_COOKIE, username.trim(), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
 }
 
 export async function rememberLiga(cookies: CookieJar, key: string | undefined, username: string, password: string): Promise<void> {
