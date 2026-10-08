@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, fetchComments, parseComments, type EdgeCache } from "./comments.ts";
+import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, fetchComments, hedged, parseComments, withoutViewer, type EdgeCache } from "./comments.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../../scraper/__fixtures__/${name}`, import.meta.url), "utf8");
 
@@ -110,7 +110,8 @@ describe("commentsResponse", () => {
     expect(res.headers.get("content-type")).toContain("application/json");
     expect(res.headers.get("cache-control")).toBe("public, max-age=120");
     expect((await res.json()).total).toBe(8);
-    expect(store.size).toBe(1);
+    // The fresh copy plus the day-long fallback.
+    expect([...store.keys()].sort()).toEqual(["https://comments.cache/418776", "https://comments.cache/418776?stale"]);
   });
 
   it("serves the cached copy without asking LigaInsider again", async () => {
@@ -127,7 +128,19 @@ describe("commentsResponse", () => {
     const f = countingFetch(ok);
     const res = await commentsResponse("418776", f.fn, cache, { personal: true });
     expect(res.headers.get("cache-control")).toBe("private, no-store");
-    expect(store.size).toBe(0);
+    // Only the fallback copy, and that one without the viewer's votes.
+    expect([...store.keys()]).toEqual(["https://comments.cache/418776?stale"]);
+    expect((await res.json()).total).toBe(8);
+  });
+
+  it("serves the last good copy when LigaInsider fails, marked as stale", async () => {
+    const { cache, store } = memoryCache();
+    await commentsResponse("418776", countingFetch(ok).fn, cache);
+    store.delete("https://comments.cache/418776"); // the two-minute copy expired
+    const res = await commentsResponse("418776", countingFetch(() => new Response("x", { status: 500 })).fn, cache);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-stale")).toBe("1");
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect((await res.json()).total).toBe(8);
   });
 
@@ -148,6 +161,55 @@ describe("commentsResponse", () => {
   it("answers 502 when the network fails", async () => {
     const fn = (async () => { throw new TypeError("network"); }) as typeof fetch;
     expect((await commentsResponse("418776", fn)).status).toBe(502);
+  });
+});
+
+describe("withoutViewer", () => {
+  it("drops the viewer's own votes, also in replies and polls", () => {
+    const c = { id: 1, user: "a", date: "", text: "", score: 3, vote: 1, poll: { question: "q", total: 2, voted: true, options: [] },
+      replies: [{ id: 2, user: "b", date: "", text: "", score: 1, vote: 1, replies: [] }] };
+    const out = withoutViewer({ total: 2, comments: [c] });
+    expect(out.comments[0]).toMatchObject({ vote: 0, score: 3, poll: { voted: false } });
+    expect(out.comments[0].replies[0].vote).toBe(0);
+  });
+});
+
+describe("hedged", () => {
+  it("starts a second try when the first is slow, and the faster one wins", async () => {
+    vi.useFakeTimers();
+    const signals: AbortSignal[] = [];
+    let n = 0;
+    const run = (signal: AbortSignal) => {
+      signals.push(signal);
+      const me = ++n;
+      return new Promise<string>((resolve) => setTimeout(() => resolve(`try ${me}`), me === 1 ? 10_000 : 500));
+    };
+    const result = hedged(run, 2500, 15_000);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(await result).toBe("try 2");
+    expect(signals[0].aborted).toBe(true); // the slow one is cancelled
+    vi.useRealTimers();
+  });
+
+  it("doesn't start a second try when the first is quick", async () => {
+    let n = 0;
+    expect(await hedged(async () => (n++, "ok"), 2500, 15_000)).toBe("ok");
+    expect(n).toBe(1);
+  });
+
+  it("retries at once when the first try fails, and fails when both do", async () => {
+    let n = 0;
+    expect(await hedged(async () => { if (n++ === 0) throw new Error("x"); return "second"; }, 2500, 15_000)).toBe("second");
+    await expect(hedged(async () => { throw new Error("down"); }, 2500, 15_000)).rejects.toThrow("down");
+  });
+
+  it("gives up at the deadline", async () => {
+    vi.useFakeTimers();
+    const result = hedged(() => new Promise<string>(() => {}), 2500, 15_000);
+    const check = expect(result).rejects.toThrow("timeout");
+    await vi.advanceTimersByTimeAsync(15_000);
+    await check;
+    vi.useRealTimers();
   });
 });
 

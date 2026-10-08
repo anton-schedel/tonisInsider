@@ -34,6 +34,8 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   </p>
 
   <p class="hidden text-sm text-muted" data-comments-status></p>
+  <p class="mb-3 hidden text-xs text-muted" data-comments-stale>LigaInsider antwortet gerade nicht. Das ist der zuletzt geladene Stand.</p>
+  <p class="hidden pb-2 text-xs text-muted" data-comments-slow>LigaInsider antwortet gerade langsam …</p>
   <div data-comments-skeleton role="status" aria-label="Kommentare werden geladen">
     {[0.9, 0.6, 0.75].map((w) => (
       <div class="flex gap-2.5 py-3.5">
@@ -256,9 +258,24 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
     const more = section.querySelector<HTMLElement>("[data-comments-more]")!;
     const skeleton = section.querySelector("[data-comments-skeleton]");
-    try {
+    const slowNote = section.querySelector("[data-comments-slow]");
+    // LigaInsider is sometimes very slow; say so instead of leaving only the placeholder.
+    const slow = setTimeout(() => slowNote?.classList.remove("hidden"), 4000);
+    const get = async () => {
       const res = await fetch(`/api/comments/${section.dataset.comments}/`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    };
+    try {
+      let res: Response;
+      try {
+        res = await get();
+      } catch {
+        // One quiet second try: LigaInsider often answers the next request right away.
+        await new Promise((r) => setTimeout(r, 800));
+        res = await get();
+      }
+      section.querySelector("[data-comments-stale]")?.classList.toggle("hidden", res.headers.get("x-stale") !== "1");
       const data = (await res.json()) as Comments;
       skeleton?.remove();
       const now = new Date();
@@ -288,6 +305,9 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       }
       more.classList.remove("hidden");
       more.classList.add("inline-block");
+    } finally {
+      clearTimeout(slow);
+      slowNote?.classList.add("hidden");
     }
   }
 
