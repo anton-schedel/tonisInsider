@@ -26,6 +26,17 @@ describe("parseArticle", () => {
     expect(a.fetchedAt).toBe(NOW.toISOString());
   });
 
+  it("reads the banner photo and asks for a 1200 px version (credit overlay kept)", () => {
+    const a = parseArticle(fx("article-kobel.html"), ref(418778), "bundesliga", NOW);
+    expect(a.banner).toMatch(/^https:\/\/cdn\.ligainsider\.com\/ligainsider\/\/newsarticle\/tr:w-1200,q-80,fo-top,l-text,i-%C2%A9Hendrik/);
+    expect(a.banner).toMatch(/\/gregor-kobel-borussia-dortmund-2025-2026\.jpg\?updatedAt=1763054344030$/);
+    expect(parseArticle(fx("article-pk-termine.html"), ref(1), "bundesliga", NOW).banner).toMatch(/w-1200,q-80/);
+  });
+
+  it("marks a missing banner as null (so it isn't looked for again)", () => {
+    expect(parseArticle("<html></html>", ref(1), "bundesliga", NOW).banner).toBeNull();
+  });
+
   it("keeps the full body with formatting but without the ad slot", () => {
     const a = parseArticle(fx("article-kobel.html"), ref(418778), "bundesliga", NOW);
     expect(a.bodyHtml.startsWith("<p>Gregor Kobel kann sich gut vorstellen")).toBe(true);

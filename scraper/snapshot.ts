@@ -32,7 +32,7 @@ export function writeVersion(store: Store, file: string): void {
 export function referencedImages(s: Pick<Snapshot, "articles" | "lineups">): string[] {
   const paths = new Set<string>();
   const add = (p?: string) => p && paths.add(p);
-  for (const a of s.articles) { add(a.player?.photo); add(a.club?.crest); }
+  for (const a of s.articles) { add(a.player?.photo); add(a.club?.crest); add(a.banner ?? undefined); }
   for (const l of s.lineups) {
     add(l.club.crest);
     for (const p of l.lines.flat()) { add(p.photo); add(p.alternative?.photo); }
@@ -61,8 +61,11 @@ export async function restoreFromSite(store: Store, fetcher: Fetcher, siteUrl: s
   for (const l of snapshot.lineups) store.putLineup(l);
   store.putState(snapshot.state);
   for (const path of referencedImages(snapshot)) {
-    const m = path.match(/^\/img\/(players|clubs)\/(\d+)\.\w+$/);
-    if (m) await ensureImage(fetcher, publicDir, m[1] as "players" | "clubs", Number(m[2]), `${siteUrl.replace(/\/$/, "")}${path}`);
+    const m = path.match(/^\/img\/(players|clubs|articles)\/([a-z0-9-]+)\.\w+$/);
+    if (m) {
+      const kind = m[1] as "players" | "clubs" | "articles";
+      await ensureImage(fetcher, publicDir, kind, kind === "articles" ? m[2] : Number(m[2]), `${siteUrl.replace(/\/$/, "")}${path}`);
+    }
   }
   return true;
 }

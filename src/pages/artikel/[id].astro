@@ -33,6 +33,10 @@ const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
       {fullDate(a.publishedAt)} Uhr{a.author && ` · ${a.author}`}{a.source && " · Quelle: "}
       {a.source && (a.source.url ? <a href={a.source.url} target="_blank" rel="noopener noreferrer" class="underline">{a.source.name}</a> : a.source.name)}
     </p>
+    {a.banner && (
+      // LigaInsider's banner photo (photographer credit is printed on the image).
+      <img src={a.banner} alt="" width="1200" height="675" decoding="async" class="mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" />
+    )}
     <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
     <a
       href={a.url}

@@ -35,6 +35,10 @@ export function parseArticle(html: string, ref: ArticleRef, category: Category, 
     : undefined;
 
   const bodyHtml = sanitizeBody($("[itemprop=articleBody]").first().html() ?? "");
+  // LigaInsider's image service renders the banner at 2000 px (≈1.6 MB); 1200 px is plenty here (≈160 KB).
+  // The photographer credit is part of the image and stays.
+  const bannerSrc = $(".news_banner img.fullimage").first().attr("src");
+  const banner = bannerSrc ? bannerSrc.replace(/\/tr:w-\d+,q-\d+/, "/tr:w-1200,q-80") : null;
 
   return {
     id: ref.id,
@@ -49,6 +53,7 @@ export function parseArticle(html: string, ref: ArticleRef, category: Category, 
     source,
     publishedAt,
     bodyHtml,
+    banner,
     fetchedAt: now.toISOString(),
   };
 }

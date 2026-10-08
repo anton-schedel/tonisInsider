@@ -9,8 +9,8 @@ import type { Fetcher } from "./fetch.ts";
 export async function ensureImage(
   fetcher: Fetcher,
   publicDir: string,
-  kind: "players" | "clubs",
-  id: number,
+  kind: "players" | "clubs" | "articles",
+  id: number | string,
   url: string | undefined,
 ): Promise<string | undefined> {
   if (!url) return undefined;
@@ -27,4 +27,16 @@ export async function ensureImage(
     console.warn(`image download failed: ${url}: ${(err as Error).message}`);
     return undefined;
   }
+}
+
+/**
+ * File name for an article banner: the photo's own file name (+ its version), so the many articles that
+ * reuse a player's photo share one download. Only a–z, 0–9 and dashes.
+ */
+export function bannerKey(url: string): string {
+  const [path, query = ""] = url.split("?");
+  const base = (path.split("/").pop() ?? "").replace(/\.[a-z]+$/i, "");
+  const version = /updatedAt=(\d+)/.exec(query)?.[1];
+  const safe = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return [safe(base), version].filter(Boolean).join("-");
 }

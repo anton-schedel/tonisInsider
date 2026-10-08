@@ -118,6 +118,41 @@ describe("run", () => {
     expect(store.state().odds).toHaveLength(1);
   });
 
+  it("downloads each article's banner photo once and stores its local path", async () => {
+    const { fetcher, calls } = fakeFetcher();
+    await run({ store, fetcher, publicDir, now: NOW });
+    const a = store.getArticle(418778)!;
+    expect(a.banner).toBe("/img/articles/gregor-kobel-borussia-dortmund-2025-2026-1763054344030.jpg");
+    // Articles sharing a photo share one download: one request per distinct photo, not per article.
+    const photos = new Set(store.articles().map((x) => x.banner));
+    expect(store.articles().length).toBeGreaterThan(photos.size);
+    expect(calls.filter((u) => u.includes("/newsarticle/")).length).toBe(photos.size);
+  });
+
+  it("looks once for the banner of articles stored before banners existed, while they are still listed", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    const old = store.getArticle(418778)!;
+    delete (old as { banner?: unknown }).banner;
+    store.putArticle(old);
+    const again = fakeFetcher();
+    await run({ store, fetcher: again.fetcher, publicDir, now: NOW });
+    expect(again.calls.some((u) => u.includes("418778"))).toBe(true);
+    expect(store.getArticle(418778)!.banner).toMatch(/^\/img\/articles\//);
+    const third = fakeFetcher();
+    await run({ store, fetcher: third.fetcher, publicDir, now: NOW });
+    expect(third.calls.some((u) => u.includes("418778"))).toBe(false);
+  });
+
+  it("remembers which articles LigaInsider pins on top of its list", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    // Make the first listed article older than the rest, like LigaInsider's pinned PK overview.
+    const first = store.getArticle(418765)!;
+    store.putArticle({ ...first, publishedAt: "2026-10-01T10:00:00.000Z" });
+    const r = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    expect(store.state().pinned).toEqual([418765]);
+    expect(r.changed).toBe(true);
+  });
+
   it("saves comment counts from the overview without triggering a rebuild", async () => {
     await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
     const second = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });

@@ -56,6 +56,12 @@ export function scorers() {
   return load().state.scorers;
 }
 
+/** Articles LigaInsider pins on top of its news list (e.g. the press-conference schedule), in its order. */
+export function pinnedArticles(): Article[] {
+  const byId = new Map(articles().map((a) => [a.id, a]));
+  return (load().state.pinned ?? []).flatMap((id) => byId.get(id) ?? []);
+}
+
 export function lastUpdate(): string | undefined {
   return load().state.lastChangeAt;
 }

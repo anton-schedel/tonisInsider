@@ -1,8 +1,12 @@
 ---
 import Base from "../layouts/Base.astro";
 import NewsFeed from "../components/NewsFeed.astro";
-import { articles } from "../lib/data.ts";
+import { articles, pinnedArticles } from "../lib/data.ts";
+
+// Like on LigaInsider: pinned articles on top, and only there.
+const pinned = pinnedArticles();
+const pinnedIds = new Set(pinned.map((a) => a.id));
 ---
 <Base title="News" tab="news">
-  <NewsFeed articles={articles()} />
+  <NewsFeed articles={articles().filter((a) => !pinnedIds.has(a.id))} pinned={pinned} />
 </Base>

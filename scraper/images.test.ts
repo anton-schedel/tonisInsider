@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ensureImage } from "./images.ts";
+import { bannerKey, ensureImage } from "./images.ts";
 import type { Fetcher } from "./fetch.ts";
 
 function fetcher(fail = false) {
@@ -17,6 +17,15 @@ function fetcher(fail = false) {
   };
   return { f, calls };
 }
+
+describe("bannerKey", () => {
+  it("names a banner by its photo file, so articles sharing a photo share one download", () => {
+    const u = (credit: string) => `https://cdn.ligainsider.com/ligainsider//newsarticle/tr:w-1200,q-80,l-text,i-${credit},l-end/gregor-kobel-borussia-dortmund-2025-2026.jpg?updatedAt=1763054344030`;
+    expect(bannerKey(u("A"))).toBe("gregor-kobel-borussia-dortmund-2025-2026-1763054344030");
+    expect(bannerKey(u("A"))).toBe(bannerKey(u("B")));
+    expect(bannerKey("https://x/../evil name!.jpg")).toBe("evil-name");
+  });
+});
 
 describe("ensureImage", () => {
   it("downloads once and then reuses the local file", async () => {

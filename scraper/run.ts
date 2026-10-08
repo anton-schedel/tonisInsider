@@ -3,6 +3,7 @@ import type { Store } from "./store.ts";
 import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
 import { BASE_URL } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
+import { pinnedIds } from "./pinned.ts";
 import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
 import { parseScorerOdds, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
@@ -10,7 +11,7 @@ import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
-import { ensureImage } from "./images.ts";
+import { bannerKey, ensureImage } from "./images.ts";
 
 export const RETENTION_DAYS = 30;
 export const BACKFILL_PAGES = 3;
@@ -80,6 +81,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   // 1. Collect article refs from the overviews. Bundesliga wins if an article is listed twice.
   const refs = new Map<number, { ref: ArticleRef; category: Category }>();
   const counts: Record<string, number> = { ...state.commentCounts };
+  let firstPage: number[] | undefined;
   let clubs: ClubRef[] = [];
   let clubsParsed = false;
   for (const overview of OVERVIEWS) {
@@ -88,6 +90,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
         const html = await fetcher.text(overview.url(page));
         const list = parseNewsList(html);
         for (const [id, count] of Object.entries(parseCommentCounts(html))) counts[id] = count;
+        if (overview.category === "bundesliga" && page === 1) firstPage = list.map((r) => r.id);
         if (page === 1 && list.length === 0) result.problems.push(`${overview.category}: overview returned 0 articles`);
         if (overview.category === "bundesliga" && page === 1) {
           clubs = parseClubs(html);
@@ -110,7 +113,8 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   const cutoff = now.getTime() - RETENTION_DAYS * 24 * 60 * MINUTE;
   for (const { ref, category } of refs.values()) {
     const existing = store.getArticle(ref.id);
-    if (existing && existing.listHeadline === ref.headline) continue;
+    // Also re-read once if stored before banners existed (banner undefined), while LigaInsider still lists it.
+    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined) continue;
     if (state.unavailable?.[ref.id] === ref.headline) {
       unavailable[ref.id] = ref.headline;
       continue;
@@ -129,6 +133,9 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       }
       if (article.player) {
         article.player.photo = await ensureImage(fetcher, publicDir, "players", article.player.id, ref.playerPhotoUrl);
+      }
+      if (article.banner) {
+        article.banner = (await ensureImage(fetcher, publicDir, "articles", bannerKey(article.banner), article.banner)) ?? null;
       }
       if (article.club) {
         const club = clubById.get(article.club.id);
@@ -226,6 +233,13 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     }
     if (!sameScorers(before, scorers)) result.changed = true;
     state.scorers = scorers;
+  }
+
+  // Pinned articles (only known when the first overview page loaded).
+  if (firstPage) {
+    const pinned = pinnedIds(firstPage, store.articles());
+    if (JSON.stringify(pinned) !== JSON.stringify(state.pinned ?? [])) result.changed = true;
+    state.pinned = pinned;
   }
 
   // Only for articles we still have; articles that left the overview keep their last known count.

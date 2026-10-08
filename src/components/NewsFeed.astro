@@ -4,11 +4,23 @@ import ArticleRow from "./ArticleRow.astro";
 import { groupByDay } from "../lib/data.ts";
 import { dayLabel } from "../lib/format.ts";
 
-interface Props { articles: Article[] }
+interface Props { articles: Article[]; pinned?: Article[] }
+const { pinned = [] } = Astro.props;
 const now = new Date();
 const groups = groupByDay(Astro.props.articles);
 let index = 0;
 ---
+{pinned.length > 0 && (
+  <section class="mb-4">
+    <h2 class="flex items-center gap-1.5 pt-3 pb-1.5 text-[15px] font-semibold">
+      <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" /></svg>
+      Angeheftet
+    </h2>
+    <div class="divide-y divide-hairline">
+      {pinned.map((a) => <ArticleRow article={a} index={index++} withDay />)}
+    </div>
+  </section>
+)}
 {groups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section class="mb-4">

@@ -28,6 +28,11 @@ export type Article = {
   source?: { name: string; url?: string };
   publishedAt: string;
   bodyHtml: string;
+  /**
+   * Banner photo above the text: the parser sets LigaInsider's URL, the run replaces it with the local path.
+   * null = the article has none. Missing = stored before banners existed (looked up once while listed).
+   */
+  banner?: string | null;
   fetchedAt: string;
 };
 
@@ -65,6 +70,8 @@ export type State = {
   /** Win chances from bookmaker odds (The Odds API), refreshed every 2 hours. */
   odds?: OddsEvent[];
   oddsFetchedAt?: string;
+  /** Articles LigaInsider pins on top of its news list, in its order. */
+  pinned?: number[];
   /** Anytime-goalscorer odds per match id, fetched close to kickoff. */
   scorers?: Record<string, ScorerMatch>;
 };
