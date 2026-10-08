@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cleanSheets, euPropsUrl, matchdayRelease, parseFullOdds, parseScorerOdds, playerMarket, scorerOddsUrl, scorersToFetch, pruneScorers, sameScorers, usPropsUrl } from "./scorers.ts";
+import { assistsUrl, cleanSheets, matchdayRelease, parseFullOdds, parseScorerOdds, playerMarket, propsUrl, scorerOddsUrl, scorersToFetch, pruneScorers, sameScorers } from "./scorers.ts";
 import type { OddsEvent } from "./odds.ts";
 
 const NOW = new Date("2026-10-08T12:00:00Z");
@@ -53,8 +53,8 @@ describe("scorersToFetch", () => {
   const sun = ev("sun", "2026-10-11T15:30:00Z");
   const next = ev("next", "2026-10-16T18:30:00Z");
   const all = [next, sun, fri];
-  // scoreOrAssist present unless a test says otherwise (its retry has its own test).
-  const got = (fetchedAt: string, players = [{}], fullAt: string | null = fetchedAt) => ({ fetchedAt, fullAt: fullAt ?? undefined, players, scoreOrAssist: [{}] }) as never;
+  // Assists present unless a test says otherwise (their retry has its own test).
+  const got = (fetchedAt: string, players = [{}], fullAt: string | null = fetchedAt) => ({ fetchedAt, fullAt: fullAt ?? undefined, players, assists: [{}] }) as never;
   const full = (id: string) => ({ id, kind: "full" });
   const refresh = (id: string) => ({ id, kind: "goals" });
 
@@ -82,13 +82,18 @@ describe("scorersToFetch", () => {
     expect(scorersToFetch(all, have, new Date("2026-10-08T22:00:00Z"))).toEqual([full("sun")]);
   });
 
-  it("asks William Hill again every 6 h while its score-or-assist odds are missing", () => {
-    const missing = { fetchedAt: "2026-10-08T16:00:00Z", fullAt: "2026-10-08T16:00:00Z", players: [{}], scoreOrAssist: [] } as never;
+  it("asks for assists again every 6 h while they are missing", () => {
+    const missing = { fetchedAt: "2026-10-08T16:00:00Z", fullAt: "2026-10-08T16:00:00Z", players: [{}], assists: [] } as never;
     const have = { fri: missing, sun: got("2026-10-08T16:00:00Z") };
     expect(scorersToFetch(all, have, new Date("2026-10-08T20:00:00Z"))).toEqual([]);
-    expect(scorersToFetch(all, have, new Date("2026-10-08T22:00:00Z"))).toEqual([{ id: "fri", kind: "eu" }]);
-    const askedAgain = { ...have, fri: { ...(missing as object), euAt: "2026-10-08T22:00:00Z" } as never };
+    expect(scorersToFetch(all, have, new Date("2026-10-08T22:00:00Z"))).toEqual([{ id: "fri", kind: "assists" }]);
+    const askedAgain = { ...have, fri: { ...(missing as object), assistsAt: "2026-10-08T22:00:00Z" } as never };
     expect(scorersToFetch(all, askedAgain, new Date("2026-10-09T01:00:00Z"))).toEqual([]);
+  });
+
+  it("gets the assists once for matches fetched before they were part of the set", () => {
+    const old = { fetchedAt: "2026-10-08T16:00:00Z", fullAt: "2026-10-08T16:00:00Z", players: [{}] } as never;
+    expect(scorersToFetch(all, { fri: old, sun: got("2026-10-08T16:00:00Z") }, new Date("2026-10-08T17:00:00Z"))).toEqual([{ id: "fri", kind: "assists" }]);
   });
 
   it("skips matches that started", () => {
@@ -107,22 +112,15 @@ describe("player and team markets", () => {
         { key: "player_goal_scorer_anytime", outcomes: [yes("Harry Kane", 1.4)] },
         { key: "alternate_team_totals", outcomes: [total("Over", "Augsburg", 1.4), total("Under", "Augsburg", 2.66), total("Under", "Augsburg", 1.1, 1.5)] },
         { key: "player_to_receive_card", outcomes: [yes("Jeffrey Gouweleeuw", 3.9)] },
+        { key: "player_assists_alternate", outcomes: [{ name: "Over", description: "Michael Olise", price: 2.2, point: 0.5 }, { name: "Over", description: "Michael Olise", price: 6, point: 1.5 }] },
       ] },
       // Only the under price for Bayern: one-sided, margin assumed.
       { key: "fanduel", markets: [{ key: "alternate_team_totals", outcomes: [total("Over", "Augsburg", 1.38), total("Under", "Augsburg", 2.92), total("Under", "Bayern Munich", 21)] }] },
     ],
   };
-  const eu = {
-    home_team: "Augsburg", away_team: "Bayern Munich",
-    bookmakers: [{ key: "williamhill", markets: [
-      { key: "player_goal_scorer_anytime", outcomes: [yes("Harry Kane", 1.3)] },
-      { key: "player_to_score_or_assist", outcomes: [yes("Harry Kane", 1.15), yes("Michael Olise", 1.18)] },
-    ] }],
-  };
-
-  it("reads one player market", () => {
+  it("reads one player market: its 'Yes', or 'Over 0.5' for assists", () => {
     expect(playerMarket(us, "player_to_receive_card")).toEqual([{ name: "Jeffrey Gouweleeuw", p: 1 / 3.9, books: 1 }]);
-    expect(playerMarket(eu, "player_to_score_or_assist").map((p) => p.name)).toEqual(["Harry Kane", "Michael Olise"]);
+    expect(playerMarket(us, "player_assists_alternate")).toEqual([{ name: "Michael Olise", p: 1 / 2.2, books: 1 }]);
   });
 
   it("turns 'team under 0.5 goals' into the other team's clean sheet, margin removed", () => {
@@ -135,18 +133,18 @@ describe("player and team markets", () => {
   });
 
   it("combines the full fetch", () => {
-    const m = parseFullOdds(us, eu, NOW);
+    const m = parseFullOdds(us, NOW);
     expect(m.fullAt).toBe(NOW.toISOString());
     expect(m.players.map((p) => p.name)).toEqual(["Harry Kane"]);
-    expect(m.whGoal?.[0]).toMatchObject({ name: "Harry Kane", p: 1 / 1.3 });
-    expect(m.scoreOrAssist).toHaveLength(2);
+    expect(m.assists?.map((p) => p.name)).toEqual(["Michael Olise"]);
+    expect(m.assistsAt).toBe(NOW.toISOString());
     expect(m.cards?.[0].name).toBe("Jeffrey Gouweleeuw");
     expect(Object.keys(m.cleanSheet ?? {}).sort()).toEqual(["Augsburg", "Bayern Munich"]);
   });
 
-  it("asks for 3 US and 2 William Hill markets (≈5 credits per match)", () => {
-    expect(usPropsUrl("K", "e1")).toContain("regions=us&markets=player_goal_scorer_anytime,alternate_team_totals,player_to_receive_card&");
-    expect(euPropsUrl("K", "e1")).toContain("regions=eu&markets=player_goal_scorer_anytime,player_to_score_or_assist&");
+  it("asks for 4 US markets (4 credits per match), or the assists alone", () => {
+    expect(propsUrl("K", "e1")).toContain("regions=us&markets=player_goal_scorer_anytime,player_assists_alternate,alternate_team_totals,player_to_receive_card&");
+    expect(assistsUrl("K", "e1")).toContain("regions=us&markets=player_assists_alternate&");
   });
 });
 

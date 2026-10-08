@@ -5,7 +5,7 @@ import { BASE_URL } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { pinnedIds } from "./pinned.ts";
 import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
-import { euPropsUrl, parseFullOdds, parseScorerOdds, parseWilliamHill, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch, usPropsUrl } from "./scorers.ts";
+import { assistsUrl, parseAssists, parseFullOdds, parseScorerOdds, propsUrl, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
@@ -237,14 +237,10 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     for (const { id, kind } of scorersToFetch(state.odds, scorers, now)) {
       try {
         const json = async (url: string) => JSON.parse(await fetcher.text(url)) as unknown;
-        if (kind === "eu") {
-          const eu = await json(euPropsUrl(oddsApiKey, id)).catch(() => ({}));
-          scorers[id] = { ...scorers[id], ...parseWilliamHill(eu, now) };
+        if (kind === "assists") {
+          scorers[id] = { ...scorers[id], ...parseAssists(await json(assistsUrl(oddsApiKey, id)), now) };
         } else if (kind === "full") {
-          const us = await json(usPropsUrl(oddsApiKey, id));
-          // The William Hill part is optional: retrying it would fetch (and pay for) the US part again every run.
-          const eu = await json(euPropsUrl(oddsApiKey, id)).catch(() => ({}));
-          scorers[id] = parseFullOdds(us, eu, now);
+          scorers[id] = parseFullOdds(await json(propsUrl(oddsApiKey, id)), now);
         } else {
           const fresh = parseScorerOdds(await json(scorerOddsUrl(oddsApiKey, id)), now);
           // Keep the other markets from the full fetch; an empty answer keeps the old goalscorer odds too.

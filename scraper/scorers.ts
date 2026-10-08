@@ -1,8 +1,8 @@
 /**
- * Player and team odds per match (The Odds API). Once per matchday (Thursday evening) a full fetch:
- * US books for anytime goalscorer, team totals (→ clean sheets) and cards; William Hill (EU) for goalscorer and
- * "to score or assist" (→ scorer chance). Costs ≈5 credits per match. Shortly before kickoff only the
- * goalscorer odds are refreshed (1 credit), since that's where late lineup news shows.
+ * Player and team odds per match (The Odds API, US books). Once per matchday (Thursday evening) a full fetch:
+ * anytime goalscorer, assists (→ scorer chance), team totals (→ clean sheets) and cards, 4 credits per match.
+ * Shortly before kickoff only the goalscorer odds are refreshed (1 credit), since that's where late lineup
+ * news shows.
  */
 import type { OddsEvent } from "./odds.ts";
 
@@ -41,14 +41,12 @@ export type ScorerMatch = {
   fetchedAt: string;
   /** Last full fetch (all markets); missing for matches fetched before the full set existed. */
   fullAt?: string;
-  /** Anytime goalscorer, US books. */
+  /** Anytime goalscorer. */
   players: ScorerPlayer[];
-  /** William Hill's anytime goalscorer, to calibrate its "score or assist" prices against. */
-  whGoal?: ScorerPlayer[];
-  /** "To score or assist" (William Hill). */
-  scoreOrAssist?: ScorerPlayer[];
-  /** Last request for the William Hill part (it often comes later than the US markets). */
-  euAt?: string;
+  /** At least one assist; missing for matches fetched before assists were part of the set. */
+  assists?: ScorerPlayer[];
+  /** Last request for the assists (they sometimes come later than the other markets). */
+  assistsAt?: string;
   /** "To receive a card" (US books). */
   cards?: ScorerPlayer[];
   /** Chance (0–1, margin removed) that each team keeps a clean sheet, by the API's team name. */
@@ -61,12 +59,11 @@ const eventUrl = (apiKey: string, eventId: string, regions: string, markets: str
 
 /** Goalscorer only (the refresh before kickoff). */
 export const scorerOddsUrl = (apiKey: string, eventId: string) => eventUrl(apiKey, eventId, "us", ["player_goal_scorer_anytime"]);
-/** Full fetch, US part: goalscorer, team totals (clean sheets), cards. 3 credits. */
-export const usPropsUrl = (apiKey: string, eventId: string) =>
-  eventUrl(apiKey, eventId, "us", ["player_goal_scorer_anytime", "alternate_team_totals", "player_to_receive_card"]);
-/** Full fetch, EU part (William Hill): goalscorer and "score or assist". 2 credits. */
-export const euPropsUrl = (apiKey: string, eventId: string) =>
-  eventUrl(apiKey, eventId, "eu", ["player_goal_scorer_anytime", "player_to_score_or_assist"]);
+/** Full fetch: goalscorer, assists, team totals (clean sheets), cards. 4 credits. */
+export const propsUrl = (apiKey: string, eventId: string) =>
+  eventUrl(apiKey, eventId, "us", ["player_goal_scorer_anytime", "player_assists_alternate", "alternate_team_totals", "player_to_receive_card"]);
+/** Assists only (asked again while missing; an empty answer costs nothing). */
+export const assistsUrl = (apiKey: string, eventId: string) => eventUrl(apiKey, eventId, "us", ["player_assists_alternate"]);
 
 type ApiOutcome = { name?: string; description?: string; price?: number; point?: number };
 type ApiBody = {
@@ -76,7 +73,7 @@ type ApiBody = {
   bookmakers?: { key?: string; markets?: { key?: string; outcomes?: ApiOutcome[] }[] }[];
 };
 
-/** Average implied chance per player of the "Yes" outcomes of one player market. */
+/** Average implied chance per player of one player market: its "Yes", or "Over 0.5" (assists). */
 export function playerMarket(json: unknown, market: string): ScorerPlayer[] {
   const body = (json ?? {}) as ApiBody;
   const implied = new Map<string, number[]>();
@@ -84,7 +81,8 @@ export function playerMarket(json: unknown, market: string): ScorerPlayer[] {
     for (const m of b.markets ?? []) {
       if (m.key !== market) continue;
       for (const o of m.outcomes ?? []) {
-        if (o.name !== "Yes" || !o.description || !(o.price && o.price > 1)) continue;
+        const yes = o.name === "Yes" || (o.name === "Over" && o.point === 0.5);
+        if (!yes || !o.description || !(o.price && o.price > 1)) continue;
         const list = implied.get(o.description) ?? [];
         list.push(1 / o.price);
         implied.set(o.description, list);
@@ -133,34 +131,29 @@ export function parseScorerOdds(json: unknown, now: Date): ScorerMatch {
   };
 }
 
-/** The full fetch: both answers combined. */
-export function parseFullOdds(us: unknown, eu: unknown, now: Date): ScorerMatch {
+/** The full fetch. */
+export function parseFullOdds(json: unknown, now: Date): ScorerMatch {
   return {
-    ...parseScorerOdds(us, now),
+    ...parseScorerOdds(json, now),
     fullAt: now.toISOString(),
-    ...parseWilliamHill(eu, now),
-    cards: playerMarket(us, "player_to_receive_card"),
-    cleanSheet: cleanSheets(us),
+    ...parseAssists(json, now),
+    cards: playerMarket(json, "player_to_receive_card"),
+    cleanSheet: cleanSheets(json),
   };
 }
 
-/** The William Hill part on its own (fetched again while it's missing). */
-export function parseWilliamHill(eu: unknown, now: Date): Pick<ScorerMatch, "whGoal" | "scoreOrAssist" | "euAt"> {
-  return {
-    whGoal: playerMarket(eu, "player_goal_scorer_anytime"),
-    scoreOrAssist: playerMarket(eu, "player_to_score_or_assist"),
-    euAt: now.toISOString(),
-  };
+export function parseAssists(json: unknown, now: Date): Pick<ScorerMatch, "assists" | "assistsAt"> {
+  return { assists: playerMarket(json, "player_assists_alternate"), assistsAt: now.toISOString() };
 }
 
-/** full: all markets (5 credits); goals: the goalscorer refresh (1); eu: William Hill again (2, free while empty). */
-export type ScorerFetch = { id: string; kind: "full" | "goals" | "eu" };
+/** full: all markets (4 credits); goals: the goalscorer refresh (1); assists: asked again (1, free while empty). */
+export type ScorerFetch = { id: string; kind: "full" | "goals" | "assists" };
 
 /**
  * What to fetch now. All matches of the coming matchday get the full set together from Thursday 18:00
  * (retried every 6 h while no bookmaker lists players yet), then each match's goalscorer odds once more
- * within 6 h of its kickoff. William Hill's "score or assist" often comes later: asked again every 6 h
- * until it's there (an empty answer costs nothing).
+ * within 6 h of its kickoff. Missing assists are asked for again every 6 h (an empty answer costs
+ * nothing); matches fetched before assists were part of the set get them once.
  */
 export function scorersToFetch(events: OddsEvent[], have: Record<string, ScorerMatch>, now: Date): ScorerFetch[] {
   const t = now.getTime();
@@ -181,7 +174,8 @@ export function scorersToFetch(events: OddsEvent[], have: Record<string, ScorerM
     }
     // The late refresh: once the match is within 6 h and the last fetch was before that.
     if (kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR) out.push({ id: e.id!, kind: "goals" });
-    if (!got.scoreOrAssist?.length && t - Date.parse(got.euAt ?? got.fullAt) >= RETRY_HOURS * HOUR) out.push({ id: e.id!, kind: "eu" });
+    const assistsDue = !got.assists || (!got.assists.length && t - Date.parse(got.assistsAt ?? got.fullAt) >= RETRY_HOURS * HOUR);
+    if (assistsDue) out.push({ id: e.id!, kind: "assists" });
   }
   return out;
 }
@@ -196,7 +190,7 @@ export function sameScorers(a: Record<string, ScorerMatch> | undefined, b: Recor
   const pct = (list: ScorerPlayer[] | undefined) => (list ?? []).map((p) => [p.name, Math.round(p.p * 100)]).sort();
   const key = (all: Record<string, ScorerMatch>) =>
     JSON.stringify(Object.entries(all).map(([id, m]) => [
-      id, pct(m.players), pct(m.whGoal), pct(m.scoreOrAssist), pct(m.cards),
+      id, pct(m.players), pct(m.assists), pct(m.cards),
       Object.entries(m.cleanSheet ?? {}).map(([t, p]) => [t, Math.round(p * 100)]).sort(),
     ]).sort());
   return !!a && key(a) === key(b);

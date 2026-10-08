@@ -99,8 +99,7 @@ describe("matchInsights", () => {
   const full: ScorerMatch = {
     home: "Borussia Dortmund", away: "Werder Bremen", kickoff: "2026-10-09T18:30:00Z", fetchedAt: "x", fullAt: "x",
     players: [{ name: "Serhou Guirassy", p: 0.63, books: 4 }, { name: "Maximilian Beier", p: 0.38, books: 4 }, { name: "Romano Schmid", p: 0.25, books: 4 }],
-    whGoal: [{ name: "Serhou Guirassy", p: 0.66, books: 1 }, { name: "Maximilian Beier", p: 0.4, books: 1 }, { name: "Romano Schmid", p: 0.27, books: 1 }],
-    scoreOrAssist: [{ name: "Serhou Guirassy", p: 0.8, books: 1 }, { name: "Maximilian Beier", p: 0.6, books: 1 }, { name: "Romano Schmid", p: 0.5, books: 1 }],
+    assists: [{ name: "Serhou Guirassy", p: 0.25, books: 2 }, { name: "Maximilian Beier", p: 0.27, books: 2 }, { name: "Romano Schmid", p: 0.2, books: 2 }],
     cards: [{ name: "Emre Can", p: 0.4, books: 1 }, { name: "Romano Schmid", p: 0.2, books: 1 }],
     cleanSheet: { "Borussia Dortmund": 0.38, "Werder Bremen": 0.11 },
   };
@@ -110,8 +109,9 @@ describe("matchInsights", () => {
     const i = matchInsights(fixture, odds, { e1: full })!;
     const p = i.player(g);
     expect(p.goal).toBe(goalChances(fixture, odds, { e1: full })(g));
-    expect(p.scorer!).toBeGreaterThanOrEqual(p.goal!); // scoring or assisting is at least as likely as scoring
-    expect(p.scorer!).toBeLessThanOrEqual(80); // never above the raw odds
+    expect(p.scorer!).toBeGreaterThan(p.goal!); // scoring or assisting is likelier than scoring
+    // At most "neither" from the raw odds (calibration only removes margin).
+    expect(p.scorer!).toBeLessThanOrEqual(Math.round((1 - (1 - 0.63) * (1 - 0.25)) * 100));
     expect(i.player(ref("Can", "emre-can")).card!).toBeGreaterThan(i.player(ref("Schmid", "romano-schmid")).card!);
     expect(i.player(ref("Kobel", "gregor-kobel"))).toEqual({});
   });

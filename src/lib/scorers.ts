@@ -51,6 +51,8 @@ export function findScorer(player: Pick<Ref, "name" | "slug">, names: string[]):
 const STARTERS_SHARE = 0.85;
 /** Typical bookmaker margin on goalscorer odds, used when the starters aren't known. */
 const TYPICAL_MARGIN = 1.2;
+/** Assists per goal in the Bundesliga (most goals are assisted, some not). */
+const ASSISTS_PER_GOAL = 0.7;
 /** Bundesliga average of cards per match, and the share starters get. */
 const CARDS_PER_MATCH = 4;
 const STARTERS_CARD_SHARE = 0.8;
@@ -145,10 +147,9 @@ export function matchInsights(
   // Goals (US books).
   const goalL = lookup(match?.players);
   const goals = calibrate(match?.players ?? [], matchGoals, goalL.starters);
-  // Goal or assist (William Hill), with the margin William Hill has on its own goalscorer prices.
-  const whL = lookup(match?.whGoal);
-  const whScale = marginScale(match?.whGoal ?? [], STARTERS_SHARE * matchGoals, whL.starters);
-  const soaL = lookup(match?.scoreOrAssist);
+  // Assists, calibrated like the goals: the starters' expected assists scaled to the assists in this match.
+  const assistL = lookup(match?.assists);
+  const assistScale = marginScale(match?.assists ?? [], ASSISTS_PER_GOAL * STARTERS_SHARE * matchGoals, assistL.starters);
   // Cards (US books), scaled to the cards starters get in an average match.
   const cardL = lookup(match?.cards);
   const cardScale = marginScale(match?.cards ?? [], STARTERS_CARD_SHARE * CARDS_PER_MATCH, cardL.starters);
@@ -162,9 +163,10 @@ export function matchInsights(
     player: (p) => {
       const goalName = findScorer(p, goalL.names);
       const goal = goalName === undefined ? undefined : goals.get(goalName);
-      const soa = find(match?.scoreOrAssist, soaL.names, p);
+      const assist = find(match?.assists, assistL.names, p);
       const card = find(match?.cards, cardL.names, p);
-      const scorer = soa && whL.names.length ? Math.max(chance(events(soa.p) * whScale), goal ?? 0) : undefined;
+      // Goal or assist: everything but "neither".
+      const scorer = goal !== undefined && assist ? 1 - (1 - goal) * (1 - chance(events(assist.p) * assistScale)) : undefined;
       return {
         ...(goal !== undefined ? { goal: pct(goal) } : {}),
         ...(scorer !== undefined ? { scorer: pct(scorer) } : {}),
