@@ -4,7 +4,7 @@ const { articleId, url } = Astro.props;
 const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
 <!-- Loaded live from LigaInsider (via /api/comments/<id>/). Logged-in reads are personal and uncached. -->
-<section class="mt-10" data-comments={articleId}>
+<section class="mt-10" data-comments={articleId} data-li-page={url}>
   <h2 class="mb-4 flex items-baseline gap-2 text-[20px] font-bold tracking-[-0.02em]">
     Kommentare <span class="text-[15px] font-semibold text-muted" data-comments-count></span>
   </h2>
@@ -196,7 +196,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const res = await fetch("/api/li-comment/", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ articleId: Number(section?.dataset.comments), ...payload }),
+      body: JSON.stringify({ articleId: Number(section?.dataset.comments), page: section?.dataset.liPage, ...payload }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) throw new Error(data.error || "Konnte nicht gesendet werden.");

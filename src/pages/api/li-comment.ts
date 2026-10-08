@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { callLiga } from "../../lib/ligaAccount.ts";
-import { LigaInsiderAuthError, LigaInsiderRejectedError, parseAction, runAction } from "../../lib/ligainsider.ts";
+import { LigaInsiderAuthError, LigaInsiderRejectedError, pageReferer, parseAction, runAction } from "../../lib/ligainsider.ts";
 import { isSameOrigin } from "../../lib/session.ts";
 
 export const prerender = false;
@@ -20,7 +20,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const action = parseAction(raw);
   if (!articleId || !action) return json({ error: "Ungültige Anfrage." }, 400);
   try {
-    const result = await callLiga(cookies, env.CREDENTIALS_KEY, fetch, (session) => runAction(fetch, session, articleId, action));
+    const referer = pageReferer(typeof (raw as { page?: unknown }).page === "string" ? (raw as { page: string }).page : undefined);
+    const result = await callLiga(cookies, env.CREDENTIALS_KEY, fetch, (session) => runAction(fetch, session, articleId, action, referer));
     return json({ ok: true, commentId: result.commentId });
   } catch (err) {
     // Only the kind of failure, never cookies or the comment text: shows up in the Worker logs.

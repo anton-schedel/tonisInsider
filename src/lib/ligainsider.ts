@@ -1,7 +1,23 @@
-import { USER_AGENT } from "../../scraper/fetch.ts";
 import { commentsUrl, hedged } from "./comments.ts";
 
 const ORIGIN = "https://www.ligainsider.de";
+/**
+ * LigaInsider's comment script is jQuery's $.post from a normal Chrome tab. A bare Worker
+ * request (Safari UA, Accept: application/json, no X-Requested-With) is refused with 502,
+ * while the same fields from the browser succeed. These headers are what that tab sends.
+ */
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const BROWSER: Record<string, string> = {
+  "user-agent": BROWSER_UA,
+  "accept-language": "de-DE,de;q=0.9,en;q=0.8",
+  "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"macOS"',
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin",
+};
 /** LigaInsider sometimes takes 10 s and more; a write that times out may still have gone through. */
 const TIMEOUT_MS = 15000;
 
@@ -41,10 +57,19 @@ function isLoginRedirect(status: number, location: string | null): boolean {
   return pathname === "/login" || pathname.startsWith("/login/");
 }
 
+/** Only a LigaInsider page. Anything else falls back to the homepage, so Referer can't be used to leak the request elsewhere. */
+export function pageReferer(value: string | undefined): string {
+  if (!value) return `${ORIGIN}/`;
+  try {
+    const url = new URL(value);
+    if (url.origin === ORIGIN && (url.protocol === "https:" || url.protocol === "http:")) return url.href;
+  } catch { /* not a URL */ }
+  return `${ORIGIN}/`;
+}
+
 async function request(fetchFn: Fetch, url: string, init: RequestInit & { cookie?: string } = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set("user-agent", USER_AGENT);
-  headers.set("accept-language", "de-DE,de;q=0.9");
+  for (const [name, value] of Object.entries(BROWSER)) headers.set(name, value);
   if (init.cookie) headers.set("cookie", init.cookie);
   try {
     return await fetchFn(url, { ...init, headers, signal: init.signal ?? AbortSignal.timeout(TIMEOUT_MS) });
@@ -82,11 +107,15 @@ export async function login(fetchFn: Fetch, username: string, password: string):
  * It's only read here, so a second request may run in parallel when the first is slow (see hedged).
  * The write itself (graph) is always sent exactly once.
  */
-async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number): Promise<string> {
+async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number, referer: string): Promise<string> {
   return hedged(async (signal) => {
     const res = await request(fetchFn, commentsUrl(articleId), {
       cookie: session.cookie,
-      headers: { accept: "text/html" },
+      headers: {
+        accept: "text/html, */*; q=0.01",
+        "x-requested-with": "XMLHttpRequest",
+        referer,
+      },
       signal,
     });
     if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
@@ -97,22 +126,27 @@ async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number):
   }, undefined, undefined, (err) => !(err instanceof LigaInsiderAuthError));
 }
 
-async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fields: Record<string, string>): Promise<{ commentId?: string }> {
-  const token = await csrfToken(fetchFn, session, articleId);
+async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fields: Record<string, string>, referer = `${ORIGIN}/`): Promise<{ commentId?: string }> {
+  const page = pageReferer(referer);
+  const token = await csrfToken(fetchFn, session, articleId, page);
   const res = await request(fetchFn, `${ORIGIN}/comment/graph/`, {
     method: "POST",
     redirect: "manual",
     cookie: session.cookie,
     headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      accept: "application/json",
+      "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+      accept: "*/*",
+      "x-requested-with": "XMLHttpRequest",
       origin: ORIGIN,
-      referer: `${ORIGIN}/`,
+      referer: page,
     },
     body: new URLSearchParams({ csrf_token: token, csrf_form: "comment_graph", ...fields }),
   });
   if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
-  if (!res.ok) throw new LigaInsiderUnavailableError(`post HTTP ${res.status}`);
+  if (!res.ok) {
+    const snippet = (await res.text()).replace(/\s+/g, " ").slice(0, 160);
+    throw new LigaInsiderUnavailableError(`post HTTP ${res.status}${snippet ? ` ${snippet}` : ""}`);
+  }
   let data: { success?: boolean; message?: string; commentID?: string };
   try {
     data = await res.json();
@@ -123,25 +157,25 @@ async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fiel
   return { commentId: data.commentID };
 }
 
-export function createComment(fetchFn: Fetch, session: LiSession, articleId: number, body: string) {
-  return graph(fetchFn, session, articleId, { action: "create", newsID: String(articleId), body });
+export function createComment(fetchFn: Fetch, session: LiSession, articleId: number, body: string, referer?: string) {
+  return graph(fetchFn, session, articleId, { action: "create", newsID: String(articleId), body }, referer);
 }
 
-export function reply(fetchFn: Fetch, session: LiSession, articleId: number, commentId: number, body: string) {
-  return graph(fetchFn, session, articleId, { action: "create", commentID: String(commentId), body });
+export function reply(fetchFn: Fetch, session: LiSession, articleId: number, commentId: number, body: string, referer?: string) {
+  return graph(fetchFn, session, articleId, { action: "create", commentID: String(commentId), body }, referer);
 }
 
-export function upvote(fetchFn: Fetch, session: LiSession, articleId: number, commentId: number, currentVote: number) {
+export function upvote(fetchFn: Fetch, session: LiSession, articleId: number, commentId: number, currentVote: number, referer?: string) {
   return graph(fetchFn, session, articleId, {
     action: "vote",
     commentID: String(commentId),
     direction: "up",
     currentVote: String(currentVote),
-  });
+  }, referer);
 }
 
-export function votePoll(fetchFn: Fetch, session: LiSession, articleId: number, votingId: number, optionId: number) {
-  return graph(fetchFn, session, articleId, { action: "poll_vote", votingID: String(votingId), optionID: String(optionId) });
+export function votePoll(fetchFn: Fetch, session: LiSession, articleId: number, votingId: number, optionId: number, referer?: string) {
+  return graph(fetchFn, session, articleId, { action: "poll_vote", votingID: String(votingId), optionID: String(optionId) }, referer);
 }
 
 export type LiAction =
@@ -193,18 +227,18 @@ export function parseAction(raw: unknown): LiAction | undefined {
   return undefined;
 }
 
-export function runAction(fetchFn: Fetch, session: LiSession, articleId: number, action: LiAction) {
+export function runAction(fetchFn: Fetch, session: LiSession, articleId: number, action: LiAction, referer?: string) {
   switch (action.kind) {
-    case "comment": return createComment(fetchFn, session, articleId, action.body);
-    case "reply": return reply(fetchFn, session, articleId, action.commentId, action.body);
-    case "vote": return upvote(fetchFn, session, articleId, action.commentId, action.currentVote);
-    case "pollvote": return votePoll(fetchFn, session, articleId, action.votingId, action.optionId);
-    case "poll": return createPoll(fetchFn, session, articleId, action.question, action.options);
+    case "comment": return createComment(fetchFn, session, articleId, action.body, referer);
+    case "reply": return reply(fetchFn, session, articleId, action.commentId, action.body, referer);
+    case "vote": return upvote(fetchFn, session, articleId, action.commentId, action.currentVote, referer);
+    case "pollvote": return votePoll(fetchFn, session, articleId, action.votingId, action.optionId, referer);
+    case "poll": return createPoll(fetchFn, session, articleId, action.question, action.options, referer);
   }
 }
 
 /** A single-choice poll. Labels are sent as plain text, which LigaInsider accepts. */
-export function createPoll(fetchFn: Fetch, session: LiSession, articleId: number, question: string, options: string[]) {
+export function createPoll(fetchFn: Fetch, session: LiSession, articleId: number, question: string, options: string[], referer?: string) {
   return graph(fetchFn, session, articleId, {
     action: "create",
     newsID: String(articleId),
@@ -214,5 +248,5 @@ export function createPoll(fetchFn: Fetch, session: LiSession, articleId: number
       multiSelect: false,
       options: options.map((value) => ({ elements: [{ type: "Plaintext", value }] })),
     }),
-  });
+  }, referer);
 }

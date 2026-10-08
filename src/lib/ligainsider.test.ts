@@ -7,6 +7,7 @@ import {
   createPoll,
   login,
   reply,
+  pageReferer,
   upvote,
   votePoll,
 } from "./ligainsider.ts";
@@ -119,12 +120,34 @@ describe("ligainsider writes", () => {
       { status: 200, body: csrf },
       { status: 200, body: JSON.stringify({ success: true, userVote: 1 }) },
     ]);
-    await upvote(fn, session, 418778, 9, 0);
+    await upvote(fn, session, 418778, 9, 0, "https://www.ligainsider.de/kobel-418778/");
     const sent = bodyOf(calls[1].init);
     expect(sent).toContain("action=vote");
     expect(sent).toContain("direction=up");
     expect(sent).toContain("currentVote=0");
     expect(sent).toContain("commentID=9");
+    const headers = new Headers(calls[1].init.headers);
+    expect(headers.get("user-agent")).toContain("Chrome/131");
+    expect(headers.get("x-requested-with")).toBe("XMLHttpRequest");
+    expect(headers.get("sec-fetch-site")).toBe("same-origin");
+    expect(headers.get("sec-fetch-mode")).toBe("cors");
+    expect(headers.get("accept")).toBe("*/*");
+    expect(headers.get("content-type")).toContain("charset=UTF-8");
+    expect(headers.get("referer")).toBe("https://www.ligainsider.de/kobel-418778/");
+    expect(new Headers(calls[0].init.headers).get("referer")).toBe("https://www.ligainsider.de/kobel-418778/");
+  });
+
+  it("does not send a foreign page as Referer", () => {
+    expect(pageReferer("https://evil.example/phish")).toBe("https://www.ligainsider.de/");
+    expect(pageReferer(undefined)).toBe("https://www.ligainsider.de/");
+  });
+
+  it("keeps a bit of LigaInsider's error page when the post is refused", async () => {
+    const { fn } = scripted([
+      { status: 200, body: csrf },
+      { status: 502, body: "<html>Bad gateway</html>" },
+    ]);
+    await expect(upvote(fn, session, 1, 9, 0)).rejects.toThrow(/post HTTP 502/);
   });
 
   it("posts a poll vote", async () => {
