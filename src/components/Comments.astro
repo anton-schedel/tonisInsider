@@ -49,6 +49,8 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     ))}
   </div>
   <ul class="flex flex-col" data-comments-list></ul>
+  {/* Loads LigaInsider's next batch into the list (script below); hidden after the last one. */}
+  <button type="button" class="press mt-3 hidden w-full rounded-xl bg-surface py-3 text-[15px] font-semibold" data-comments-load>Weitere Kommentare laden</button>
   <a
     href={url}
     target="_blank"
@@ -59,7 +61,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 </section>
 
 <script>
-  import type { Comment, Comments, Poll } from "../lib/comments.ts";
+  import type { Comment, Comments, MoreCursor, Poll } from "../lib/comments.ts";
   import { ago, initials } from "../lib/format.ts";
 
   const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
@@ -251,6 +253,48 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     return { id: 0, user: myName(), date: new Date().toISOString(), text, score: 0, vote: 0, replies: [] };
   }
 
+  const countAll = (cs: Comment[]): number => cs.reduce((n, c) => n + 1 + countAll(c.replies), 0);
+  // The thread on this page: what's shown and where LigaInsider's next batch starts.
+  let thread: { total: number; shown: Set<number>; count: number; more?: MoreCursor } | undefined;
+
+  function showLoadMore(section: HTMLElement) {
+    const btn = section.querySelector<HTMLButtonElement>("[data-comments-load]");
+    if (!btn) return;
+    const left = thread ? thread.total - thread.count : 0;
+    btn.classList.toggle("hidden", !thread?.more);
+    btn.textContent = left > 0 ? `Weitere Kommentare laden (${left})` : "Weitere Kommentare laden";
+  }
+
+  async function loadMore(section: HTMLElement, btn: HTMLButtonElement) {
+    if (!thread?.more || btn.classList.contains("is-busy")) return;
+    const from = thread.more;
+    btn.classList.add("is-busy");
+    btn.setAttribute("aria-busy", "true");
+    try {
+      const q = new URLSearchParams({ offset: String(from.offset), goffset: String(from.goffset), moffset: String(from.moffset), cursor: String(from.cursor) });
+      const res = await fetch(`/api/comments/${section.dataset.comments}/more/?${q}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Comments;
+      const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
+      const now = new Date();
+      // Batches can overlap by a comment; each shows once.
+      const fresh = data.comments.filter((c) => !thread!.shown.has(c.id));
+      for (const c of fresh) {
+        thread.shown.add(c.id);
+        list.append(renderComment(c, now));
+      }
+      thread.count += countAll(fresh);
+      // An empty batch or the same cursor again means the end.
+      thread.more = fresh.length && data.more && data.more.cursor !== from.cursor ? data.more : undefined;
+    } catch {
+      toast(new Error("Weitere Kommentare gerade nicht erreichbar."));
+    } finally {
+      btn.classList.remove("is-busy");
+      btn.removeAttribute("aria-busy");
+      showLoadMore(section);
+    }
+  }
+
   async function load() {
     const section = sectionOf();
     if (!section) return;
@@ -288,9 +332,10 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       }
       status?.remove();
       for (const c of data.comments) list.append(renderComment(c, now));
-      const count = (cs: Comment[]): number => cs.reduce((n, c) => n + 1 + count(c.replies), 0);
-      const shown = count(data.comments);
-      if (data.total > shown) {
+      thread = { total: data.total, shown: new Set(data.comments.map((c) => c.id)), count: countAll(data.comments), more: data.more };
+      showLoadMore(section);
+      // Without a next batch to load (e.g. LigaInsider stops sending one), the rest stays a link.
+      if (!data.more && data.total > thread.count) {
         more.textContent = `Alle ${data.total} Kommentare auf ligainsider.de ↗`;
         more.classList.remove("hidden");
         more.classList.add("inline-block");
@@ -321,6 +366,20 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   }
 
   function setup(section: HTMLElement) {
+    const loadBtn = section.querySelector<HTMLButtonElement>("[data-comments-load]");
+    if (loadBtn) {
+      loadBtn.addEventListener("click", () => void loadMore(section, loadBtn));
+      // Scrolling toward the end loads the next batch on its own, before the button is reached. Observing
+      // again after each batch fires once more if the button is still near (short batches).
+      const near = new IntersectionObserver(async (entries) => {
+        if (!entries.some((e) => e.isIntersecting) || loadBtn.classList.contains("hidden")) return;
+        await loadMore(section, loadBtn);
+        near.unobserve(loadBtn);
+        if (thread?.more) near.observe(loadBtn);
+      }, { rootMargin: "0px 0px 800px 0px" });
+      near.observe(loadBtn);
+      document.addEventListener("astro:before-swap", () => near.disconnect(), { once: true });
+    }
     const here = `${location.pathname}${location.search}`;
     section.querySelectorAll<HTMLInputElement>("[data-li-next]").forEach((input) => { input.value = here; });
     const login = section.querySelector<HTMLAnchorElement>("[data-li-login]");

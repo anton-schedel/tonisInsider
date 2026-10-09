@@ -38,8 +38,13 @@ export type Comment = {
   poll?: Poll;
   replies: Comment[];
 };
-/** total counts all comments incl. replies; comments holds only LigaInsider's first page. */
-export type Comments = { total: number; comments: Comment[] };
+/** Where LigaInsider's next batch of comments starts (from the list's end marker). */
+export type MoreCursor = { offset: number; goffset: number; moffset: number; cursor: number };
+/**
+ * total counts all comments incl. replies; comments holds one batch (the first page, or one more).
+ * more is missing after the last batch.
+ */
+export type Comments = { total: number; comments: Comment[]; more?: MoreCursor };
 
 export const commentsUrl = (articleId: number) =>
   `https://www.ligainsider.de/apiesi/desktop/newscomments/?newsid=${articleId}`;
@@ -160,7 +165,49 @@ function parseOne($: CheerioAPI, li: Element): Comment {
 export function parseComments(html: string): Comments {
   const $ = load(html);
   const comments = $('li[data-comment-id][data-depth="0"]').toArray().map((li) => parseOne($, li));
-  return { total: num($("[data-comment-count]").first().text()) || comments.length, comments };
+  const end = $("[data-comments-sentinel]").first();
+  const cursor = num(end.attr("data-comments-cursor"));
+  const more = end.length && cursor
+    ? {
+        offset: num(end.attr("data-comments-offset")),
+        goffset: num(end.attr("data-comments-goffset")),
+        moffset: num(end.attr("data-comments-moffset")),
+        cursor,
+      }
+    : undefined;
+  return { total: num($("[data-comment-count]").first().text()) || comments.length, comments, ...(more ? { more } : {}) };
+}
+
+export const MORE_URL = "https://www.ligainsider.de/comments/news/loadmore/";
+
+/** The next batch after `from`, newest first like the first page (what LigaInsider's own list loads on scroll). */
+export async function fetchMoreComments(fetchFn: typeof fetch, articleId: number, from: MoreCursor): Promise<Comments> {
+  const body = new URLSearchParams({
+    offset: String(from.offset),
+    moffset: String(from.moffset),
+    goffset: String(from.goffset),
+    commentsbefore: String(from.cursor),
+    tmid: String(articleId),
+    gtdid: "",
+    sort: "newest",
+  });
+  return hedged(async (signal) => {
+    const res = await fetchFn(MORE_URL, {
+      method: "POST",
+      headers: { ...HEADERS, "content-type": "application/x-www-form-urlencoded; charset=UTF-8" },
+      body,
+      signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return parseComments(await res.text());
+  });
+}
+
+/** Reads a MoreCursor from query parameters; undefined unless all are plain numbers. */
+export function cursorFrom(params: URLSearchParams): MoreCursor | undefined {
+  const n = (k: string) => (/^\d{1,9}$/.test(params.get(k) ?? "") ? Number(params.get(k)) : undefined);
+  const c = { offset: n("offset"), goffset: n("goffset"), moffset: n("moffset"), cursor: n("cursor") };
+  return Object.values(c).every((v) => v !== undefined) ? (c as MoreCursor) : undefined;
 }
 
 /** The subset of Cloudflare's Cache API we use (caches.default). */
@@ -208,6 +255,19 @@ async function cachedJson<T>(
 export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?: EdgeCache, opts?: CommentsOpts): Promise<Response> {
   if (!/^\d{1,9}$/.test(id)) return new Response("Not found", { status: 404 });
   return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, Number(id)), cache, {
+    personal: opts?.personal,
+    shareable: withoutViewer,
+  });
+}
+
+/** GET /api/comments/<id>/more/?offset=…&goffset=…&moffset=…&cursor=…: the next batch of comments. */
+export async function moreCommentsResponse(
+  id: string, params: URLSearchParams, fetchFn: typeof fetch, cache?: EdgeCache, opts?: CommentsOpts,
+): Promise<Response> {
+  const from = cursorFrom(params);
+  if (!/^\d{1,9}$/.test(id) || !from) return new Response("Not found", { status: 404 });
+  const key = `https://comments.cache/${id}/more/${from.offset}-${from.goffset}-${from.moffset}-${from.cursor}`;
+  return cachedJson(key, () => fetchMoreComments(fetchFn, Number(id), from), cache, {
     personal: opts?.personal,
     shareable: withoutViewer,
   });

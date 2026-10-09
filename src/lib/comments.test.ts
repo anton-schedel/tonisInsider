@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, fetchComments, hedged, parseComments, withoutViewer, type EdgeCache } from "./comments.ts";
+import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchComments, fetchMoreComments, hedged, MORE_URL, parseComments, withoutViewer, type EdgeCache } from "./comments.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../../scraper/__fixtures__/${name}`, import.meta.url), "utf8");
 
@@ -231,5 +231,35 @@ describe("commentCountsResponse", () => {
   it("answers 502 when LigaInsider fails", async () => {
     const fn = (async () => new Response("x", { status: 500 })) as typeof fetch;
     expect((await commentCountsResponse(fn)).status).toBe(502);
+  });
+});
+
+describe("more comments", () => {
+  it("reads where the next batch starts", () => {
+    const first = parseComments(fixture("comments-long.html"));
+    expect(first.comments).toHaveLength(15);
+    expect(first.more).toEqual({ offset: 15, goffset: 15, moffset: 0, cursor: 7851373 });
+  });
+
+  it("parses a further batch and its own next cursor", () => {
+    const next = parseComments(fixture("comments-more.html"));
+    expect(next.comments.length).toBeGreaterThan(0);
+    expect(next.more?.offset).toBeGreaterThan(15);
+  });
+
+  it("posts the cursor like LigaInsider's own list, newest first", async () => {
+    let sent: { url: string; body: string } | undefined;
+    const fetchFn = (async (url: string, init: RequestInit) => {
+      sent = { url, body: String(init.body) };
+      return new Response(fixture("comments-more.html"));
+    }) as unknown as typeof fetch;
+    await fetchMoreComments(fetchFn, 418926, { offset: 15, goffset: 15, moffset: 0, cursor: 7851373 });
+    expect(sent?.url).toBe(MORE_URL);
+    expect(Object.fromEntries(new URLSearchParams(sent!.body))).toMatchObject({ offset: "15", commentsbefore: "7851373", tmid: "418926", sort: "newest" });
+  });
+
+  it("accepts only numeric cursors from the query", () => {
+    expect(cursorFrom(new URLSearchParams("offset=15&goffset=15&moffset=0&cursor=7"))).toEqual({ offset: 15, goffset: 15, moffset: 0, cursor: 7 });
+    expect(cursorFrom(new URLSearchParams("offset=15&goffset=x&moffset=0&cursor=7"))).toBeUndefined();
   });
 });
