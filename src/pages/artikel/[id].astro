@@ -4,6 +4,7 @@ import Avatar from "../../components/Avatar.astro";
 import Crest from "../../components/Crest.astro";
 import StatusPill from "../../components/StatusPill.astro";
 import Comments from "../../components/Comments.astro";
+import RatingsPitch from "../../components/RatingsPitch.astro";
 import { articles } from "../../lib/data.ts";
 import { fullDate } from "../../lib/format.ts";
 import { LOGO, NAME } from "../../lib/brand.ts";
@@ -40,6 +41,8 @@ const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
       <img src={a.banner} alt="" width="1200" height="675" decoding="async" class="img-fade mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" onload="this.classList.add('is-loaded')" />
     )}
     <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
+    {/* Match reports: each team's grades on a pitch. */}
+    {a.ratings?.map((team) => <RatingsPitch team={team} />)}
     <a
       href={a.url}
       target="_blank"

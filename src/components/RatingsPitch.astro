@@ -1,0 +1,86 @@
+---
+import type { RatedPlayer, RatingMark, TeamRatings } from "../../scraper/types.ts";
+import Avatar from "./Avatar.astro";
+import Crest from "./Crest.astro";
+import PitchField from "./PitchField.astro";
+import { AVATAR, slotStyle } from "../lib/pitch.ts";
+import { formatGrade, gradeColor } from "../lib/grades.ts";
+
+/**
+ * One team's grades from a match report, on the same pitch as the lineups. A substituted player has the ⇄
+ * mark: tapping him flips to the substitute and back (handler in Base.astro), like an alternative in a lineup.
+ */
+interface Props { team: TeamRatings }
+const { team } = Astro.props;
+const rows = team.lines.length;
+const badge = (g: number) => {
+  const c = gradeColor(g);
+  return `background:${c.bg};color:${c.fg}`;
+};
+// What happened, as small markers on the photo: goals and assists, cards. Errors aren't shown.
+const MARK: Partial<Record<RatingMark, { label: string; cls: string; text?: string }>> = {
+  goal: { label: "Tor", cls: "grade-mark", text: "⚽" },
+  ownGoal: { label: "Eigentor", cls: "grade-mark is-own", text: "⚽" },
+  assist: { label: "Vorlage", cls: "grade-mark", text: "A" },
+  yellow: { label: "Gelbe Karte", cls: "grade-card is-yellow" },
+  yellowRed: { label: "Gelb-Rote Karte", cls: "grade-card is-yellow-red" },
+  red: { label: "Rote Karte", cls: "grade-card is-red" },
+};
+const marksOf = (p: RatedPlayer) => p.marks.flatMap((m) => (MARK[m] ? [MARK[m]!] : []));
+const legend = new Set(team.lines.flat().flatMap((s) => [s.player, s.sub].flatMap((p) => (p ? p.marks : []))));
+---
+<section class="mt-8">
+  <div class="mb-3 flex items-center gap-3">
+    <Crest src={team.crest} name={team.team} size={32} />
+    <h2 class="min-w-0 flex-1 text-[20px] leading-tight font-bold tracking-[-0.02em]">{team.team}</h2>
+    {team.average !== undefined && (
+      <span class="shrink-0 rounded-full px-2.5 py-1 text-[14px] font-bold tabular-nums" style={badge(team.average)} title="Durchschnittsnote">Ø {formatGrade(team.average)}</span>
+    )}
+  </div>
+  <PitchField>
+    {team.lines.map((line, i) =>
+      line.map((spot, j) => {
+        const face = (p: RatedPlayer, note: string | undefined, alt: boolean) => (
+          <>
+            <span class="relative">
+              <Avatar src={p.photo} name={p.name} size={AVATAR} class:list={["shadow-md ring-2", alt ? "ring-[var(--yellow-dot)]" : "ring-white/80"]} />
+              {p.grade !== undefined
+                ? <span class="grade-badge" style={badge(p.grade)} title="Note">{formatGrade(p.grade)}</span>
+                : <span class="grade-badge is-none" title="Ohne Note (zu kurz gespielt)">–</span>}
+              {marksOf(p).length > 0 && (
+                <span class="grade-marks">{marksOf(p).map((m) => <span class={m.cls} title={m.label} aria-label={m.label}>{m.text}</span>)}</span>
+              )}
+              {spot.sub && <span class="swap-hint" aria-hidden="true">⇄</span>}
+            </span>
+            <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
+            {note && <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">{note}</span>}
+          </>
+        );
+        const minute = spot.minute !== undefined ? `${spot.minute}'` : "";
+        return (
+          <div class="absolute w-[24%]" style={slotStyle(i, rows, j, line.length, { mirror: true })}>
+            {spot.sub ? (
+              <div data-swap class="swap grid w-full">
+                <button type="button" data-swap-hint aria-label={`${spot.sub.name} zeigen`} class="press swap-face flex flex-col items-center text-center">
+                  {face(spot.player, `bis ${minute} · ${spot.sub.name}`, false)}
+                </button>
+                <button type="button" data-swap-hint aria-label={`${spot.player.name} zeigen`} class="press swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
+                  {face(spot.sub, `ab ${minute} für ${spot.player.name}`, true)}
+                </button>
+              </div>
+            ) : (
+              <div class="flex flex-col items-center text-center">{face(spot.player, undefined, false)}</div>
+            )}
+          </div>
+        );
+      }),
+    )}
+    <Fragment slot="legend">
+      <span>Note 1 (top) bis 6</span>
+      {legend.has("goal") && <span class="flex items-center gap-1"><span class="grade-mark is-legend">⚽</span>Tor</span>}
+      {legend.has("assist") && <span class="flex items-center gap-1"><span class="grade-mark is-legend">A</span>Vorlage</span>}
+      {(legend.has("yellow") || legend.has("yellowRed") || legend.has("red")) && <span class="flex items-center gap-1"><span class="grade-card is-yellow is-legend"></span>Karte</span>}
+      {team.lines.flat().some((s) => s.sub) && <span>⇄ Einwechslung</span>}
+    </Fragment>
+  </PitchField>
+</section>

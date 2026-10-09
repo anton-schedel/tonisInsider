@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { Article, ArticleRef, Category } from "../types.ts";
 import { cleanText, parseClubHref, parseGermanDateTime, parsePlayerHref, playerOfArticleUrl } from "../text.ts";
 import { sanitizeBody } from "../sanitize.ts";
+import { parseRatings } from "./ratings.ts";
 
 /** Slugs that look like players in URLs but are editorial accounts. */
 /** "Players" that are really LigaInsider itself (its own articles). */
@@ -41,7 +42,11 @@ export function parseArticle(html: string, ref: ArticleRef, category: Category, 
     ? { name: cleanText(sourceLink.text()), url: /^https?:\/\//i.test(sourceHref) ? sourceHref : undefined }
     : undefined;
 
-  const bodyHtml = sanitizeBody($("[itemprop=articleBody]").first().html() ?? "");
+  const body = $("[itemprop=articleBody]").first();
+  // Match reports: the grade pitches become data (their markup would leave only loose text after sanitizing).
+  const ratings = parseRatings($, body);
+  body.find(".stadium_container_small").remove();
+  const bodyHtml = sanitizeBody(body.html() ?? "");
   // LigaInsider's image service renders the banner at 2000 px (≈1.6 MB); 1200 px is plenty here (≈160 KB).
   // The photographer credit is part of the image and stays.
   const bannerSrc = $(".news_banner img.fullimage").first().attr("src");
@@ -60,6 +65,7 @@ export function parseArticle(html: string, ref: ArticleRef, category: Category, 
     source,
     publishedAt,
     bodyHtml,
+    ...(ratings.length ? { ratings } : {}),
     banner,
     fetchedAt: now.toISOString(),
   };

@@ -32,6 +32,8 @@ export type Article = {
   source?: { name: string; url?: string };
   publishedAt: string;
   bodyHtml: string;
+  /** Match reports: each team's grades (shown as pitches instead of the text LigaInsider's markup leaves). */
+  ratings?: TeamRatings[];
   /**
    * Banner photo above the text: the parser sets LigaInsider's URL, the run replaces it with the local path.
    * null = the article has none. Missing = stored before banners existed (looked up once while listed).
@@ -43,6 +45,15 @@ export type Article = {
 };
 
 export type ClubRef = Ref & { crestUrl: string };
+
+/** What a player did in a rated match (LigaInsider's icons beside the grade). */
+export type RatingMark = "goal" | "ownGoal" | "assist" | "yellow" | "yellowRed" | "red" | "error";
+/** A player in a match report's grades: grade 1 (best) to 6, missing when he played too briefly. */
+export type RatedPlayer = Ref & { photoUrl?: string; photo?: string; grade?: number; marks: RatingMark[] };
+/** One spot of the starting XI; sub came on for player in minute. */
+export type RatedSpot = { player: RatedPlayer; sub?: RatedPlayer; minute?: number };
+/** One team's grades in a match report: average grade and the XI line by line, goalkeeper first. */
+export type TeamRatings = { team: string; crestUrl?: string; crest?: string; average?: number; lines: RatedSpot[][] };
 
 export type LineupPlayer = Ref & {
   photo?: string;

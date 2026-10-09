@@ -126,7 +126,9 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     // Articles stored before the player was read from the URL get re-read once (they then have the player).
     const missingPlayer = existing && !existing.player && !!ref.playerName && !!playerOfArticleUrl(ref.url)
       && !NON_PLAYER_SLUGS.has(playerOfArticleUrl(ref.url)!.slug);
-    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished && !missingPlayer) continue;
+    // Match reports stored before their grades were read have the grades as loose text: re-read once.
+    const missingRatings = existing && !existing.ratings && /PARADEN|DEFENSIVE/.test(existing.bodyHtml);
+    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished && !missingPlayer && !missingRatings) continue;
     if (state.unavailable?.[ref.id] === ref.headline) {
       unavailable[ref.id] = ref.headline;
       continue;
@@ -149,6 +151,16 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       }
       if (article.banner) {
         article.banner = (await ensureImage(fetcher, publicDir, "articles", bannerKey(article.banner), article.banner)) ?? null;
+      }
+      // Match reports: every rated player's photo and both crests, like the lineups.
+      for (const team of article.ratings ?? []) {
+        const club = clubs.find((c) => c.name === team.team);
+        team.crest = club ? await ensureImage(fetcher, publicDir, "clubs", club.id, mediumCrest(club.crestUrl)) : undefined;
+        for (const spot of team.lines.flat()) {
+          for (const p of [spot.player, spot.sub]) {
+            if (p) p.photo = await ensureImage(fetcher, publicDir, "players", p.id, p.photoUrl);
+          }
+        }
       }
       if (article.club) {
         const club = clubById.get(article.club.id);
