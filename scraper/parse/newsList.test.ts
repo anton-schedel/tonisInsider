@@ -38,6 +38,19 @@ describe("parseNewsList", () => {
     expect(parseNewsList(fx("news-testspiele.html"))).toHaveLength(15);
   });
 
+  it("includes confirmed lineups, which link to the club instead of a player", () => {
+    const refs = parseNewsList(fx("news-confirmed-lineup.html"));
+    expect(refs.find((r) => r.id === 418926)).toEqual({
+      id: 418926,
+      url: "https://www.ligainsider.de/borussia-dortmund/14/aufstellung-von-borussia-dortmund-418926/",
+      headline: "Aufstellung von Borussia Dortmund",
+      newsType: "sonstiges",
+      playerPhotoUrl: undefined,
+      listedAgoMinutes: undefined,
+    });
+    expect(refs.find((r) => r.id === 418890)?.playerName).toBe("Timo Becker");
+  });
+
   it("returns an empty list for unrelated HTML", () => {
     expect(parseNewsList("<html><body><p>Wartung</p></body></html>")).toEqual([]);
   });

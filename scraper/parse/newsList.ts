@@ -28,19 +28,22 @@ export function parseNewsList(html: string): ArticleRef[] {
   const seen = new Set<number>();
   $(".feature_column").each((_, el) => {
     const col = $(el);
-    const link = col.find("a.newsboxlink").first();
+    // Confirmed lineups ("Aufstellung von <Club>", club URL) have no news box link, the XI as heading instead.
+    const lineup = col.find("h3.vanews a").first();
+    const link = lineup.length ? lineup : col.find("a.newsboxlink").first();
     const href = link.attr("href");
     if (!href) return;
     const id = parseArticleId(href);
     if (id === undefined || seen.has(id)) return;
     seen.add(id);
     const photoImg = col.find(".player_photo img").first();
-    const photo = photoImg.attr("src");
-    const photoName = cleanText(photoImg.attr("alt") ?? "");
+    // Lineups show the club crest, not a player.
+    const photo = lineup.length ? undefined : photoImg.attr("src");
+    const photoName = lineup.length ? "" : cleanText(photoImg.attr("alt") ?? "");
     refs.push({
       id,
       url: absoluteUrl(href),
-      headline: cleanText(link.find("h3").text()),
+      headline: lineup.length ? cleanText(col.find("a.profile_link_box").first().text()) : cleanText(link.find("h3").text()),
       newsType: newsTypeFromLabel(col.find(".social_left_icon img").first().attr("alt")),
       playerPhotoUrl: photo || undefined,
       ...(photoName ? { playerName: photoName } : {}),
