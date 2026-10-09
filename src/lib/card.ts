@@ -15,6 +15,10 @@ export type CardData = PlayerInsight & {
   tone?: "green" | "yellow" | "grey";
   /** The player's team keeps a clean sheet. */
   cleanSheet?: number;
+  /** The player's team wins. */
+  win?: number;
+  /** TW, ABW, MF or ST. */
+  pos?: string;
   /** Club page link (Mein Team only; on the club page the player is already there). */
   href?: string;
 };
@@ -41,4 +45,12 @@ export function startLabel(status: StartStatus, label?: string, rival?: string) 
   const s = START[status];
   const text = `${s.text}${status === "doubtful" && label ? ` · ${label}` : ""}${status === "contested" && rival ? ` · Alt. ${rival}` : ""}`;
   return { text, tone: s.tone };
+}
+
+/** Position label from a Kickbase position (1 goalkeeper … 4 forward). */
+export const POSITIONS = ["", "TW", "ABW", "MF", "ST"] as const;
+
+/** Position label from the row of a lineup (0 goalkeeper, last row forwards). */
+export function rowPosition(row: number, rows: number): string {
+  return row === 0 ? "TW" : row === rows - 1 ? "ST" : row === 1 ? "ABW" : "MF";
 }

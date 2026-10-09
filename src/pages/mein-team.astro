@@ -8,15 +8,16 @@ import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
 import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../lib/match.ts";
 import { toFixtures } from "../lib/fixtures.ts";
+import { chancesFor } from "../lib/odds.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
-import { cardAttr, matchLine, startLabel } from "../lib/card.ts";
+import { cardAttr, matchLine, POSITIONS, startLabel } from "../lib/card.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
 
 export const prerender = false;
 
-type PlayerOutlook = PlayerInsight & { cleanSheet?: number };
+type PlayerOutlook = PlayerInsight & { cleanSheet?: number; win?: number };
 
 // Personal page: never cache it anywhere (shared phones, back button, link prefetch).
 Astro.response.headers.set("Cache-Control", "private, no-store");
@@ -81,9 +82,11 @@ async function load(token: string) {
     if (!insights.has(fixture)) insights.set(fixture, matchInsights(fixture, snapshot?.state.odds, snapshot?.state.scorers));
     const mi = insights.get(fixture);
     if (!mi) continue;
+    const chances = chancesFor(fixture, snapshot?.state.odds);
     outlook.set(p.kickbase.id, {
       ...(p.ligainsider ? mi.player(p.ligainsider) : {}),
       cleanSheet: fixture.home === p.lineup ? mi.cleanSheet.home : mi.cleanSheet.away,
+      win: chances && (fixture.home === p.lineup ? chances.home : chances.away),
     });
   }
   return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), outlook };
@@ -121,6 +124,7 @@ const cards = new Map(players.map((p) => {
     name: p.ligainsider?.name ?? p.kickbase.name,
     photo: p.ligainsider?.photo ?? p.kickbase.image,
     crest: p.club?.crest,
+    pos: POSITIONS[p.kickbase.position] || undefined,
     match: matchLine(p.lineup),
     status: start.text,
     tone: start.tone,

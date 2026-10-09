@@ -1,30 +1,35 @@
 ---
 /**
- * Player card: a sheet with the odds-based outlook, opened by tapping any element with data-card
- * (JSON from cardAttr in lib/card.ts). One per page; the script fills it on tap.
+ * Player card in the style of a FIFA Ultimate Team card, in a sheet: opened by tapping any element with
+ * data-card (JSON from cardAttr in lib/card.ts). One per page; the script fills it on tap.
+ * The big number is the scorer chance (goal or assist), else the goal chance; below it the position and the club.
  */
 ---
 <dialog class="player-card" data-player-card aria-label="Spieler">
   <div class="player-card-body">
-    <div class="mx-auto mb-4 h-1 w-9 rounded-full bg-hairline" aria-hidden="true"></div>
-    <div class="flex items-center gap-3.5">
-      <span class="relative shrink-0">
-        <span class="relative inline-flex size-[60px] items-center justify-center overflow-hidden rounded-full bg-surface text-[21px] font-semibold text-muted">
+    <div class="mx-auto mb-5 h-1 w-9 rounded-full bg-hairline" aria-hidden="true"></div>
+
+    <div class="fut">
+      <div class="fut-top">
+        <div class="fut-side">
+          <span data-f="rating" class="fut-rating"></span>
+          <span data-f="caption" class="fut-caption"></span>
+          <span data-f="pos" class="fut-pos"></span>
+          <img data-f="crest" alt="" class="fut-crest" hidden />
+        </div>
+        <span class="fut-photo">
           <span data-f="initials" aria-hidden="true"></span>
-          <img data-f="photo" alt="" class="absolute inset-0 size-full object-cover" hidden />
+          <img data-f="photo" alt="" hidden />
         </span>
-        <img data-f="crest" alt="" class="absolute -right-1.5 -bottom-1 size-6 object-contain" hidden />
-      </span>
-      <span class="min-w-0 flex-1">
-        <span data-f="name" class="block text-[20px] leading-tight font-bold tracking-[-0.02em]"></span>
-        <span data-f="match" class="mt-0.5 block truncate text-[14px] text-muted"></span>
-        <span data-f="status" class="mt-1.5 inline-block rounded-full px-[7px] py-[2px] text-[11px] font-semibold" hidden></span>
-      </span>
+      </div>
+      <p data-f="name" class="fut-name"></p>
+      <div data-f="stats" class="fut-stats"></div>
     </div>
 
-    <dl data-f="rows" class="mt-5 divide-y divide-hairline border-y border-hairline"></dl>
-    <p data-f="empty" class="mt-5 text-[14px] text-muted" hidden>Tor, Scorer und Karte kommen am Donnerstag vor dem Spieltag ab 18 Uhr.</p>
-    <p class="mt-3 text-xs text-muted">Aus Wettquoten, Buchmacher-Marge herausgerechnet.</p>
+    <div class="mt-5 flex flex-col items-center gap-1.5 text-center">
+      <span data-f="status" class="rounded-full px-[9px] py-[3px] text-[12px] font-semibold" hidden></span>
+      <span data-f="match" class="text-[14px] text-muted"></span>
+    </div>
 
     <div class="mt-5 flex gap-2">
       <a data-f="href" class="press flex-1 rounded-xl bg-surface py-3 text-center text-[15px] font-semibold" hidden>Zum Verein</a>
@@ -37,11 +42,11 @@
   import type { CardData } from "../lib/card.ts";
   import { initials } from "../lib/format.ts";
 
-  const ROWS = [
-    { key: "goal", label: "Tor", hint: "trifft im nächsten Spiel" },
-    { key: "scorer", label: "Scorer", hint: "Tor oder Vorlage" },
-    { key: "cleanSheet", label: "Zu Null", hint: "sein Team bekommt kein Gegentor" },
-    { key: "card", label: "Karte", hint: "Gelb oder Rot" },
+  const STATS = [
+    { key: "goal", label: "TOR" },
+    { key: "win", label: "SIEG" },
+    { key: "cleanSheet", label: "ZU 0" },
+    { key: "card", label: "KARTE" },
   ] as const;
   // Cards cost points: a high risk is marked.
   const CARD_WARN = 30;
@@ -50,6 +55,11 @@
     const f = (name: string) => dialog.querySelector<HTMLElement>(`[data-f="${name}"]`)!;
     f("name").textContent = d.name;
     f("initials").textContent = initials(d.name);
+    // Without assist odds the goal chance stands in.
+    const rating = d.scorer ?? d.goal;
+    f("rating").textContent = rating !== undefined ? String(rating) : "–";
+    f("caption").textContent = d.scorer === undefined && d.goal !== undefined ? "Tor" : "Scorer";
+    f("pos").textContent = d.pos ?? "";
     f("match").textContent = d.match ?? "";
     f("match").hidden = !d.match;
 
@@ -70,25 +80,17 @@
       ? "background:var(--surface);color:var(--muted)"
       : `background:var(--${d.tone}-bg);color:var(--${d.tone}-fg)`;
 
-    const rows = ROWS.filter((r) => d[r.key] !== undefined);
-    f("rows").replaceChildren(...rows.map((r) => {
-      const v = d[r.key]!;
-      const row = document.createElement("div");
-      row.className = "flex items-center justify-between gap-3 py-3";
-      const term = document.createElement("dt");
-      term.innerHTML = `<span class="block text-[15px] font-semibold"></span><span class="block text-[13px] text-muted"></span>`;
-      term.children[0].textContent = r.label;
-      term.children[1].textContent = r.hint;
-      const value = document.createElement("dd");
-      value.className = "text-[22px] font-bold tracking-[-0.02em] tabular-nums";
-      value.textContent = `${v} %`;
-      if (r.key === "card" && v >= CARD_WARN) value.style.color = "var(--yellow-fg)";
-      row.append(term, value);
-      return row;
+    // Two columns like the six stats on a FIFA card: value, then the short label.
+    f("stats").replaceChildren(...STATS.map((s) => {
+      const v = d[s.key];
+      const el = document.createElement("span");
+      el.className = "fut-stat";
+      const value = document.createElement("b");
+      value.textContent = v === undefined ? "–" : String(v);
+      if (s.key === "card" && v !== undefined && v >= CARD_WARN) value.className = "is-warn";
+      el.append(value, ` ${s.label}`);
+      return el;
     }));
-    f("rows").hidden = rows.length === 0;
-    // Clean sheets come from the win odds all week; the player markets only from Thursday evening.
-    f("empty").hidden = d.goal !== undefined || d.scorer !== undefined || d.card !== undefined;
 
     const link = f("href") as HTMLAnchorElement;
     link.hidden = !d.href;

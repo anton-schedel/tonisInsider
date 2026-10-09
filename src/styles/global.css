@@ -158,6 +158,40 @@ html {
 .player-card[open]::backdrop { background: rgba(0, 0, 0, 0.4); }
 @starting-style { .player-card[open]::backdrop { background: rgba(0, 0, 0, 0); } }
 .player-card-body { padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); }
+/* The card itself: FIFA Ultimate Team gold, the same in light and dark mode. */
+.fut {
+  --fut-ink: #3d2f12;
+  position: relative; width: 252px; margin: 0 auto; padding: 22px 22px 46px;
+  color: var(--fut-ink);
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(160deg, #f6e7a6 0%, #e3c56e 45%, #c9a447 100%);
+  clip-path: polygon(14% 0, 86% 0, 100% 7%, 100% 86%, 50% 100%, 0 86%, 0 7%);
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.25));
+}
+.fut-top { display: flex; gap: 6px; }
+.fut-side { display: flex; flex-direction: column; align-items: center; width: 56px; padding-top: 6px; }
+.fut-rating { font-size: 44px; font-weight: 800; line-height: 0.9; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.fut-caption { margin-top: 3px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+.fut-pos { margin-top: 6px; font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+.fut-crest { margin-top: 8px; width: 30px; height: 30px; object-fit: contain; }
+.fut-photo {
+  position: relative; flex: 1; aspect-ratio: 1; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; font-weight: 700; color: rgba(61, 47, 18, 0.35);
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}
+.fut-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 14px 14px 0 0; }
+.fut-name {
+  margin-top: 4px; padding-bottom: 8px; border-bottom: 1px solid rgba(61, 47, 18, 0.25);
+  text-align: center; font-size: 20px; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fut-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; padding: 10px 6px 0; font-size: 14px; font-weight: 600; letter-spacing: 0.03em; }
+.fut-stat b { display: inline-block; min-width: 1.6em; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fut-stat b.is-warn { color: #b3261e; }
+
 @media (min-width: 640px) {
   .player-card { inset: 0; margin: auto; border-radius: 24px; height: fit-content; }
 }

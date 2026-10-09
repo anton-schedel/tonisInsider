@@ -6,6 +6,7 @@ import StatusPill from "./StatusPill.astro";
 import { kickoffDay, time } from "../lib/format.ts";
 import { commentCount } from "../lib/data.ts";
 import { LOGO, NAME } from "../lib/brand.ts";
+import { confirmedLineup } from "../lib/lineupNews.ts";
 
 interface Props {
   article: Article;
@@ -15,6 +16,8 @@ interface Props {
 }
 const { article: a, index = 0, withDay = false } = Astro.props;
 const comments = commentCount(a.id);
+// Confirmed lineups show the XI right here, no need to open them.
+const lineup = confirmedLineup(a);
 ---
 <a href={`/artikel/${a.id}/`} class="press enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`}>
   <span class="relative">
@@ -29,6 +32,12 @@ const comments = commentCount(a.id);
   </span>
   <span class="min-w-0 flex-1">
     <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+    {lineup && (
+      <span class="mb-1.5 block text-[14px] leading-snug">
+        {lineup.xi}
+        {lineup.bench && <span class="mt-1 block text-[13px] text-muted">Bank: {lineup.bench}</span>}
+      </span>
+    )}
     <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
       {/* The name shortens on narrow rows; the time always stays visible. */}

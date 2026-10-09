@@ -22,16 +22,18 @@ const news = clubArticles(lineup.club.id);
 // Odds-based outlook per player for the player card: goal, scorer (goal or assist), card, and the team's clean sheet.
 const insights = fixture ? matchInsights(fixture, odds(), scorers()) : undefined;
 const cleanSheet = insights && (fixture?.home === lineup ? insights.cleanSheet.home : insights.cleanSheet.away);
+const chances = fixture ? chancesFor(fixture, odds()) : undefined;
+const win = chances && (fixture?.home === lineup ? chances.home : chances.away);
 ---
 <Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
-  {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chancesFor(fixture, odds())} />}
+  {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chances} />}
 
   <section class="mt-9">
     <div class="mb-3 flex items-baseline justify-between">
       <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
       <span class="text-[15px] font-semibold text-muted tabular-nums">{lineup.formation}</span>
     </div>
-    <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} />
+    <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} />
   </section>
 
   <section class="mt-7">
