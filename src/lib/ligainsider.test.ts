@@ -141,9 +141,20 @@ describe("ligainsider writes", () => {
     expect(pageReferer(undefined)).toBe("https://www.ligainsider.de/");
   });
 
+  it("sends the vote again when LigaInsider's gateway answers 502", async () => {
+    const { fn, calls } = scripted([
+      { status: 200, body: csrf },
+      { status: 502, body: "error code: 502" },
+      { status: 200, body: JSON.stringify({ success: true, userVote: 1 }) },
+    ]);
+    await upvote(fn, session, 418778, 9, 0);
+    expect(calls.filter((c) => c.init.method === "POST")).toHaveLength(2);
+  });
+
   it("keeps a bit of LigaInsider's error page when the post is refused", async () => {
     const { fn } = scripted([
       { status: 200, body: csrf },
+      { status: 502, body: "<html>Bad gateway</html>" },
       { status: 502, body: "<html>Bad gateway</html>" },
     ]);
     await expect(upvote(fn, session, 1, 9, 0)).rejects.toThrow(/post HTTP 502/);

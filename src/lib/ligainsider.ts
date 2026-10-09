@@ -129,7 +129,7 @@ async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number, 
 async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fields: Record<string, string>, referer = `${ORIGIN}/`): Promise<{ commentId?: string }> {
   const page = pageReferer(referer);
   const token = await csrfToken(fetchFn, session, articleId, page);
-  const res = await request(fetchFn, `${ORIGIN}/comment/graph/`, {
+  const send = () => request(fetchFn, `${ORIGIN}/comment/graph/`, {
     method: "POST",
     redirect: "manual",
     cookie: session.cookie,
@@ -142,6 +142,10 @@ async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fiel
     },
     body: new URLSearchParams({ csrf_token: token, csrf_form: "comment_graph", ...fields }),
   });
+  // LigaInsider's gateway sometimes answers the first write with a bare 502 ("error code: 502")
+  // and accepts the same post immediately after. One retry; the token page is not fetched again.
+  let res = await send();
+  if (res.status === 502 || res.status === 503 || res.status === 504) res = await send();
   if (isLoginRedirect(res.status, res.headers.get("location"))) throw new LigaInsiderAuthError("session expired");
   if (!res.ok) {
     const snippet = (await res.text()).replace(/\s+/g, " ").slice(0, 160);
