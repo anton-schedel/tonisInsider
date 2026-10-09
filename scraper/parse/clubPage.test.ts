@@ -54,3 +54,19 @@ describe("parseClubPage", () => {
     expect(l.formation).toBe("");
   });
 });
+
+describe("parseClubPage during the match", () => {
+  const LIVE = new Date("2026-10-09T18:40:00Z");
+  it("reads opponent and kickoff from the match heading", () => {
+    const l = parseClubPage(fx("club-live.html"), BVB, LIVE);
+    expect(l.opponent).toEqual({ name: "SV Werder Bremen", home: true });
+    expect(l.kickoff).toBe("2026-10-09T18:30:00.000Z");
+    expect(l.lines.flat().length).toBe(11);
+  });
+
+  it("knows the away side", () => {
+    const html = fx("club-live.html");
+    const l = parseClubPage(html, { id: 2, slug: "sv-werder-bremen", name: "SV Werder Bremen", crestUrl: "" }, LIVE);
+    expect(l.opponent).toEqual({ name: "Borussia Dortmund", home: false });
+  });
+});

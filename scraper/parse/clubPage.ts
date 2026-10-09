@@ -42,14 +42,25 @@ export function parseClubPage(html: string, club: ClubRef, now: Date): Lineup {
     if (line.length) lines.push(line);
   });
 
-  const matchText = cleanText($(".team_box_right p").first().text());
-  const opponentName = cleanText($(".team_box_right p strong").first().text());
+  // Before the match: "Heimspiel gegen <strong>Opponent</strong> · Fr 20:30" in the box on the right.
+  let matchText = cleanText($(".team_box_right p").first().text());
+  let opponentName = cleanText($(".team_box_right p strong").first().text());
+  let home = /Heimspiel/i.test(matchText);
+  // From kickoff the page shows the match: "Home 0:0 Away" as the heading, the kickoff on the pitch.
+  const sides = $(".team_title_area h1 > span").not(".score").map((_, el) => cleanText($(el).text())).get();
+  if (!opponentName && sides.length === 2) {
+    // Our side: the home team's crest links to its club page.
+    const own = ($(".team_title_area .team_one a").attr("href") ?? "").includes(`/${club.slug}/`) ? 0 : 1;
+    opponentName = sides[1 - own];
+    home = own === 0;
+    matchText = cleanText($(".stadium_right_text p").first().text());
+  }
   const matchdayText = cleanText($("select.day_select option[selected]").first().text());
   const matchday = Number(matchdayText.replace(/\D/g, "")) || undefined;
 
   return {
     club: { id: club.id, slug: club.slug, name: cleanText($("h2[itemprop=name]").first().text()) || club.name },
-    opponent: opponentName ? { name: opponentName, home: /Heimspiel/i.test(matchText) } : undefined,
+    opponent: opponentName ? { name: opponentName, home } : undefined,
     matchday,
     kickoff: parseGermanDateTime(matchText, now),
     formation: lines.slice(1).map((l) => l.length).join("-"),
