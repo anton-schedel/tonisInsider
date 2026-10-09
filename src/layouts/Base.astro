@@ -43,6 +43,8 @@ const tabs = [
       // Runs on first load and again after every client-side navigation (which swaps <html> attributes).
       if (!window.__themeInit) {
         window.__themeInit = true;
+        // iOS Safari shows :active (the tap feedback of .press / .press-row) only once the page listens to touches.
+        document.addEventListener("touchstart", () => {}, { passive: true });
         const stored = () => {
           try {
             const t = localStorage.getItem("theme");

@@ -19,7 +19,7 @@ const comments = commentCount(a.id);
 // Confirmed lineups show the XI right here, no need to open them.
 const lineup = confirmedLineup(a);
 ---
-<a href={`/artikel/${a.id}/`} class="press enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`}>
+<a href={`/artikel/${a.id}/`} class="press-row enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`}>
   <span class="relative">
     {a.player
       ? <Avatar src={a.player.photo} name={a.player.name} size={52} />

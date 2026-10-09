@@ -14,7 +14,7 @@ const { player: p, index = 0, card } = Astro.props;
 const name = p.ligainsider?.name ?? p.kickbase.name;
 const match = matchLine(p.lineup);
 ---
-<button type="button" data-card={card} class="press enter flex w-full items-center gap-3 py-3 text-left" style={`--i:${index}`}>
+<button type="button" data-card={card} class="press-row enter flex w-full items-center gap-3 py-3 text-left" style={`--i:${index}`}>
   <span class="relative">
     <Avatar src={p.ligainsider?.photo ?? p.kickbase.image} name={name} size={44} />
     {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}

@@ -253,9 +253,10 @@ nav.no-tab .tab-pill { opacity: 0; }
 }
 .news-notice[hidden] { display: none; }
 
-/* Desktop: subtle hover on tappable rows and cards. */
+/* Desktop: the same signals, lighter, on hover. */
 @media (hover: hover) {
   a.press:hover { opacity: 0.8; }
+  .press-row:hover::before { opacity: 0.035; }
 }
 
 /* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
@@ -297,13 +298,24 @@ html:not([data-navigated]) .enter {
 /* Switching light/dark (Base.astro): every colour changes in the same frame. */
 .theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
 
-/* Native-feeling tap feedback. */
+/* Tap feedback, the same two kinds everywhere:
+   .press      buttons and compact things (back, tabs, chips, players on the pitch): shrink a little.
+   .press-row  list rows: a soft highlight behind the row; whole blocks of text don't shrink.
+   Uses the separate `scale` property, so it never fights an element's own transform (flips, sheets).
+   Pressing is near-instant; letting go eases back. */
 .press {
-  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease, background-color 150ms ease, color 150ms ease;
+  transition: scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 150ms ease, color 150ms ease;
   -webkit-user-select: none;
   user-select: none;
 }
-.press:active { transform: scale(0.96); opacity: 0.72; }
+.press:active { scale: 0.96; transition-duration: 70ms; }
+.press-row { position: relative; isolation: isolate; -webkit-user-select: none; user-select: none; }
+.press-row::before {
+  content: ""; position: absolute; inset: 2px -10px; z-index: -1; border-radius: 14px;
+  background: var(--fg); opacity: 0; pointer-events: none;
+  transition: opacity 240ms ease;
+}
+.press-row:active::before { opacity: 0.06; transition-duration: 40ms; }
 
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; }
@@ -311,7 +323,8 @@ html:not([data-navigated]) .enter {
   .tab-pill { transition: none; }
   .swap-face { transition: none; }
   .player-card, .player-card::backdrop { transition: none; }
-  .press, .press:active { transition: none; transform: none; }
+  .press, .press:active { transition: none; scale: none; }
+  .press-row::before { transition: none; }
   .vote-btn.is-on .vote-chevron { animation: none; }
   .toast { transition: none; }
   .img-fade { transition: none; }

@@ -39,7 +39,7 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
           {p.alternative ? (
             // Tap opens the player card; the ⇄ mark swaps to the alternative and back (handler in Base.astro).
             <div data-swap class="swap grid w-full">
-              <button type="button" data-card={mainStatus(p, rowPosition(i, rows))} class="swap-face flex flex-col items-center text-center">
+              <button type="button" data-card={mainStatus(p, rowPosition(i, rows))} class="press swap-face flex flex-col items-center text-center">
                 <span class="relative">
                   <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
                   {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
@@ -48,7 +48,7 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
                 <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
               </button>
-              <button type="button" data-card={card(p.alternative, rowPosition(i, rows), `Alternative zu ${p.name}`, "yellow")} class="swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
+              <button type="button" data-card={card(p.alternative, rowPosition(i, rows), `Alternative zu ${p.name}`, "yellow")} class="press swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
                 <span class="relative">
                   <Avatar src={p.alternative.photo} name={p.alternative.name} size={AVATAR} class="shadow-md ring-2 ring-[var(--yellow-dot)]" />
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.name} zeigen`}>⇄</span>

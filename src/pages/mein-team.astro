@@ -158,7 +158,7 @@ let index = 0;
     <nav class="mb-4 flex overflow-x-auto rounded-[10px] bg-surface p-[2px] text-[13px] font-semibold">
       {leagues.map((l) => (
         <a href={`/mein-team/?league=${encodeURIComponent(l.id)}`} data-astro-prefetch="false"
-          class:list={["flex-1 rounded-lg px-3 py-1.5 text-center whitespace-nowrap", league?.id === l.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}>{l.name}</a>
+          class:list={["press flex-1 rounded-lg px-3 py-1.5 text-center whitespace-nowrap", league?.id === l.id ? "bg-raised text-fg shadow-sm" : "text-muted"]}>{l.name}</a>
       ))}
     </nav>
   )}

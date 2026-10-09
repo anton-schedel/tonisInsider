@@ -15,7 +15,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       <div data-li-poll class="hidden flex flex-col gap-2">
         <input data-li-question maxlength="200" placeholder="Frage der Umfrage…" class={field} />
         <div data-li-options class="flex flex-col gap-2"></div>
-        <button type="button" data-li-add class="self-start text-sm font-medium text-accent">Weitere Antwort</button>
+        <button type="button" data-li-add class="press self-start text-sm font-medium text-accent">Weitere Antwort</button>
       </div>
       <div class="flex items-center gap-2">
         <button type="button" data-li-mode="text" class="press rounded-full bg-fg px-3 py-1.5 text-[13px] font-semibold text-bg">Kommentar</button>
@@ -26,11 +26,11 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     </form>
     <form method="post" action="/api/li-logout/" class="mt-2" data-astro-reload>
       <input type="hidden" name="next" value="/" data-li-next />
-      <button type="submit" class="text-xs text-muted">LigaInsider abmelden</button>
+      <button type="submit" class="press text-xs text-muted">LigaInsider abmelden</button>
     </form>
   </div>
   <p data-li-guest class="mb-6 hidden text-sm text-muted">
-    <a data-li-login href="/einstellungen/#ligainsider" class="font-medium text-accent">Mit LigaInsider anmelden</a>, um zu kommentieren, zu antworten und abzustimmen.
+    <a data-li-login href="/einstellungen/#ligainsider" class="press inline-block font-medium text-accent">Mit LigaInsider anmelden</a>, um zu kommentieren, zu antworten und abzustimmen.
   </p>
 
   <p class="hidden text-sm text-muted" data-comments-status></p>
@@ -55,7 +55,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     href={url}
     target="_blank"
     rel="noopener noreferrer"
-    class="mt-4 hidden text-sm text-accent"
+    class="press mt-4 hidden text-sm text-accent"
     data-comments-more
   >Alle Kommentare auf ligainsider.de ↗</a>
 </section>
@@ -116,7 +116,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     if (c.text) main.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
     if (c.poll) main.append(renderPoll(c.poll, c.poll.votingId ? myVotes()[c.poll.votingId] : undefined));
     if (loggedIn() && c.id && !pending) {
-      const replyBtn = h("button", "mt-1 text-xs font-medium text-muted", "Antworten");
+      const replyBtn = h("button", "press mt-1 text-xs font-medium text-muted", "Antworten");
       replyBtn.type = "button";
       replyBtn.dataset.reply = String(c.id);
       main.append(replyBtn);
