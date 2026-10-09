@@ -1,8 +1,11 @@
 import type { Article, Lineup, LineupPlayer, Ref } from "../../scraper/types.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 
-/** contested: in the predicted XI, but LigaInsider names an alternative for the spot. */
-export type StartStatus = "start" | "contested" | "doubtful" | "alternative" | "bench" | "unknown";
+/**
+ * contested: in the predicted XI, but LigaInsider names an alternative for the spot.
+ * confirmed: in the XI LigaInsider confirmed shortly before kickoff.
+ */
+export type StartStatus = "confirmed" | "start" | "contested" | "doubtful" | "alternative" | "bench" | "unknown";
 
 export type MyPlayer = {
   kickbase: KbPlayer;

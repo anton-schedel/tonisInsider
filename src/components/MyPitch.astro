@@ -12,6 +12,7 @@ interface Props {
 const { lines, cards } = Astro.props;
 // The dot answers "will my player start?" according to LigaInsider's predicted lineup.
 const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string }> = {
+  confirmed: { dot: "var(--green-dot)" },
   start: { dot: "var(--green-dot)" },
   contested: { dot: "var(--yellow-dot)" },
   doubtful: { dot: "var(--yellow-dot)", note: "Fraglich", noteColor: "var(--yellow-fg)" },
@@ -32,7 +33,9 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
           <button type="button" data-card={cards.get(p.kickbase.id)} class="press flex w-full flex-col items-center text-center">
             <span class="relative">
               <Avatar src={p.ligainsider?.photo ?? p.kickbase.image} name={name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
-              <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:${tone.dot}`}></span>
+              {p.status === "confirmed"
+                ? <span class="s11-badge" title="Startelf bestätigt">S11</span>
+                : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:${tone.dot}`}></span>}
               {p.rival && <span class="swap-hint is-top" aria-hidden="true">⇄</span>}
               {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -bottom-0.5 -left-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
             </span>
@@ -44,6 +47,7 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
     }),
   )}
   <Fragment slot="legend">
+    {lines.some((line) => line.some((p) => p.status === "confirmed")) && <span class="flex items-center gap-1"><span class="s11-badge is-legend">S11</span>Startelf bestätigt</span>}
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Startelf</span>
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich oder Alternative</span>
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--red-fg)"></i>Nicht in der Startelf</span>

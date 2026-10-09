@@ -11,6 +11,7 @@ import { toFixtures } from "../lib/fixtures.ts";
 import { chancesFor } from "../lib/odds.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
 import { cardAttr, matchLine, POSITIONS, startLabel } from "../lib/card.ts";
+import { confirmedClubs } from "../lib/lineupNews.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
@@ -71,7 +72,13 @@ async function load(token: string) {
       ),
   );
   const rosterMap = new Map(teamIds.flatMap((id) => (rosters.get(id) ? [[id, rosters.get(id)!.names] as const] : [])));
-  const players = matchSquad(squad, mapClubs(g.__kbTable?.teams ?? [], snapshot?.lineups ?? []), rosterMap);
+  // Starters of a confirmed XI (LigaInsider's "Aufstellung von …" before kickoff) are certain.
+  const confirmed = confirmedClubs(snapshot?.articles ?? [], snapshot?.lineups ?? []);
+  const players = matchSquad(squad, mapClubs(g.__kbTable?.teams ?? [], snapshot?.lineups ?? []), rosterMap).map((p) =>
+    p.lineup && confirmed.has(p.lineup.club.id) && (p.status === "start" || p.status === "contested" || p.status === "doubtful")
+      ? { ...p, status: "confirmed" as const, statusLabel: undefined, rival: undefined }
+      : p,
+  );
   // Odds-based outlook per Kickbase player id; the clean sheet is the player's team's.
   const fixtures = toFixtures(snapshot?.lineups ?? []);
   const insights = new Map<object, ReturnType<typeof matchInsights>>();

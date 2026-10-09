@@ -32,6 +32,7 @@ export function matchLine(l: Lineup | undefined): string | undefined {
 export const cardAttr = (data: CardData) => JSON.stringify(data);
 
 const START: Record<StartStatus, { text: string; tone: NonNullable<CardData["tone"]> }> = {
+  confirmed: { text: "S11", tone: "green" },
   start: { text: "Startelf", tone: "green" },
   contested: { text: "Startelf", tone: "yellow" },
   doubtful: { text: "Fraglich", tone: "yellow" },
