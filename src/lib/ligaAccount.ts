@@ -1,5 +1,6 @@
 import {
   LigaInsiderAuthError,
+  LigaInsiderUnavailableError,
   login,
   type LiSession,
 } from "./ligainsider.ts";
@@ -49,10 +50,13 @@ export async function callLiga<T>(
   try {
     return await run(session);
   } catch (err) {
-    if (!(err instanceof LigaInsiderAuthError)) throw err;
+    // A stored session whose write comes back as a gateway 502 is not revived by
+    // repeating that same cookie. A fresh login is, so try that once.
+    const gateway = err instanceof LigaInsiderUnavailableError && /post HTTP 50[234]/.test(err.message);
+    if (!(err instanceof LigaInsiderAuthError) && !gateway) throw err;
     cookies.delete(LI_SESSION_COOKIE, { path: "/" });
     const fresh = await renew(cookies, key, fetchFn);
-    if (!fresh) throw new LigaInsiderAuthError("no session");
+    if (!fresh) throw err instanceof LigaInsiderAuthError ? new LigaInsiderAuthError("no session") : err;
     return run(fresh);
   }
 }
