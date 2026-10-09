@@ -185,6 +185,7 @@ const tabs = [
               { duration: 460, easing: GLIDE },
             ),
           ];
+          return slide[0];
         };
         const tabFor = (path) =>
           /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen"
@@ -198,7 +199,15 @@ const tabs = [
         const page = () => document.querySelector(".page-in");
         document.addEventListener("astro:before-preparation", (e) => {
           highlight(tabFor(e.to.pathname));
-          movePill(tabFor(e.to.pathname));
+          const sliding = movePill(tabFor(e.to.pathname));
+          // The new page goes in only once the pill has nearly arrived (97 % of the way after 210 ms): building
+          // a page is heavy on phones, and doing it during the slide made the slide stutter. The page loads
+          // meanwhile, so this waits only when it arrived faster than that.
+          if (sliding) {
+            const load = e.loader;
+            const settled = new Promise((done) => setTimeout(done, Math.max(0, 210 - Number(sliding.currentTime ?? 0))));
+            e.loader = async () => { await Promise.all([load(), settled]); };
+          }
           // The old page dims while the next one loads (most are prefetched, so this is often cut short).
           if (e.to.pathname !== location.pathname) {
             const leaving = page();
