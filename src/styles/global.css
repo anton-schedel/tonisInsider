@@ -254,7 +254,12 @@ nav.no-tab .tab-pill { opacity: 0; }
 .tab-item { position: relative; }
 
 /* A new page fades in under the tab bar. */
-.page-in { animation: fade-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* Page switches crossfade: on the tap the old page dims (.page-leaving, Base.astro), the new one starts at the
+   opacity the old had at the swap (--from) and brightens with a small rise. A fresh load starts at 0. */
+/* backwards, not both: once in, the animation lets go of opacity so the dimming transition can run. */
+.page-in { animation: page-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes page-in { from { opacity: var(--from, 0); transform: translateY(4px); } }
+.page-leaving { opacity: 0.4; transition: opacity 160ms ease-out; }
 @keyframes fade-rise { from { opacity: 0; transform: translateY(6px); } }
 
 /* Thin line on top of the tab bar while a slow page loads. */
@@ -342,6 +347,7 @@ html:not([data-navigated]) .enter {
 @media (prefers-reduced-motion: reduce) {
   .enter { animation: none; }
   .page-in { animation: none; }
+  .page-leaving { opacity: 1; }
   .tab-pill { transition: none; }
   .swap-face { transition: none; }
   .player-card, .player-card::backdrop { transition: none; }

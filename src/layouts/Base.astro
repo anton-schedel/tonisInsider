@@ -188,9 +188,17 @@ const tabs = [
         let slow;
         // Feedback at the moment of the tap: highlight the target tab now, and show a thin progress line
         // if the page takes longer than a blink to arrive (e.g. Mein Team on mobile data).
+        const page = () => document.querySelector(".page-in");
         document.addEventListener("astro:before-preparation", (e) => {
           highlight(tabFor(e.to.pathname));
           movePill(tabFor(e.to.pathname));
+          // The old page dims while the next one loads (most are prefetched, so this is often cut short).
+          if (e.to.pathname !== location.pathname) {
+            const leaving = page();
+            leaving?.classList.add("page-leaving");
+            // Should the navigation die without a new page, the old one comes back.
+            setTimeout(() => leaving?.isConnected && leaving.classList.remove("page-leaving"), 8000);
+          }
           clearTimeout(slow);
           slow = setTimeout(() => bar()?.classList.add("is-loading"), 150);
         });
@@ -202,6 +210,7 @@ const tabs = [
           movePill(document.querySelector("[data-active-tab]")?.dataset.activeTab);
         });
         document.addEventListener("astro:page-load", () => {
+          page()?.classList.remove("page-leaving");
           clearTimeout(slow);
           bar()?.classList.remove("is-loading");
           const tab = document.querySelector("[data-active-tab]")?.dataset.activeTab;
@@ -216,6 +225,11 @@ const tabs = [
           window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         }, true);
         document.addEventListener("astro:before-swap", (e) => {
+          // The new page fades in from where the old one's dimming got to (at most 0.7, so even an instant
+          // switch, e.g. back from the cache, is a soft fade rather than a cut).
+          const old = page();
+          const from = String(Math.min(0.7, old ? Number(getComputedStyle(old).opacity) : 0));
+          e.newDocument.querySelector(".page-in")?.style.setProperty("--from", from);
           apply(e.newDocument);
           window.__fillSettings(e.newDocument);
           window.__applyLive?.(e.newDocument);
