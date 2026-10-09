@@ -147,16 +147,35 @@ const tabs = [
             a.classList.toggle("is-active", a.dataset.tab === tab);
           });
         };
-        // The pill slides only once the new page is in: the router briefly takes the bar out of the page
-        // during the swap, which would cut a running slide short.
+        // The pill slides from the moment of the tap. It runs as a Web Animation, not a CSS transition: the
+        // router briefly takes the persisted bar out of the page during the swap, which would cut a transition
+        // short, while a script animation keeps going. On the way the lens stretches a little, like Apple's.
+        const SPRING = CSS.supports?.("transition-timing-function", "linear(0, 1)")
+          ? "linear(0, 0.012, 0.047 2.4%, 0.183 5%, 0.82 14.3%, 0.977 18.7%, 1.046 23.4%, 1.058 27.2%, 1.044 31.5%, 1.008 41.2%, 0.997 51.7%, 1.001 69%, 1)"
+          : "cubic-bezier(0.3, 1.25, 0.4, 1)";
+        let slide;
         const movePill = (tab) => {
           const nav = document.querySelector("nav.tabbar");
           const pill = nav?.querySelector(".tab-pill");
           if (!nav || !pill) return;
           const i = [...nav.querySelectorAll("[data-tab]")].findIndex((a) => a.dataset.tab === tab);
-          getComputedStyle(pill).transform; // start from where it is now
-          nav.style.setProperty("--tab", String(Math.max(0, i)));
           nav.classList.toggle("no-tab", i < 0);
+          const next = String(Math.max(0, i));
+          if (nav.style.getPropertyValue("--tab") === next) return;
+          const x = () => new DOMMatrix(getComputedStyle(pill).transform).m41;
+          const from = x(); // where it is right now, also halfway through a slide
+          slide?.forEach((a) => a.cancel());
+          nav.style.setProperty("--tab", next);
+          const to = x();
+          if (from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+          const tabs = Math.abs(to - from) / pill.offsetWidth;
+          slide = [
+            pill.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }], { duration: 520, easing: SPRING }),
+            pill.animate(
+              [{ scale: "1 1" }, { scale: `${1 + Math.min(0.3, 0.12 * tabs)} 0.9`, offset: 0.3 }, { scale: "1 1" }],
+              { duration: 420, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+            ),
+          ];
         };
         const tabFor = (path) =>
           /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen"
@@ -169,6 +188,7 @@ const tabs = [
         // if the page takes longer than a blink to arrive (e.g. Mein Team on mobile data).
         document.addEventListener("astro:before-preparation", (e) => {
           highlight(tabFor(e.to.pathname));
+          movePill(tabFor(e.to.pathname));
           clearTimeout(slow);
           slow = setTimeout(() => bar()?.classList.add("is-loading"), 150);
         });
