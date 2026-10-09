@@ -169,13 +169,20 @@ const tabs = [
           const to = x();
           if (from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
           const tabs = Math.abs(to - from) / pill.offsetWidth;
-          // A slight stretch while it travels, eased in and out, gone before the glide settles.
+          // A slight stretch while it travels, gone before the glide settles. One transform animation (no
+          // separate `scale`), so phones run it on the GPU and it keeps gliding while the page is swapped.
           const stretch = Math.min(0.1, 0.04 * tabs);
+          // Keyframe offsets are in eased progress, so the middle one lies on the same glide curve; the
+          // stretch peaks early and is gone well before it settles.
+          const at = (t) => from + (to - from) * t;
           slide = [
-            pill.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }], { duration: 460, easing: GLIDE }),
             pill.animate(
-              [{ scale: "1 1" }, { scale: `${1 + stretch} ${1 - stretch / 2}`, offset: 0.35 }, { scale: "1 1" }],
-              { duration: 320, easing: "ease-in-out" },
+              [
+                { transform: `translateX(${from}px) scale(1, 1)` },
+                { transform: `translateX(${at(0.35)}px) scale(${1 + stretch}, ${1 - stretch / 2})`, offset: 0.35 },
+                { transform: `translateX(${to}px) scale(1, 1)` },
+              ],
+              { duration: 460, easing: GLIDE },
             ),
           ];
         };

@@ -30,8 +30,10 @@ let index = 0;
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
       })()}
     </h2>
-    <div class="divide-y divide-hairline">
-      {g.items.map((a) => <ArticleRow article={a} index={index++} />)}
+    <div class="feed-rows -mx-2.5 px-2.5" style={`--n:${g.items.length}`}>
+      <div class="divide-y divide-hairline">
+        {g.items.map((a) => <ArticleRow article={a} index={index++} />)}
+      </div>
     </div>
   </section>
 ))}
