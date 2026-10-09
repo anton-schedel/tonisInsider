@@ -11,21 +11,27 @@
 
     <div class="fut">
       <div class="fut-top">
+        {/* Number at the top, who it is at the bottom: the column spans the photo's height. */}
         <div class="fut-side">
-          <span data-f="rating" class="fut-rating"></span>
-          <span data-f="caption" class="fut-caption"></span>
-          <span class="fut-pos"><img data-f="crest" alt="" class="fut-crest" hidden /><span data-f="pos"></span></span>
+          <div>
+            <span data-f="rating" class="fut-rating"></span>
+            <span data-f="caption" class="fut-caption"></span>
+          </div>
+          <div>
+            <p data-f="name" class="fut-name"></p>
+            <div class="fut-meta">
+              <img data-f="crest" alt="" class="fut-crest" hidden />
+              <span data-f="pos" class="fut-pos"></span>
+              <span data-f="status" class="rounded-full px-[7px] py-[1px] text-[11.5px] font-semibold" hidden></span>
+            </div>
+          </div>
         </div>
         <span class="fut-photo">
           <span data-f="initials" aria-hidden="true"></span>
           <img data-f="photo" alt="" hidden />
         </span>
       </div>
-      <p data-f="name" class="fut-name"></p>
-      <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span data-f="status" class="rounded-full px-[8px] py-[2px] text-[12px] font-semibold" hidden></span>
-        <span data-f="match" class="text-[14px] text-muted"></span>
-      </div>
+      <p data-f="match" class="mt-3 text-[14px] text-muted"></p>
       <div data-f="stats" class="fut-stats"></div>
     </div>
 
@@ -78,19 +84,20 @@
       ? "background:var(--surface);color:var(--muted)"
       : `background:var(--${d.tone}-bg);color:var(--${d.tone}-fg)`;
 
-    // Two columns like the stats on a FIFA card: value, then the label.
-    // The goal chance standing in as the big number isn't repeated below.
-    const shown = STATS.filter((s) => !(s.key === "goal" && d.scorer === undefined && d.goal !== undefined));
+    // A row of stats like on a FIFA card: value, then the label.
+    // Only stats with a value; the goal chance standing in as the big number isn't repeated.
+    const shown = STATS.filter((s) => d[s.key] !== undefined && !(s.key === "goal" && d.scorer === undefined));
     f("stats").replaceChildren(...shown.map((s) => {
       const v = d[s.key];
       const el = document.createElement("span");
       el.className = "fut-stat";
       const value = document.createElement("b");
-      value.textContent = v === undefined ? "–" : `${v}%`;
+      value.textContent = `${v}%`;
       if (s.key === "card" && v !== undefined && v >= CARD_WARN) value.className = "is-warn";
       el.append(value, s.label);
       return el;
     }));
+    f("stats").hidden = shown.length === 0;
 
     const link = f("href") as HTMLAnchorElement;
     link.hidden = !d.href;
