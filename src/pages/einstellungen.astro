@@ -79,41 +79,7 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
   </section>
 
   <script is:inline>
-    (() => {
-      const has = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
-      const named = (cookie) => {
-        let s = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
-        // Names from older logins were encoded twice.
-        for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } }
-        return s.trim();
-      };
-      if (has("kbin")) {
-        document.querySelector("[data-kb-form]")?.classList.add("hidden");
-        document.querySelector("[data-kb-in]")?.classList.remove("hidden");
-        // Sessions from before the name was stored just say "Angemeldet."
-        const name = named("kbn");
-        const slot = document.querySelector("[data-kb-name]");
-        if (slot) slot.textContent = name;
-        document.querySelector("[data-kb-as]")?.classList.toggle("hidden", !name);
-      }
-      if (has("liin")) {
-        document.querySelector("[data-li-form]")?.classList.add("hidden");
-        document.querySelector("[data-li-in]")?.classList.remove("hidden");
-        const slot = document.querySelector("[data-li-name]");
-        if (slot) slot.textContent = named("lin");
-      }
-
-      // The stored choice, or the system's colour while nothing is chosen.
-      let theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      try {
-        const t = localStorage.getItem("theme");
-        if (t === "light" || t === "dark") theme = t;
-      } catch {}
-      document.querySelectorAll("[data-theme-set]").forEach((btn) => {
-        const on = btn.getAttribute("data-theme-set") === theme;
-        btn.classList.toggle("bg-fg", on);
-        btn.classList.toggle("text-bg", on);
-      });
-    })();
+    // Fresh load: fill in accounts and theme before the first paint (Base.astro; navigations do it before the swap).
+    window.__fillSettings?.(document);
   </script>
 </Base>

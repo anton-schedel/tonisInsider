@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findLive, maybeLive, parseLive } from "./live.ts";
+import { parseLive } from "./live.ts";
 
 const match = (over: object = {}) => ({
   matchDateTimeUTC: "2026-10-09T18:30:00Z",
@@ -35,22 +35,5 @@ describe("parseLive", () => {
   it("ignores anything that isn't a match list", () => {
     expect(parseLive({ error: 1 })).toEqual([]);
     expect(parseLive([{}])).toEqual([]);
-  });
-});
-
-describe("findLive", () => {
-  it("matches home and away by name, ignoring case", () => {
-    const list = parseLive([match()]);
-    expect(findLive(list, "borussia dortmund", "SV Werder Bremen")).toBe(list[0]);
-    expect(findLive(list, "SV Werder Bremen", "Borussia Dortmund")).toBeUndefined();
-  });
-});
-
-describe("maybeLive", () => {
-  const kickoff = "2026-10-09T18:30:00Z";
-  it("is true from kickoff for three hours", () => {
-    expect(maybeLive(kickoff, Date.parse("2026-10-09T18:29:00Z"))).toBe(false);
-    expect(maybeLive(kickoff, Date.parse("2026-10-09T19:30:00Z"))).toBe(true);
-    expect(maybeLive(kickoff, Date.parse("2026-10-09T21:31:00Z"))).toBe(false);
   });
 });

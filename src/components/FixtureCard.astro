@@ -50,7 +50,7 @@ const sides: { lineup?: Lineup; name: string }[] = [
           <div class:list={["shrink-0 text-center", hero ? "w-28" : "w-20"]} data-live={f.kickoff && f.awayName ? JSON.stringify({ home: f.homeName, away: f.awayName, kickoff: f.kickoff }) : undefined}>
             {f.kickoff ? (
               <>
-                {/* Once the match has started, the script below puts the live score here. */}
+                {/* Once the match has started, window.__applyLive (Base.astro) puts the live score here. */}
                 <p data-live-main class:list={["font-bold tracking-tight tabular-nums", hero ? "text-[30px] leading-none" : "text-[17px]"]}>{time(f.kickoff)}</p>
                 <p data-live-sub class:list={["text-muted", hero ? "mt-1.5 text-[13px]" : "text-[11px]"]}>{kickoffDay(f.kickoff)}</p>
                 {hero && matchday && <p class="text-[13px] text-muted">{matchday}. Spieltag</p>}
@@ -92,75 +92,3 @@ const sides: { lineup?: Lineup; name: string }[] = [
 )}
 </div>
 
-<script>
-  import { findLive, LIVE_URL, maybeLive, parseLive, started, type LiveMatch } from "../lib/live.ts";
-
-  // Live scores: fetched only while a match on the page has started, every 30 s while one runs.
-  const POLL_MS = 30_000;
-  let timer = 0;
-  let cache: { at: number; matches: LiveMatch[] } | undefined;
-
-  async function matches(): Promise<LiveMatch[]> {
-    if (cache && Date.now() - cache.at < POLL_MS - 5000) return cache.matches;
-    const res = await fetch(LIVE_URL, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    cache = { at: Date.now(), matches: parseLive(await res.json()) };
-    return cache.matches;
-  }
-
-  function show(box: HTMLElement, m: LiveMatch) {
-    const main = box.querySelector<HTMLElement>("[data-live-main]")!;
-    const sub = box.querySelector<HTMLElement>("[data-live-sub]")!;
-    main.textContent = `${m.score[0]}:${m.score[1]}`;
-    sub.textContent = m.finished ? "Ende" : "Live";
-    sub.style.color = m.finished ? "" : "var(--red-fg)";
-    sub.style.fontWeight = m.finished ? "" : "600";
-    box.querySelector<HTMLElement>("[data-live-tip]")?.remove();
-    const goals = box.closest("[data-fixture]")?.querySelector<HTMLElement>("[data-live-goals]");
-    if (!goals) return;
-    // Scorers in two columns, home left and away right, in the order they fell.
-    let prev = [0, 0];
-    const cols = [document.createElement("ol"), document.createElement("ol")];
-    cols[1].className = "text-right";
-    for (const g of m.goals) {
-      const side = g.home > prev[0] ? 0 : 1;
-      prev = [g.home, g.away];
-      const li = document.createElement("li");
-      li.textContent = `${g.minute !== undefined ? `${g.minute}' ` : ""}${g.name}${g.penalty ? " (11m)" : ""}${g.own ? " (ET)" : ""}`;
-      cols[side].append(li);
-    }
-    goals.replaceChildren(...cols);
-    goals.hidden = m.goals.length === 0;
-  }
-
-  async function refresh() {
-    clearTimeout(timer);
-    const now = Date.now();
-    const boxes = [...document.querySelectorAll<HTMLElement>("[data-live]")].flatMap((box) => {
-      try {
-        const d = JSON.parse(box.dataset.live!) as { home: string; away: string; kickoff: string };
-        return started(d.kickoff, now) ? [{ box, ...d }] : [];
-      } catch {
-        return [];
-      }
-    });
-    if (boxes.length === 0 || document.visibilityState !== "visible") return;
-    let list: LiveMatch[];
-    try {
-      list = await matches();
-    } catch {
-      // Unreachable: the card keeps its kickoff time; try again with the next poll.
-      list = [];
-    }
-    let running = false;
-    for (const b of boxes) {
-      const m = findLive(list, b.home, b.away);
-      if (m) show(b.box, m);
-      if (maybeLive(b.kickoff, now) && !m?.finished) running = true;
-    }
-    if (running) timer = window.setTimeout(refresh, POLL_MS);
-  }
-
-  document.addEventListener("astro:page-load", refresh);
-  document.addEventListener("visibilitychange", () => void refresh());
-</script>

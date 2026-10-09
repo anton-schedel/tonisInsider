@@ -38,13 +38,3 @@ export function parseLive(json: unknown): LiveMatch[] {
     return [{ home: m.team1.teamName, away: m.team2.teamName, kickoff: new Date(m.matchDateTimeUTC).toISOString(), finished: !!m.matchIsFinished, score, goals }];
   });
 }
-
-/** Our fixture in OpenLigaDB's list: both sources use the same club names. */
-export function findLive(matches: LiveMatch[], home: string, away: string): LiveMatch | undefined {
-  return matches.find((m) => key(m.home) === key(home) && key(m.away) === key(away));
-}
-
-/** Whether a match with this kickoff can have a score yet (it has started). */
-export const started = (kickoff: string, now: number) => Date.parse(kickoff) <= now;
-/** Whether a started, unfinished match is still worth polling (stops if OpenLigaDB never marks it finished). */
-export const maybeLive = (kickoff: string, now: number) => started(kickoff, now) && now - Date.parse(kickoff) < 3 * 3600_000;

@@ -1,7 +1,7 @@
 ---
 import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
-import { articles, lastUpdate } from "../lib/data.ts";
+import { articles, lastUpdate, lineups } from "../lib/data.ts";
 import { fullDate } from "../lib/format.ts";
 
 interface Props {
@@ -17,6 +17,8 @@ const { title, tab, back, hideHeading = false, logo = false } = Astro.props;
 const updated = lastUpdate();
 // Lets open pages notice updates (see the freshness script below and /data/version.json).
 const newest = articles()[0]?.id;
+// The matchday's kickoff times: live scores are only fetched while one of its matches runs.
+const kickoffs = [...new Set(lineups().flatMap((l) => (l.kickoff ? [l.kickoff] : [])))].sort();
 const tabs = [
   { id: "news", href: "/", label: "News", icon: "M4 5h16M4 12h16M4 19h10" },
   { id: "aufstellungen", href: "/aufstellungen/", label: "Aufstellungen", icon: "M12 3v18M3 12h18M7 7h10v10H7z" },
@@ -25,7 +27,7 @@ const tabs = [
 ] as const;
 ---
 <!doctype html>
-<html lang="de" data-newest={newest} data-updated={updated}>
+<html lang="de" data-newest={newest} data-updated={updated} data-kickoffs={kickoffs.join(",") || undefined}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -64,9 +66,9 @@ const tabs = [
           const t = stored();
           return t !== "auto" ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         };
-        const markTheme = () => {
+        const markTheme = (doc = document) => {
           const t = shown();
-          document.querySelectorAll("[data-theme-set]").forEach((btn) => {
+          doc.querySelectorAll("[data-theme-set]").forEach((btn) => {
             const on = btn.getAttribute("data-theme-set") === t;
             btn.classList.toggle("bg-fg", on);
             btn.classList.toggle("text-bg", on);
@@ -74,6 +76,67 @@ const tabs = [
           });
         };
         apply(document);
+        // Settings: account rows and the theme choice come from cookies and this browser, so they're filled in
+        // before the page is shown: on the incoming page during a navigation (astro:before-swap), and by an
+        // inline call at the end of the settings page on a fresh load.
+        window.__fillSettings = (doc) => {
+          if (!doc.querySelector("[data-theme-set]")) return;
+          const signedIn = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
+          doc.querySelector("[data-kb-form]")?.classList.toggle("hidden", signedIn("kbin"));
+          doc.querySelector("[data-kb-in]")?.classList.toggle("hidden", !signedIn("kbin"));
+          doc.querySelector("[data-li-form]")?.classList.toggle("hidden", signedIn("liin"));
+          doc.querySelector("[data-li-in]")?.classList.toggle("hidden", !signedIn("liin"));
+          const named = (cookie) => {
+            let s = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
+            // Names from older logins were encoded twice.
+            for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } }
+            return s.trim();
+          };
+          const liSlot = doc.querySelector("[data-li-name]");
+          if (liSlot) liSlot.textContent = named("lin");
+          const kbName = named("kbn");
+          const kbSlot = doc.querySelector("[data-kb-name]");
+          if (kbSlot) kbSlot.textContent = kbName;
+          doc.querySelector("[data-kb-as]")?.classList.toggle("hidden", !kbName);
+          markTheme(doc);
+        };
+        // Live scores on match cards (FixtureCard.astro), from the copy the poller (lib/liveClient.ts) keeps in
+        // sessionStorage. Applied to the incoming page before it's shown, so a running match never flips from
+        // its kickoff time to the score in front of you.
+        window.__applyLive = (doc) => {
+          let matches;
+          try { matches = JSON.parse(sessionStorage.getItem("live") ?? "null")?.matches; } catch {}
+          if (!Array.isArray(matches)) return;
+          const key = (n) => String(n).trim().toLowerCase();
+          doc.querySelectorAll("[data-live]").forEach((box) => {
+            let d;
+            try { d = JSON.parse(box.dataset.live); } catch { return; }
+            if (Date.parse(d.kickoff) > Date.now()) return;
+            const m = matches.find((x) => key(x.home) === key(d.home) && key(x.away) === key(d.away));
+            if (!m) return;
+            box.querySelector("[data-live-main]").textContent = m.score[0] + ":" + m.score[1];
+            const sub = box.querySelector("[data-live-sub]");
+            sub.textContent = m.finished ? "Ende" : "Live";
+            sub.style.color = m.finished ? "" : "var(--red-fg)";
+            sub.style.fontWeight = m.finished ? "" : "600";
+            box.querySelector("[data-live-tip]")?.remove();
+            const goals = box.closest("[data-fixture]")?.querySelector("[data-live-goals]");
+            if (!goals) return;
+            // Scorers in two columns, home left and away right, in the order they fell.
+            let prev = [0, 0];
+            const cols = [doc.createElement("ol"), doc.createElement("ol")];
+            cols[1].className = "text-right";
+            for (const g of m.goals) {
+              const side = g.home > prev[0] ? 0 : 1;
+              prev = [g.home, g.away];
+              const li = doc.createElement("li");
+              li.textContent = (g.minute != null ? g.minute + "' " : "") + g.name + (g.penalty ? " (11m)" : "") + (g.own ? " (ET)" : "");
+              cols[side].append(li);
+            }
+            goals.replaceChildren(...cols);
+            goals.hidden = m.goals.length === 0;
+          });
+        };
         // The tab bar persists across navigations, so its highlight is updated here instead of re-rendered.
         const highlight = (tab) => {
           document.querySelectorAll("nav [data-tab]").forEach((a) => {
@@ -120,27 +183,6 @@ const tabs = [
           const tab = document.querySelector("[data-active-tab]")?.dataset.activeTab;
           highlight(tab);
           movePill(tab);
-          // Settings is swapped in by the client router, so account rows and the theme choice are applied here too.
-          if (location.pathname.startsWith("/einstellungen")) {
-            const signedIn = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
-            document.querySelector("[data-kb-form]")?.classList.toggle("hidden", signedIn("kbin"));
-            document.querySelector("[data-kb-in]")?.classList.toggle("hidden", !signedIn("kbin"));
-            document.querySelector("[data-li-form]")?.classList.toggle("hidden", signedIn("liin"));
-            document.querySelector("[data-li-in]")?.classList.toggle("hidden", !signedIn("liin"));
-            const named = (cookie) => {
-              let s = document.cookie.split("; ").find((p) => p.startsWith(cookie + "="))?.slice(cookie.length + 1) ?? "";
-              // Names from older logins were encoded twice.
-              for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(s); i++) { try { s = decodeURIComponent(s); } catch { break; } }
-              return s.trim();
-            };
-            const liSlot = document.querySelector("[data-li-name]");
-            if (liSlot) liSlot.textContent = named("lin");
-            const kbName = named("kbn");
-            const kbSlot = document.querySelector("[data-kb-name]");
-            if (kbSlot) kbSlot.textContent = kbName;
-            document.querySelector("[data-kb-as]")?.classList.toggle("hidden", !kbName);
-            markTheme();
-          }
         });
         // Tapping the tab of the page you're on scrolls back to the top (like iOS) instead of reloading it.
         document.addEventListener("click", (e) => {
@@ -151,6 +193,8 @@ const tabs = [
         }, true);
         document.addEventListener("astro:before-swap", (e) => {
           apply(e.newDocument);
+          window.__fillSettings(e.newDocument);
+          window.__applyLive?.(e.newDocument);
           e.newDocument.documentElement.dataset.navigated = "";
         });
         document.addEventListener("click", (e) => {
@@ -220,6 +264,8 @@ const tabs = [
         )}
       </header>
       <slot />
+      {/* Fresh load: live scores from this session's copy before the first paint (navigations: astro:before-swap). */}
+      <script is:inline>window.__applyLive?.(document);</script>
       <footer class="mt-10 border-t border-hairline pt-4 text-xs text-muted">
         {updated && <p>Stand: {fullDate(updated)} Uhr</p>}
         <p class="mt-1">Inhalte von <a class="underline" href="https://www.ligainsider.de/" target="_blank" rel="noopener noreferrer">ligainsider.de</a></p>
@@ -243,6 +289,9 @@ const tabs = [
     </nav>
     <script>
       import { navigate } from "astro:transitions/client";
+      import { startLive } from "../lib/liveClient.ts";
+
+      startLive();
       import { updateAction } from "../lib/freshness.ts";
       import type { Version } from "../../scraper/snapshot.ts";
 
