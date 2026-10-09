@@ -4,7 +4,7 @@ import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts"
 import { BASE_URL, playerOfArticleUrl } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { pinnedIds } from "./pinned.ts";
-import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
+import { mergeOdds, oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
 import { assistsUrl, parseAssists, parseFullOdds, parseScorerOdds, propsUrl, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { NON_PLAYER_SLUGS, parseArticle } from "./parse/article.ts";
@@ -222,7 +222,8 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   if (oddsApiKey && oddsDue(state.oddsFetchedAt, now, state.odds)) {
     state.oddsFetchedAt = now.toISOString();
     try {
-      const odds = parseOdds(JSON.parse(await fetcher.text(oddsUrl(oddsApiKey))));
+      const fresh = parseOdds(JSON.parse(await fetcher.text(oddsUrl(oddsApiKey))));
+      const odds = fresh.length ? mergeOdds(state.odds, fresh, now) : fresh;
       if (odds.length && !sameOdds(state.odds, odds)) result.changed = true;
       if (odds.length) state.odds = odds;
     } catch (err) {

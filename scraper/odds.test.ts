@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
+import { mergeOdds, oddsDue, oddsUrl, parseOdds, sameOdds, type OddsEvent } from "./odds.ts";
 
 const book = (key: string, home: number, draw: number, away: number, h = "Borussia Dortmund", a = "Werder Bremen") => ({
   key, title: key, last_update: "2026-10-07T10:00:00Z",
@@ -62,5 +62,18 @@ describe("sameOdds", () => {
     expect(sameOdds([a], [{ ...a, books: 7 }])).toBe(true);
     expect(sameOdds([a], [{ ...a, chances: { home: 61, draw: 21, away: 18 } }])).toBe(false);
     expect(sameOdds(undefined, [a])).toBe(false);
+  });
+});
+
+describe("mergeOdds", () => {
+  const ev = (home: string, kickoff: string, h = 50): OddsEvent => ({ home, away: "X", kickoff, chances: { home: h, draw: 25, away: 25 }, books: 5 });
+  const now = new Date("2026-10-09T19:00:00Z");
+  it("keeps the pre-match odds of a running match, even when the API drops it or sends live odds", () => {
+    const old = [ev("BVB", "2026-10-09T18:30:00Z", 72), ev("FCA", "2026-10-10T13:30:00Z", 30)];
+    expect(mergeOdds(old, [ev("FCA", "2026-10-10T13:30:00Z", 31)], now).map((e) => [e.home, e.chances.home])).toEqual([["BVB", 72], ["FCA", 31]]);
+    expect(mergeOdds(old, [ev("BVB", "2026-10-09T18:30:00Z", 95)], now).map((e) => [e.home, e.chances.home])).toEqual([["BVB", 72]]);
+  });
+  it("forgets matches a day after kickoff", () => {
+    expect(mergeOdds([ev("BVB", "2026-10-08T18:30:00Z")], [], now)).toEqual([]);
   });
 });

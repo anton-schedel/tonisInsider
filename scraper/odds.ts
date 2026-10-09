@@ -75,3 +75,16 @@ export function sameOdds(a: OddsEvent[] | undefined, b: OddsEvent[]): boolean {
     JSON.stringify(list.map((e) => [e.home, e.away, e.kickoff, e.chances]).sort());
   return !!a && key(a) === key(b);
 }
+
+/**
+ * Started matches keep their pre-match odds for a day: the API drops them or returns live odds, but the
+ * predictions (win chances, player outlook) should stay what they were before kickoff.
+ */
+export function mergeOdds(old: OddsEvent[] | undefined, fresh: OddsEvent[], now: Date): OddsEvent[] {
+  const t = now.getTime();
+  const key = (e: OddsEvent) => `${e.home}|${e.away}`;
+  const started = (old ?? []).filter((e) => Date.parse(e.kickoff) <= t && Date.parse(e.kickoff) > t - 24 * 3600_000);
+  const keep = new Set(started.map(key));
+  return [...started, ...fresh.filter((e) => !keep.has(key(e)) && Date.parse(e.kickoff) > t - 24 * 3600_000)]
+    .sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+}
