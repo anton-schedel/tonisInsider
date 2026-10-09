@@ -3,12 +3,13 @@ import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
 import MyPitch from "../components/MyPitch.astro";
 import ArticleRow from "../components/ArticleRow.astro";
-import Outlook, { type OutlookRow } from "../components/Outlook.astro";
+import PlayerCard from "../components/PlayerCard.astro";
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
 import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../lib/match.ts";
 import { toFixtures } from "../lib/fixtures.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
+import { cardAttr, matchLine, startLabel } from "../lib/card.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
@@ -113,13 +114,19 @@ try {
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
 const { leagues, league, players, starterCount, news, outlook } = data;
-// Chance to score on the pitch and in the rows.
-const goals = new Map([...outlook].flatMap(([id, o]) => (o.goal !== undefined ? [[id, o.goal] as const] : [])));
-const outlookRows: OutlookRow[] = players.slice(0, starterCount).map((p) => ({
-  name: p.ligainsider?.name ?? p.kickbase.name,
-  photo: p.ligainsider?.photo ?? p.kickbase.image,
-  crest: p.club?.crest,
-  ...outlook.get(p.kickbase.id),
+// Player card per Kickbase id: status, next match and the odds-based outlook.
+const cards = new Map(players.map((p) => {
+  const start = startLabel(p.status, p.statusLabel, p.rival);
+  return [p.kickbase.id, cardAttr({
+    name: p.ligainsider?.name ?? p.kickbase.name,
+    photo: p.ligainsider?.photo ?? p.kickbase.image,
+    crest: p.club?.crest,
+    match: matchLine(p.lineup),
+    status: start.text,
+    tone: start.tone,
+    href: p.club ? `/vereine/${p.club.slug}/` : undefined,
+    ...outlook.get(p.kickbase.id),
+  })] as const;
 }));
 // matchSquad keeps the order: the first starterCount players are the XI.
 const pitch = pitchLines(players.slice(0, starterCount));
@@ -155,20 +162,13 @@ let index = 0;
           <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
           <span class="text-[15px] font-semibold text-muted tabular-nums">{pitch.formation}</span>
         </div>
-        <MyPitch lines={pitch.lines} goals={goals} />
+        <MyPitch lines={pitch.lines} cards={cards} />
       </section>
-      {outlookRows.some((r) => r.goal !== undefined || r.scorer !== undefined || r.card !== undefined || r.cleanSheet !== undefined) && (
-        <section class="mt-5">
-          <h2 class="mb-2 text-[22px] font-bold tracking-[-0.02em]">Prognose</h2>
-          <Outlook rows={outlookRows} />
-          <p class="mt-3 text-xs text-muted">Aus Wettquoten, Buchmacher-Marge herausgerechnet. Scorer heißt Tor oder Vorlage, Zu Null heißt kein Gegentor für sein Team.</p>
-        </section>
-      )}
       {benchPlayers.length > 0 && (
         <section class="mt-5">
           <h2 class="mb-1 text-[22px] font-bold tracking-[-0.02em]">Bank</h2>
           <div class="divide-y divide-hairline">
-            {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} goal={goals.get(p.kickbase.id)} />)}
+            {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} />)}
           </div>
         </section>
       )}
@@ -181,7 +181,7 @@ let index = 0;
         <section class="mb-3">
           <h2 class="pt-3 pb-1 text-[15px] font-semibold">{group.label}</h2>
           <div class="divide-y divide-hairline">
-            {inGroup.map((p) => <MyPlayerRow player={p} index={index++} goal={goals.get(p.kickbase.id)} />)}
+            {inGroup.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} />)}
           </div>
         </section>
       );
@@ -203,4 +203,5 @@ let index = 0;
   <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>
     <button type="submit" class="press w-full rounded-xl bg-surface py-3 text-sm font-semibold" style="color:var(--red-fg)">Abmelden</button>
   </form>
+  <PlayerCard />
 </Base>

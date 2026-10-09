@@ -10,7 +10,7 @@ interface Props {
   back?: { href: string; label: string };
   /** Hide the big page title (article pages show their own headline). */
   hideHeading?: boolean;
-  /** Our logo with text on the right of the page title. */
+  /** Our wordmark (logo with text) instead of the page title. */
   logo?: boolean;
 }
 const { title, tab, back, hideHeading = false, logo = false } = Astro.props;
@@ -154,13 +154,16 @@ const tabs = [
           e.newDocument.documentElement.dataset.navigated = "";
         });
         document.addEventListener("click", (e) => {
-          // Lineup: flip between a player and their alternative.
-          const swap = e.target.closest?.("[data-swap]");
+          // Lineup: the ⇄ mark flips between a player and their alternative (a tap elsewhere opens the player card).
+          const hint = e.target.closest?.("[data-swap-hint]");
+          const swap = hint?.closest("[data-swap]");
           if (swap) {
-            const on = swap.getAttribute("aria-pressed") !== "true";
-            swap.setAttribute("aria-pressed", String(on));
+            const on = !swap.hasAttribute("data-flipped");
+            swap.toggleAttribute("data-flipped", on);
             swap.querySelectorAll(".swap-face").forEach((f) => {
-              if (f.classList.contains("swap-alt") === on) f.removeAttribute("aria-hidden");
+              const shown = f.classList.contains("swap-alt") === on;
+              f.toggleAttribute("inert", !shown);
+              if (shown) f.removeAttribute("aria-hidden");
               else f.setAttribute("aria-hidden", "true");
             });
             return;
@@ -207,14 +210,14 @@ const tabs = [
               onclick="if (history.state && history.state.index > 0) { history.back(); return false; }"
             >‹ {back.label}</a>
           )}
-          {!hideHeading && <h1 class="truncate text-[28px] font-bold tracking-[-0.03em]">{title}</h1>}
+          {logo ? (
+            // News and settings: our wordmark is the heading; the tab bar already says which page this is.
+            <h1 class="flex h-[42px] items-center">
+              <img src="/brand/wordmark-light.png" alt="TonInsider" width="137" height="34" class="brand-light h-[34px] w-auto" />
+              <img src="/brand/wordmark-dark.png" alt="TonInsider" width="137" height="34" class="brand-dark h-[34px] w-auto" />
+            </h1>
+          ) : !hideHeading && <h1 class="truncate text-[28px] font-bold tracking-[-0.03em]">{title}</h1>}
         </div>
-        {logo && (
-          <span class="shrink-0 self-center">
-            <img src="/brand/wordmark-light.png" alt="TonInsider" width="105" height="26" class="brand-light h-[26px] w-auto" />
-            <img src="/brand/wordmark-dark.png" alt="TonInsider" width="105" height="26" class="brand-dark h-[26px] w-auto" />
-          </span>
-        )}
       </header>
       <slot />
       <footer class="mt-10 border-t border-hairline pt-4 text-xs text-muted">

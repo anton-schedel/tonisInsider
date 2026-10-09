@@ -1,8 +1,0 @@
----
-/** Small badge on a player photo: chance to score, from goalscorer odds. */
-interface Props { percent?: number }
-const { percent } = Astro.props;
----
-{percent !== undefined && percent >= 1 && (
-  <span class="goal-chance" title={`Torchance laut Wettquoten: ${percent} %`}>{percent}%</span>
-)}

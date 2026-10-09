@@ -143,15 +143,24 @@ html {
 }
 .pitch .line-clamp-2, .pitch .line-clamp-1 { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
 
-/* Chance to score, on a player photo (bottom right). */
-.goal-chance {
-  position: absolute; right: -6px; bottom: -2px;
-  padding: 1px 5px; border-radius: 9999px;
-  background: var(--fg); color: var(--bg);
-  font-size: 9.5px; font-weight: 700; line-height: 1.35; font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+/* Player card (PlayerCard.astro): a sheet from the bottom on phones, centred on wide screens. */
+.player-card {
+  position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px; max-height: 88dvh;
+  padding: 0; border: 0; border-radius: 24px 24px 0 0;
+  background: var(--surface-raised); color: var(--fg);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.2);
+  opacity: 0; transform: translateY(24px);
+  transition: opacity 200ms ease, transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1), overlay 280ms allow-discrete, display 280ms allow-discrete;
 }
-.goal-chance.is-legend { position: static; box-shadow: none; }
+.player-card[open] { opacity: 1; transform: none; }
+@starting-style { .player-card[open] { opacity: 0; transform: translateY(24px); } }
+.player-card::backdrop { background: rgba(0, 0, 0, 0); transition: background 200ms, overlay 280ms allow-discrete, display 280ms allow-discrete; }
+.player-card[open]::backdrop { background: rgba(0, 0, 0, 0.4); }
+@starting-style { .player-card[open]::backdrop { background: rgba(0, 0, 0, 0); } }
+.player-card-body { padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); }
+@media (min-width: 640px) {
+  .player-card { inset: 0; margin: auto; border-radius: 24px; height: fit-content; }
+}
 
 /* Win-chance bar on match cards. */
 .odds-seg { min-width: 4px; border-radius: 2px; }
@@ -222,8 +231,8 @@ html:not([data-navigated]) .enter {
   grid-area: 1 / 1;
   transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease;
 }
-.swap-alt, .swap[aria-pressed="true"] .swap-face:not(.swap-alt) { opacity: 0; transform: rotateY(90deg) scale(0.9); pointer-events: none; }
-.swap[aria-pressed="true"] .swap-alt { opacity: 1; transform: none; }
+.swap-alt, .swap[data-flipped] .swap-face:not(.swap-alt) { opacity: 0; transform: rotateY(90deg) scale(0.9); pointer-events: none; }
+.swap[data-flipped] .swap-alt { opacity: 1; transform: none; pointer-events: auto; }
 .swap-hint {
   position: absolute; left: -2px; bottom: -2px;
   display: flex; align-items: center; justify-content: center;
@@ -231,6 +240,8 @@ html:not([data-navigated]) .enter {
   background: var(--yellow-dot); color: #000; font-size: 11px; font-weight: 700;
   border: 2px solid #fff;
 }
+/* Bigger tap target for the ⇄ mark than it looks. */
+[data-swap-hint]::before { content: ""; position: absolute; inset: -8px; }
 /* Mein Team: the club crest sits bottom left, so the ⇄ mark goes top left. */
 .swap-hint.is-top { top: -2px; bottom: auto; }
 
@@ -247,6 +258,7 @@ html:not([data-navigated]) .enter {
   .page-in { animation: none; }
   .tab-pill { transition: none; }
   .swap-face { transition: none; }
+  .player-card, .player-card::backdrop { transition: none; }
   .press, .press:active { transition: none; transform: none; }
   .vote-btn.is-on .vote-chevron { animation: none; }
   .toast { transition: none; }

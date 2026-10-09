@@ -1,18 +1,29 @@
 ---
-import type { Lineup, Ref } from "../../scraper/types.ts";
+import type { Lineup, LineupPlayer, Ref } from "../../scraper/types.ts";
+import type { PlayerInsight } from "../lib/scorers.ts";
 import Avatar from "./Avatar.astro";
 import PitchField from "./PitchField.astro";
-import GoalChance from "./GoalChance.astro";
 import { AVATAR, slotStyle } from "../lib/pitch.ts";
+import { cardAttr, matchLine, type CardData } from "../lib/card.ts";
 
 interface Props {
   lineup: Lineup;
-  /** Chance to score in percent per player, if goalscorer odds exist for this match. */
-  goal?: (player: Ref) => number | undefined;
+  /** Odds-based outlook per player for the player card, if odds exist for this match. */
+  insight?: (player: Ref) => PlayerInsight;
+  /** Chance that this team keeps a clean sheet, in percent. */
+  cleanSheet?: number;
 }
-const { lineup, goal = () => undefined } = Astro.props;
-const anyGoal = lineup.lines.some((line) => line.some((p) => goal(p) !== undefined));
+const { lineup, insight = () => ({}), cleanSheet } = Astro.props;
 const rows = lineup.lines.length;
+const match = matchLine(lineup);
+const card = (p: Ref & { photo?: string }, status: string, tone: CardData["tone"]) =>
+  cardAttr({ name: p.name, photo: p.photo, crest: lineup.club.crest, match, status, tone, ...insight(p), cleanSheet });
+const mainStatus = (p: LineupPlayer) =>
+  p.status === "doubtful"
+    ? card(p, `Fraglich${p.statusLabel ? ` · ${p.statusLabel}` : ""}`, "yellow")
+    : p.alternative
+      ? card(p, `Startelf · Alt. ${p.alternative.name}`, "yellow")
+      : card(p, "Startelf", "green");
 ---
 <PitchField>
   {lineup.lines.map((line, i) =>
@@ -20,37 +31,34 @@ const rows = lineup.lines.length;
       <div class="absolute w-[24%]" style={slotStyle(i, rows, j, line.length, { mirror: true })}>
         <div>
           {p.alternative ? (
-            // Tap swaps to the alternative and back (handler in Base.astro).
-            <button type="button" data-swap aria-pressed="false" aria-label={`${p.name} oder ${p.alternative.name}`} class="swap grid w-full">
-              <span class="swap-face flex flex-col items-center text-center">
+            // Tap opens the player card; the ⇄ mark swaps to the alternative and back (handler in Base.astro).
+            <div data-swap class="swap grid w-full">
+              <button type="button" data-card={mainStatus(p)} class="swap-face flex flex-col items-center text-center">
                 <span class="relative">
                   <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
                   <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>
-                  <GoalChance percent={goal(p)} />
-                  <span class="swap-hint" aria-hidden="true">⇄</span>
+                  <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.alternative.name} zeigen`}>⇄</span>
                 </span>
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
                 <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
-              </span>
-              <span class="swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true">
+              </button>
+              <button type="button" data-card={card(p.alternative, `Alternative zu ${p.name}`, "yellow")} class="swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
                 <span class="relative">
                   <Avatar src={p.alternative.photo} name={p.alternative.name} size={AVATAR} class="shadow-md ring-2 ring-[var(--yellow-dot)]" />
-                  <GoalChance percent={goal(p.alternative)} />
-                  <span class="swap-hint" aria-hidden="true">⇄</span>
+                  <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.name} zeigen`}>⇄</span>
                 </span>
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.alternative.name}</span>
                 <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">statt {p.name}</span>
-              </span>
-            </button>
+              </button>
+            </div>
           ) : (
-            <div class="flex flex-col items-center text-center">
+            <button type="button" data-card={mainStatus(p)} class="press flex w-full flex-col items-center text-center">
               <span class="relative">
                 <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
                 <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>
-                  <GoalChance percent={goal(p)} />
               </span>
               <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
-            </div>
+            </button>
           )}
         </div>
       </div>
@@ -59,6 +67,6 @@ const rows = lineup.lines.length;
   <Fragment slot="legend">
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
-    {anyGoal && <span class="flex items-center gap-1"><span class="goal-chance is-legend">40%</span>Torchance</span>}
+    <span>Tippen für Prognose</span>
   </Fragment>
 </PitchField>
