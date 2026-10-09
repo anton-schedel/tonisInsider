@@ -47,7 +47,7 @@ const sides: { lineup?: Lineup; name: string }[] = [
     return (
       <>
         {i === 1 && (
-          <div class:list={["shrink-0 text-center", hero ? "w-28" : "w-20"]} data-live={f.kickoff && f.awayName ? JSON.stringify({ home: f.homeName, away: f.awayName, kickoff: f.kickoff }) : undefined}>
+          <div class:list={["shrink-0 text-center", hero ? "w-28" : "w-20"]} data-live={f.kickoff && f.awayName ? JSON.stringify({ home: f.homeName, away: f.awayName, hs: f.home?.club.slug, as: f.away?.club.slug, kickoff: f.kickoff }) : undefined}>
             {f.kickoff ? (
               <>
                 {/* Once the match has started, window.__applyLive (Base.astro) puts the live score here. */}

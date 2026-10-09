@@ -105,17 +105,29 @@ const tabs = [
         // Live scores on match cards (FixtureCard.astro), from the copy the poller (lib/liveClient.ts) keeps in
         // sessionStorage. Applied to the incoming page before it's shown, so a running match never flips from
         // its kickoff time to the score in front of you.
+        // Score and end come from LigaInsider (li); OpenLigaDB (matches) adds the goal scorers when its score
+        // agrees, and stands in if LigaInsider doesn't list the game. A game counts as over at the latest
+        // 2 h 10 min after kickoff, whatever the sources say.
         window.__applyLive = (doc) => {
-          let matches;
-          try { matches = JSON.parse(sessionStorage.getItem("live") ?? "null")?.matches; } catch {}
-          if (!Array.isArray(matches)) return;
+          let live;
+          try { live = JSON.parse(sessionStorage.getItem("live") ?? "null"); } catch {}
+          if (!live || !Array.isArray(live.matches) || !Array.isArray(live.li)) return;
           const key = (n) => String(n).trim().toLowerCase();
           doc.querySelectorAll("[data-live]").forEach((box) => {
             let d;
             try { d = JSON.parse(box.dataset.live); } catch { return; }
-            if (Date.parse(d.kickoff) > Date.now()) return;
-            const m = matches.find((x) => key(x.home) === key(d.home) && key(x.away) === key(d.away));
-            if (!m) return;
+            const kickoff = Date.parse(d.kickoff);
+            if (kickoff > Date.now()) return;
+            const li = live.li.find((g) => g.home === d.hs && g.away === d.as);
+            const ol = live.matches.find((x) => key(x.home) === key(d.home) && key(x.away) === key(d.away));
+            const score = li ? li.score : ol?.score;
+            if (!score) return;
+            const sameScore = ol && ol.score[0] === score[0] && ol.score[1] === score[1];
+            const m = {
+              score,
+              finished: !!(li?.finished || ol?.finished) || Date.now() > kickoff + 130 * 60000,
+              goals: sameScore ? ol.goals : [],
+            };
             box.querySelector("[data-live-main]").textContent = m.score[0] + ":" + m.score[1];
             const sub = box.querySelector("[data-live-sub]");
             sub.textContent = m.finished ? "Ende" : "Live";

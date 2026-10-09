@@ -1,4 +1,4 @@
-import { LIVE_URL, parseLive, type LiveMatch } from "./live.ts";
+import { LIVE_URL, parseLive, type LiScore, type LiveMatch } from "./live.ts";
 
 /**
  * Keeps the live scores of the current matchday in sessionStorage, on every page (News too), so match cards
@@ -7,7 +7,8 @@ import { LIVE_URL, parseLive, type LiveMatch } from "./live.ts";
  */
 const POLL_MS = 30_000;
 const AFTER_MS = 3 * 3600_000;
-type Stored = { at: number; matches: LiveMatch[] };
+/** li: score and end from LigaInsider (what counts); matches: OpenLigaDB, for the goal scorers. */
+type Stored = { at: number; li: LiScore[]; matches: LiveMatch[] };
 
 declare global {
   interface Window { __applyLive?: (doc: Document) => void }
@@ -16,7 +17,7 @@ declare global {
 function stored(): Stored | undefined {
   try {
     const s = JSON.parse(sessionStorage.getItem("live") ?? "null") as Stored | null;
-    return s && Array.isArray(s.matches) ? s : undefined;
+    return s && Array.isArray(s.matches) && Array.isArray(s.li) ? s : undefined;
   } catch {
     return undefined;
   }
@@ -34,15 +35,15 @@ async function tick() {
   // Between matches one fetch is enough (the final scores of those that ended since the last one).
   const lastEnd = Math.max(0, ...kickoffs.map((k) => k + AFTER_MS).filter((end) => end <= now));
   if (!cache || cache.at < lastEnd || (running && now - cache.at >= POLL_MS - 5000)) {
-    try {
-      const res = await fetch(LIVE_URL, { cache: "no-store" });
-      if (res.ok) {
-        const matches = parseLive(await res.json());
-        try { sessionStorage.setItem("live", JSON.stringify({ at: Date.now(), matches })); } catch {}
-        window.__applyLive?.(document);
-      }
-    } catch {
-      // Unreachable: cards keep what they show; the next tick tries again.
+    // Both at once; a source that fails keeps its last answer (the cards keep what they show).
+    const [li, matches] = await Promise.all([
+      fetch("/api/live/").then((r) => (r.ok ? (r.json() as Promise<LiScore[]>) : undefined)).catch(() => undefined),
+      fetch(LIVE_URL, { cache: "no-store" }).then(async (r) => (r.ok ? parseLive(await r.json()) : undefined)).catch(() => undefined),
+    ]);
+    if (li || matches) {
+      const next: Stored = { at: Date.now(), li: li ?? cache?.li ?? [], matches: matches ?? cache?.matches ?? [] };
+      try { sessionStorage.setItem("live", JSON.stringify(next)); } catch {}
+      window.__applyLive?.(document);
     }
   }
   if (running) timer = window.setTimeout(tick, POLL_MS);

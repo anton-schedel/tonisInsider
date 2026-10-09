@@ -38,3 +38,28 @@ export function parseLive(json: unknown): LiveMatch[] {
     return [{ home: m.team1.teamName, away: m.team2.teamName, kickoff: new Date(m.matchDateTimeUTC).toISOString(), finished: !!m.matchIsFinished, score, goals }];
   });
 }
+
+/** A game in LigaInsider's match bar (homepage): club slugs, the score once it started, and whether it's over. */
+export type LiScore = { home: string; away: string; score?: [number, number]; finished: boolean };
+
+export const LI_HOME_URL = "https://www.ligainsider.de/";
+
+/**
+ * Reads the match bar at the top of LigaInsider's homepage. "- : -" means not started; a game is over once
+ * its player ratings ("Noten") are linked. Regex instead of a DOM parser: the Worker runs it on every refresh.
+ */
+export function parseLiScores(html: string): LiScore[] {
+  const start = html.indexOf('id="carousel_slider_area"');
+  if (start < 0) return [];
+  return html.slice(start).split('<div class="item">').slice(1).flatMap((item) => {
+    const clubs = [...item.matchAll(/class="item_info_icon float-(?:start|end)">\s*<a href="\/([a-z0-9-]+)\/\d+\/"/g)].map((m) => m[1]);
+    if (clubs.length < 2) return [];
+    const s = /<strong>\s*(\d+)\s*:\s*(\d+)\s*<\/strong>/.exec(item);
+    return [{
+      home: clubs[0],
+      away: clubs[1],
+      ...(s ? { score: [Number(s[1]), Number(s[2])] as [number, number] } : {}),
+      finished: />\s*Noten\s*</i.test(item),
+    }];
+  });
+}

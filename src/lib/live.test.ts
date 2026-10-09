@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseLive } from "./live.ts";
+import { readFileSync } from "node:fs";
+import { parseLiScores, parseLive } from "./live.ts";
 
 const match = (over: object = {}) => ({
   matchDateTimeUTC: "2026-10-09T18:30:00Z",
@@ -35,5 +36,18 @@ describe("parseLive", () => {
   it("ignores anything that isn't a match list", () => {
     expect(parseLive({ error: 1 })).toEqual([]);
     expect(parseLive([{}])).toEqual([]);
+  });
+});
+
+describe("parseLiScores", () => {
+  const html = readFileSync(new URL("../../scraper/__fixtures__/home-matches.html", import.meta.url), "utf8");
+  it("reads score and end of every game in the match bar", () => {
+    const games = parseLiScores(html);
+    expect(games.find((g) => g.home === "borussia-dortmund")).toEqual({ home: "borussia-dortmund", away: "sv-werder-bremen", score: [2, 2], finished: true });
+    expect(games.find((g) => g.home === "sc-paderborn-07")).toEqual({ home: "sc-paderborn-07", away: "vfb-stuttgart", finished: false });
+    expect(games.length).toBe(9);
+  });
+  it("is empty for other pages", () => {
+    expect(parseLiScores("<html></html>")).toEqual([]);
   });
 });
