@@ -217,8 +217,13 @@ const tabs = [
           const theme = choice.getAttribute("data-theme-set");
           if (theme !== "light" && theme !== "dark") return;
           try { localStorage.setItem("theme", theme); } catch {}
+          // The whole page changes colour in one frame: buttons with colour transitions would otherwise
+          // fade from the old theme while everything around them has already switched.
+          const root = document.documentElement;
+          root.classList.add("theme-switching");
           apply(document);
           markTheme();
+          requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("theme-switching")));
         });
         // Login/logout forms load a new page: show at once that the tap registered, and block double sends.
         document.addEventListener("submit", (e) => {
@@ -245,19 +250,23 @@ const tabs = [
   <body class="min-h-dvh bg-bg font-sans text-fg">
     <!-- New pages fade in (.page-in in global.css); the tab bar stays. -->
     <div class="page-in mx-auto max-w-[720px] px-4 pb-28 sm:px-6" data-active-tab={tab}>
-      <header class="flex items-end justify-between pt-6 pb-3">
-        <div class="min-w-0">
-          {back && (
-            <a
-              href={back.href}
-              class="press mb-2 inline-block text-[15px] text-accent"
-              onclick="if (history.state && history.state.index > 0) { history.back(); return false; }"
-            >‹ {back.label}</a>
-          )}
-          {!hideHeading && <h1 class="truncate text-[28px] font-bold tracking-[-0.03em]">{title}</h1>}
-        </div>
+      <header class="flex min-h-[44px] items-center gap-3 pt-6 pb-3">
+        {back && (
+          // Round back button (like iOS); goes back in history when there is one, so scroll position survives.
+          <a
+            href={back.href}
+            aria-label={`Zurück zu ${back.label}`}
+            class="press flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-fg"
+            onclick="if (history.state && history.state.index > 0) { history.back(); return false; }"
+          >
+            <svg viewBox="0 0 24 24" class="size-[22px]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          </a>
+        )}
+        {/* Pages can put their own row beside the back button (an article's author and club). */}
+        <slot name="top" />
+        {!hideHeading && <h1 class="min-w-0 flex-1 text-[28px] leading-[1.1] font-bold tracking-[-0.03em] text-balance">{title}</h1>}
         {logo && (
-          <span class="shrink-0 self-center">
+          <span class="ml-auto shrink-0 self-center">
             <img src="/brand/wordmark-light.png" alt="TonInsider" width="105" height="26" class="brand-light h-[26px] w-auto" />
             <img src="/brand/wordmark-dark.png" alt="TonInsider" width="105" height="26" class="brand-dark h-[26px] w-auto" />
           </span>

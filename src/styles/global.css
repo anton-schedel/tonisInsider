@@ -292,6 +292,9 @@ html:not([data-navigated]) .enter {
 }
 .s11-badge.is-legend { position: static; border: 0; }
 
+/* Switching light/dark (Base.astro): every colour changes in the same frame. */
+.theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
+
 /* Native-feeling tap feedback. */
 .press {
   transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 120ms ease, background-color 150ms ease, color 150ms ease;

@@ -16,20 +16,20 @@ const { article: a } = Astro.props as { article: Article };
 const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
 ---
 <Base title={a.headline} tab="news" back={{ href: "/", label: "News" }} hideHeading>
-  <article class="pt-2">
-    <div class="mb-4 flex items-center gap-3">
-      {a.player
-        ? <Avatar src={a.player.photo} name={a.player.name} size={44} />
-        : a.club
-          ? <Crest src={a.club.crest} name={a.club.name} size={44} />
-          : <Avatar src={LOGO} name={NAME} size={44} />}
-      <div class="text-xs leading-snug text-muted">
-        {a.player && <b class="block text-sm text-fg">{a.player.name}</b>}
-        {!a.player && !a.club && <b class="block text-sm text-fg">{NAME}</b>}
-        {a.club && (clubLineupHref ? <a href={clubLineupHref} class="underline-offset-2 hover:underline">{a.club.name}</a> : a.club.name)}
-      </div>
-      <span class="ml-auto"><StatusPill type={a.newsType} /></span>
+  <div slot="top" class="flex min-w-0 flex-1 items-center gap-3">
+    {a.player
+      ? <Avatar src={a.player.photo} name={a.player.name} size={40} />
+      : a.club
+        ? <Crest src={a.club.crest} name={a.club.name} size={40} />
+        : <Avatar src={LOGO} name={NAME} size={40} />}
+    <div class="min-w-0 text-xs leading-snug text-muted">
+      {a.player && <b class="block truncate text-sm text-fg">{a.player.name}</b>}
+      {!a.player && !a.club && <b class="block text-sm text-fg">{NAME}</b>}
+      {a.club && (clubLineupHref ? <a href={clubLineupHref} class="block truncate underline-offset-2 hover:underline">{a.club.name}</a> : <span class="block truncate">{a.club.name}</span>)}
     </div>
+    <span class="ml-auto shrink-0"><StatusPill type={a.newsType} /></span>
+  </div>
+  <article class="pt-3">
     <h1 class="mb-2 text-[26px] leading-[1.15] font-bold tracking-[-0.025em]">{a.headline}</h1>
     <p class="mb-6 text-xs text-muted">
       {fullDate(a.publishedAt)} Uhr{a.author && ` · ${a.author}`}{a.source && " · Quelle: "}
