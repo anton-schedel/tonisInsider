@@ -10,7 +10,7 @@ interface Props {
   back?: { href: string; label: string };
   /** Hide the big page title (article pages show their own headline). */
   hideHeading?: boolean;
-  /** Our wordmark (logo with text) instead of the page title. */
+  /** Our logo with text on the right of the page title. */
   logo?: boolean;
 }
 const { title, tab, back, hideHeading = false, logo = false } = Astro.props;
@@ -34,7 +34,7 @@ const tabs = [
     <meta name="referrer" content="same-origin" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <title>{title} · TonInsider</title>
+    <title>TonInsider</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
     <script is:inline>
@@ -210,14 +210,14 @@ const tabs = [
               onclick="if (history.state && history.state.index > 0) { history.back(); return false; }"
             >‹ {back.label}</a>
           )}
-          {logo ? (
-            // News and settings: our wordmark is the heading; the tab bar already says which page this is.
-            <h1 class="flex h-[42px] items-center">
-              <img src="/brand/wordmark-light.png" alt="TonInsider" width="137" height="34" class="brand-light h-[34px] w-auto" />
-              <img src="/brand/wordmark-dark.png" alt="TonInsider" width="137" height="34" class="brand-dark h-[34px] w-auto" />
-            </h1>
-          ) : !hideHeading && <h1 class="truncate text-[28px] font-bold tracking-[-0.03em]">{title}</h1>}
+          {!hideHeading && <h1 class="truncate text-[28px] font-bold tracking-[-0.03em]">{title}</h1>}
         </div>
+        {logo && (
+          <span class="shrink-0 self-center">
+            <img src="/brand/wordmark-light.png" alt="TonInsider" width="105" height="26" class="brand-light h-[26px] w-auto" />
+            <img src="/brand/wordmark-dark.png" alt="TonInsider" width="105" height="26" class="brand-dark h-[26px] w-auto" />
+          </span>
+        )}
       </header>
       <slot />
       <footer class="mt-10 border-t border-hairline pt-4 text-xs text-muted">
