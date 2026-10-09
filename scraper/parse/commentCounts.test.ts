@@ -21,6 +21,10 @@ describe("parseCommentCounts", () => {
     expect(parseCommentCounts(a)).toEqual({ 123456: 7 });
   });
 
+  it("counts confirmed lineups too (their link has no #comments)", () => {
+    expect(parseCommentCounts(fx("news-confirmed-lineup.html"))[418926]).toBe(335);
+  });
+
   it("returns nothing for a page without counts", () => {
     expect(parseCommentCounts("<html></html>")).toEqual({});
   });

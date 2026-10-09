@@ -5,7 +5,8 @@
 export function parseCommentCounts(html: string): Record<number, number> {
   const counts: Record<number, number> = {};
   for (const m of html.matchAll(/<a\b[^>]*\bsmall_comment_top\b[^>]*>([\s\S]*?)<\/a>/g)) {
-    const id = /href="[^"]*-(\d+)\/#comments"/.exec(m[0])?.[1];
+    // Confirmed lineups link to the article itself, the others to "#comments".
+    const id = /href="[^"]*-(\d+)\/(?:#comments)?"/.exec(m[0])?.[1];
     const count = /<small>\s*(\d+)\s*<\/small>/.exec(m[1])?.[1];
     if (id && count) counts[Number(id)] = Number(count);
   }

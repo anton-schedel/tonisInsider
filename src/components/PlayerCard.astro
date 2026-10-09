@@ -1,6 +1,6 @@
 ---
 /**
- * Player card in the style of a FIFA Ultimate Team card, in a sheet: opened by tapping any element with
+ * Player card laid out like a FIFA Ultimate Team card, in a sheet: opened by tapping any element with
  * data-card (JSON from cardAttr in lib/card.ts). One per page; the script fills it on tap.
  * The big number is the scorer chance (goal or assist), else the goal chance; below it the position and the club.
  */
@@ -14,8 +14,7 @@
         <div class="fut-side">
           <span data-f="rating" class="fut-rating"></span>
           <span data-f="caption" class="fut-caption"></span>
-          <span data-f="pos" class="fut-pos"></span>
-          <img data-f="crest" alt="" class="fut-crest" hidden />
+          <span class="fut-pos"><img data-f="crest" alt="" class="fut-crest" hidden /><span data-f="pos"></span></span>
         </div>
         <span class="fut-photo">
           <span data-f="initials" aria-hidden="true"></span>
@@ -23,12 +22,11 @@
         </span>
       </div>
       <p data-f="name" class="fut-name"></p>
+      <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span data-f="status" class="rounded-full px-[8px] py-[2px] text-[12px] font-semibold" hidden></span>
+        <span data-f="match" class="text-[14px] text-muted"></span>
+      </div>
       <div data-f="stats" class="fut-stats"></div>
-    </div>
-
-    <div class="mt-5 flex flex-col items-center gap-1.5 text-center">
-      <span data-f="status" class="rounded-full px-[9px] py-[3px] text-[12px] font-semibold" hidden></span>
-      <span data-f="match" class="text-[14px] text-muted"></span>
     </div>
 
     <div class="mt-5 flex gap-2">
@@ -43,10 +41,10 @@
   import { initials } from "../lib/format.ts";
 
   const STATS = [
-    { key: "goal", label: "TOR" },
-    { key: "win", label: "SIEG" },
-    { key: "cleanSheet", label: "ZU 0" },
-    { key: "card", label: "KARTE" },
+    { key: "goal", label: "Tor" },
+    { key: "win", label: "Sieg" },
+    { key: "cleanSheet", label: "Zu Null" },
+    { key: "card", label: "Karte" },
   ] as const;
   // Cards cost points: a high risk is marked.
   const CARD_WARN = 30;
@@ -57,7 +55,7 @@
     f("initials").textContent = initials(d.name);
     // Without assist odds the goal chance stands in.
     const rating = d.scorer ?? d.goal;
-    f("rating").textContent = rating !== undefined ? String(rating) : "–";
+    f("rating").textContent = rating !== undefined ? `${rating}%` : "–";
     f("caption").textContent = d.scorer === undefined && d.goal !== undefined ? "Tor" : "Scorer";
     f("pos").textContent = d.pos ?? "";
     f("match").textContent = d.match ?? "";
@@ -80,15 +78,17 @@
       ? "background:var(--surface);color:var(--muted)"
       : `background:var(--${d.tone}-bg);color:var(--${d.tone}-fg)`;
 
-    // Two columns like the six stats on a FIFA card: value, then the short label.
-    f("stats").replaceChildren(...STATS.map((s) => {
+    // Two columns like the stats on a FIFA card: value, then the label.
+    // The goal chance standing in as the big number isn't repeated below.
+    const shown = STATS.filter((s) => !(s.key === "goal" && d.scorer === undefined && d.goal !== undefined));
+    f("stats").replaceChildren(...shown.map((s) => {
       const v = d[s.key];
       const el = document.createElement("span");
       el.className = "fut-stat";
       const value = document.createElement("b");
-      value.textContent = v === undefined ? "–" : String(v);
+      value.textContent = v === undefined ? "–" : `${v}%`;
       if (s.key === "card" && v !== undefined && v >= CARD_WARN) value.className = "is-warn";
-      el.append(value, ` ${s.label}`);
+      el.append(value, s.label);
       return el;
     }));
 
