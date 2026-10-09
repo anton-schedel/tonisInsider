@@ -149,10 +149,10 @@ const tabs = [
         };
         // The pill slides from the moment of the tap. It runs as a Web Animation, not a CSS transition: the
         // router briefly takes the persisted bar out of the page during the swap, which would cut a transition
-        // short, while a script animation keeps going. On the way the lens stretches a little, like Apple's.
-        const SPRING = CSS.supports?.("transition-timing-function", "linear(0, 1)")
-          ? "linear(0, 0.012, 0.047 2.4%, 0.183 5%, 0.82 14.3%, 0.977 18.7%, 1.046 23.4%, 1.058 27.2%, 1.044 31.5%, 1.008 41.2%, 0.997 51.7%, 1.001 69%, 1)"
-          : "cubic-bezier(0.3, 1.25, 0.4, 1)";
+        // short, while a script animation keeps going.
+        // One glide without overshoot: quick to leave, long calm settle (ease-out quint), so it never wobbles
+        // at its new spot.
+        const GLIDE = "cubic-bezier(0.22, 1, 0.36, 1)";
         let slide;
         const movePill = (tab) => {
           const nav = document.querySelector("nav.tabbar");
@@ -169,11 +169,13 @@ const tabs = [
           const to = x();
           if (from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
           const tabs = Math.abs(to - from) / pill.offsetWidth;
+          // A slight stretch while it travels, eased in and out, gone before the glide settles.
+          const stretch = Math.min(0.1, 0.04 * tabs);
           slide = [
-            pill.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }], { duration: 520, easing: SPRING }),
+            pill.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }], { duration: 460, easing: GLIDE }),
             pill.animate(
-              [{ scale: "1 1" }, { scale: `${1 + Math.min(0.3, 0.12 * tabs)} 0.9`, offset: 0.3 }, { scale: "1 1" }],
-              { duration: 420, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+              [{ scale: "1 1" }, { scale: `${1 + stretch} ${1 - stretch / 2}`, offset: 0.35 }, { scale: "1 1" }],
+              { duration: 320, easing: "ease-in-out" },
             ),
           ];
         };
