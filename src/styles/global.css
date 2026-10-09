@@ -160,8 +160,13 @@ html {
 /* The page behind an open card stays put (iOS scrolls it otherwise when swiping inside the sheet). */
 html:has(.player-card[open]) { overflow: hidden; }
 .player-card { overscroll-behavior: contain; }
-/* Closing (PlayerCard.astro): slide away and fade out before the dialog really closes. */
-.player-card[open].is-closing { opacity: 0; transform: translateY(var(--drag, 0px)) translateY(32px); transition-duration: 180ms, 220ms; }
+/* Closing (PlayerCard.astro): slides back down and fades before the dialog really closes. */
+.player-card[open].is-closing {
+  opacity: 0; transform: translateY(var(--drag, 0px)) translateY(24px);
+  /* The opening the other way round: slides the same 24px down, speeding up, and fades out behind the slide
+     so the movement stays visible. */
+  transition: opacity 240ms cubic-bezier(0.6, 0, 1, 1), transform 240ms cubic-bezier(0.4, 0, 0.9, 0.6);
+}
 .player-card[open].is-closing::backdrop { background: rgba(0, 0, 0, 0); }
 /* While a finger drags the sheet down it follows directly, without easing. */
 .player-card.is-dragging { transform: translateY(var(--drag, 0px)); transition: none; }
