@@ -180,9 +180,9 @@ html:has(.player-card[open]) { overflow: hidden; }
 .fut-caption { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .fut-pos { display: flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 15px; font-weight: 700; }
 .fut-crest { width: 22px; height: 22px; object-fit: contain; }
-/* The photo whole and unframed, running to the sheet's right edge (cancels the body's 20px padding). */
+/* The photo whole and unframed, with the sheet's usual space on the right. */
 .fut-photo {
-  position: relative; margin: -4px -24px 0 auto; width: 156px; aspect-ratio: 180 / 184;
+  position: relative; margin: -4px 0 0 auto; width: 156px; aspect-ratio: 180 / 184;
   display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 40px; font-weight: 700;
 }
