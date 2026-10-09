@@ -19,6 +19,7 @@ const { src, name, size = 32, class: className } = Astro.props;
       src={src}
       alt={name}
       loading="lazy"
+      decoding="async"
       class="img-fade absolute inset-0 size-full object-cover"
       onload="this.classList.add('is-loaded')"
       onerror="this.remove()"

@@ -97,13 +97,32 @@
     if (d.href) link.href = d.href;
   }
 
+  const CLOSE_MS = 220;
+  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /** Slides the sheet away, then closes it (the dialog's own close would make it vanish at once). */
+  function closeCard(dialog: HTMLDialogElement) {
+    if (!dialog.open || dialog.classList.contains("is-closing")) return;
+    dialog.classList.remove("is-dragging");
+    if (reduced()) {
+      dialog.close();
+      return;
+    }
+    dialog.classList.add("is-closing");
+    setTimeout(() => {
+      dialog.close();
+      dialog.classList.remove("is-closing");
+      dialog.style.removeProperty("--drag");
+    }, CLOSE_MS);
+  }
+
   document.addEventListener("click", (e) => {
     const target = e.target as Element | null;
     const dialog = document.querySelector<HTMLDialogElement>("[data-player-card]");
     if (!dialog || !target?.closest) return;
     if (dialog.open) {
       // Close button, or a tap on the dimmed backdrop (the dialog element itself, outside the body).
-      if (target.closest("[data-card-close]") || target === dialog) dialog.close();
+      if (target.closest("[data-card-close]") || target === dialog) closeCard(dialog);
       return;
     }
     // The ⇄ mark flips to the alternative (Base.astro) instead of opening the card.
@@ -117,6 +136,38 @@
     }
     dialog.showModal();
   });
+  // Escape animates like the button.
+  document.addEventListener("cancel", (e) => {
+    const dialog = e.target;
+    if (!(dialog instanceof HTMLDialogElement) || !dialog.matches("[data-player-card]")) return;
+    e.preventDefault();
+    closeCard(dialog);
+  }, true);
+
+  // Swipe down to close: the sheet follows the finger; far enough (or fast enough) closes it, else it snaps back.
+  let drag: { y: number; t: number; dialog: HTMLDialogElement } | undefined;
+  document.addEventListener("touchstart", (e) => {
+    const dialog = (e.target as Element).closest?.<HTMLDialogElement>("[data-player-card]");
+    if (!dialog?.open || dialog.scrollTop > 0) return;
+    drag = { y: e.touches[0].clientY, t: e.timeStamp, dialog };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!drag) return;
+    const dy = Math.max(0, e.touches[0].clientY - drag.y);
+    drag.dialog.classList.add("is-dragging");
+    drag.dialog.style.setProperty("--drag", `${dy}px`);
+  }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (!drag) return;
+    const { dialog, y, t } = drag;
+    drag = undefined;
+    const dy = Math.max(0, e.changedTouches[0].clientY - y);
+    const fast = dy > 30 && dy / Math.max(1, e.timeStamp - t) > 0.5;
+    if (dy > 90 || fast) return closeCard(dialog);
+    dialog.classList.remove("is-dragging");
+    dialog.style.removeProperty("--drag");
+  });
+
   // Leaving the page (link in the card, back button) never leaves the sheet open behind.
   document.addEventListener("astro:before-preparation", () => document.querySelector<HTMLDialogElement>("[data-player-card]")?.close());
 </script>

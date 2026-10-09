@@ -1,3 +1,11 @@
 /*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: same-origin
+
+# Player photos, crests and banners keep their file name when LigaInsider updates them (rarely): use them for a
+# day without asking, then refresh in the background, so avatars never wait for a revalidation round trip.
+/img/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/brand/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000

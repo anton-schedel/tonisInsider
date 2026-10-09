@@ -157,6 +157,14 @@ html {
 .player-card::backdrop { background: rgba(0, 0, 0, 0); transition: background 200ms, overlay 280ms allow-discrete, display 280ms allow-discrete; }
 .player-card[open]::backdrop { background: rgba(0, 0, 0, 0.4); }
 @starting-style { .player-card[open]::backdrop { background: rgba(0, 0, 0, 0); } }
+/* The page behind an open card stays put (iOS scrolls it otherwise when swiping inside the sheet). */
+html:has(.player-card[open]) { overflow: hidden; }
+.player-card { overscroll-behavior: contain; }
+/* Closing (PlayerCard.astro): slide away and fade out before the dialog really closes. */
+.player-card[open].is-closing { opacity: 0; transform: translateY(var(--drag, 0px)) translateY(32px); transition-duration: 180ms, 220ms; }
+.player-card[open].is-closing::backdrop { background: rgba(0, 0, 0, 0); }
+/* While a finger drags the sheet down it follows directly, without easing. */
+.player-card.is-dragging { transform: translateY(var(--drag, 0px)); transition: none; }
 .player-card-body { padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); }
 /* The card's content: laid out like a FIFA card (number and position beside the photo, stats in two
    columns), drawn straight on the sheet in the app's own colours. */
