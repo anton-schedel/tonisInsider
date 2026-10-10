@@ -6,7 +6,8 @@
  */
 ---
 <dialog class="player-card" data-player-card aria-label="Spieler">
-  <div class="player-card-body">
+  {/* Takes the focus on opening (else the browser focuses the first news link and outlines it). */}
+  <div class="player-card-body" tabindex="-1" autofocus>
     <div class="mx-auto mb-5 h-1 w-9 rounded-full bg-hairline" aria-hidden="true"></div>
 
     <div class="fut">

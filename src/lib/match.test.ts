@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { normalize, mapClubs, matchPlayer, matchSquad, pitchLines, squadNews } from "./match.ts";
+import { normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 import type { Article, Lineup, LineupPlayer } from "../../scraper/types.ts";
 
@@ -92,23 +92,6 @@ describe("matchSquad on the recorded squad", () => {
     const result = matchSquad(squad, mapClubs(table, lineups));
     expect(result.every((p) => p.club)).toBe(true);
     expect(result.filter((p) => p.status !== "bench" && p.status !== "unknown").length).toBeGreaterThanOrEqual(8);
-  });
-});
-
-describe("squadNews", () => {
-  const article = (id: number, player: { id: number; slug: string; name: string }, clubId: number, at: string) =>
-    ({ id, player, club: { id: clubId, slug: "c", name: "C" }, publishedAt: at }) as Article;
-
-  it("finds articles by matched id and by name at the same club, newest first", () => {
-    const players = [matchPlayer(kb("Kobel"), bvb), matchPlayer(kb("Can"), bvb)];
-    const news = squadNews(players, [
-      article(1, { id: 9357, slug: "gregor-kobel", name: "Gregor Kobel" }, 14, "2026-10-07T07:00:00Z"),
-      article(2, { id: 1812, slug: "emre-can", name: "Emre Can" }, 14, "2026-10-07T09:00:00Z"),
-      article(3, { id: 5, slug: "x-can", name: "Xaver Can" }, 99, "2026-10-07T10:00:00Z"),
-      article(5, { id: 7, slug: "can-uzun", name: "Can Uzun" }, 14, "2026-10-07T12:00:00Z"),
-      article(4, { id: 6, slug: "other", name: "Other Player" }, 14, "2026-10-07T11:00:00Z"),
-    ]);
-    expect(news.map((a) => a.id)).toEqual([2, 1]);
   });
 });
 

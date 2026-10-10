@@ -26,6 +26,11 @@ export type CardData = PlayerInsight & {
 };
 export type CardNews = { id: number; title: string; type: NewsType; at: string };
 
+/** News this recent marks the player with a newspaper icon (NewsBadge.astro); older stays in the card only. */
+export const FRESH_NEWS_MS = 3 * 86_400_000;
+export const hasFreshNews = (news: CardNews[] | undefined, now = Date.now()) =>
+  !!news?.length && now - Date.parse(news[0].at) < FRESH_NEWS_MS;
+
 /** How many of a player's articles the card lists. */
 export const CARD_NEWS = 3;
 

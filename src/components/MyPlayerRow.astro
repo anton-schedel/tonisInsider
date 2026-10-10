@@ -2,6 +2,7 @@
 import type { MyPlayer } from "../lib/match.ts";
 import Avatar from "./Avatar.astro";
 import StartBadge from "./StartBadge.astro";
+import NewsBadge from "./NewsBadge.astro";
 import { matchLine } from "../lib/card.ts";
 
 interface Props {
@@ -9,8 +10,10 @@ interface Props {
   index?: number;
   /** Player card data (cardAttr), opened on tap. */
   card?: string;
+  /** Fresh news (newspaper icon beside the name). */
+  fresh?: boolean;
 }
-const { player: p, index = 0, card } = Astro.props;
+const { player: p, index = 0, card, fresh = false } = Astro.props;
 const name = p.ligainsider?.name ?? p.kickbase.name;
 const match = matchLine(p.lineup);
 ---
@@ -20,7 +23,10 @@ const match = matchLine(p.lineup);
     {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
   </span>
   <span class="min-w-0 flex-1">
-    <span class="block truncate text-[15px] font-semibold tracking-[-0.01em]">{name}</span>
+    <span class="flex items-center gap-1.5">
+      <span class="truncate text-[15px] font-semibold tracking-[-0.01em]">{name}</span>
+      {fresh && <NewsBadge class="is-inline shrink-0" />}
+    </span>
     {match && <span class="block truncate text-xs text-muted">{match}</span>}
   </span>
   <StartBadge status={p.status} label={p.statusLabel} rival={p.rival} />

@@ -2,18 +2,16 @@
 import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
 import MyPitch from "../components/MyPitch.astro";
-import ArticleRow from "../components/ArticleRow.astro";
 import PlayerCard from "../components/PlayerCard.astro";
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
-import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../lib/match.ts";
+import { mapClubs, matchSquad, pitchLines, type MyPlayer } from "../lib/match.ts";
 import { toFixtures } from "../lib/fixtures.ts";
 import { chancesFor } from "../lib/odds.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
-import { cardAttr, matchLine, newsByPlayer, POSITIONS, startLabel, type CardNews } from "../lib/card.ts";
+import { cardAttr, hasFreshNews, matchLine, newsByPlayer, POSITIONS, startLabel, type CardNews } from "../lib/card.ts";
 import { confirmedClubs } from "../lib/lineupNews.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
-import type { Article } from "../../scraper/types.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
 
 export const prerender = false;
@@ -39,7 +37,7 @@ async function load(token: string) {
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
   const league = leagues.find((l) => l.id === wanted) ?? leagues[0];
-  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, news: [] as Article[], outlook: new Map<string, PlayerOutlook>(), cardNews: new Map<string, CardNews[]>() };
+  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, outlook: new Map<string, PlayerOutlook>(), cardNews: new Map<string, CardNews[]>() };
   // Only an explicit choice is remembered (not prefetches or defaults).
   if (picked && league.id === picked) {
     Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
@@ -102,11 +100,11 @@ async function load(token: string) {
     const list = playerNews(p.ligainsider?.id);
     return list ? [[p.kickbase.id, list] as const] : [];
   }));
-  return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), outlook, cardNews };
+  return { leagues, league, players, starterCount: starters.length, outlook, cardNews };
 }
 
 let error: string | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, news: [], outlook: new Map(), cardNews: new Map() };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, outlook: new Map(), cardNews: new Map() };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -129,7 +127,7 @@ try {
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
-const { leagues, league, players, starterCount, news, outlook, cardNews } = data;
+const { leagues, league, players, starterCount, outlook, cardNews } = data;
 // Player card per Kickbase id: status, next match and the odds-based outlook.
 const cards = new Map(players.map((p) => {
   const start = startLabel(p.status, p.statusLabel, p.rival);
@@ -146,6 +144,8 @@ const cards = new Map(players.map((p) => {
     news: cardNews.get(p.kickbase.id),
   })] as const;
 }));
+// Players with fresh news get a newspaper icon; the news themselves are in their card.
+const fresh = new Set([...cardNews].flatMap(([id, list]) => (hasFreshNews(list) ? [id] : [])));
 // matchSquad keeps the order: the first starterCount players are the XI.
 const pitch = pitchLines(players.slice(0, starterCount));
 const benchPlayers = players.slice(starterCount);
@@ -180,13 +180,13 @@ let index = 0;
           <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
           <span class="text-[15px] font-semibold text-muted tabular-nums">{pitch.formation}</span>
         </div>
-        <MyPitch lines={pitch.lines} cards={cards} />
+        <MyPitch lines={pitch.lines} cards={cards} fresh={fresh} />
       </section>
       {benchPlayers.length > 0 && (
         <section class="mt-5">
           <h2 class="mb-1 text-[22px] font-bold tracking-[-0.02em]">Bank</h2>
           <div class="divide-y divide-hairline">
-            {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} />)}
+            {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} fresh={fresh.has(p.kickbase.id)} />)}
           </div>
         </section>
       )}
@@ -199,23 +199,11 @@ let index = 0;
         <section class="mb-3">
           <h2 class="pt-3 pb-1 text-[15px] font-semibold">{group.label}</h2>
           <div class="divide-y divide-hairline">
-            {inGroup.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} />)}
+            {inGroup.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} fresh={fresh.has(p.kickbase.id)} />)}
           </div>
         </section>
       );
     })
-  )}
-
-  {news.length > 0 && (
-    <section class="mt-7">
-      <div class="mb-1 flex items-baseline justify-between">
-        <h2 class="text-[22px] font-bold tracking-[-0.02em]">News zu deinen Spielern</h2>
-        <span class="text-[15px] font-semibold text-muted tabular-nums">{news.length}</span>
-      </div>
-      <div class="divide-y divide-hairline">
-        {news.map((a, i) => <ArticleRow article={a} index={i} />)}
-      </div>
-    </section>
   )}
 
   <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>

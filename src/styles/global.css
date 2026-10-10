@@ -180,6 +180,9 @@ html:has(.player-card[open]) { overflow: hidden; }
 .player-card[open].is-closing::backdrop { background: rgba(0, 0, 0, 0); }
 /* While a finger drags the sheet down it follows directly, without easing. */
 .player-card.is-dragging { transform: translateY(var(--drag, 0px)); transition: none; }
+.player-card-body:focus { outline: none; }
+/* Focus rings only for keyboard use, never after a tap. */
+:focus:not(:focus-visible) { outline: none; }
 .player-card-body { padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); }
 /* The card's content: laid out like a FIFA card (number and position beside the photo, stats in two
    columns), drawn straight on the sheet in the app's own colours. */
@@ -348,6 +351,15 @@ html:not([data-navigated]) .enter {
 .grade-card.is-yellow-red { background: linear-gradient(135deg, #ffd60a 50%, #ff3b30 50%); }
 .grade-mark.is-legend, .grade-card.is-legend { position: static; width: 14px; height: 14px; font-size: 8.5px; box-shadow: none; }
 .grade-card.is-legend { width: 9px; height: 12px; }
+
+/* Fresh news (NewsBadge.astro): bottom right of a pitch photo, inline in list rows. */
+.news-badge {
+  position: absolute; right: -6px; bottom: -2px;
+  display: flex; align-items: center; justify-content: center; width: 19px; height: 19px; border-radius: 9999px;
+  background: #fff; color: #1d1d1f; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.news-badge svg { width: 11px; height: 11px; }
+.news-badge.is-inline { position: static; width: 18px; height: 18px; background: var(--surface); color: var(--fg); box-shadow: none; }
 
 /* Confirmed starting XI: replaces the green dot on a pitch photo (Pitch.astro, MyPitch.astro). */
 .s11-badge {

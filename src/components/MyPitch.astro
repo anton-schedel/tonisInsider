@@ -2,14 +2,17 @@
 import type { MyPlayer, StartStatus } from "../lib/match.ts";
 import Avatar from "./Avatar.astro";
 import PitchField from "./PitchField.astro";
+import NewsBadge from "./NewsBadge.astro";
 import { AVATAR, slotStyle } from "../lib/pitch.ts";
 
 interface Props {
   lines: MyPlayer[][];
   /** Player card data (cardAttr) by Kickbase player id. */
   cards: Map<string, string>;
+  /** Kickbase ids of players with fresh news (newspaper icon). */
+  fresh?: Set<string>;
 }
-const { lines, cards } = Astro.props;
+const { lines, cards, fresh = new Set() } = Astro.props;
 // The dot answers "will my player start?" according to LigaInsider's predicted lineup.
 const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string }> = {
   confirmed: { dot: "var(--green-dot)" },
@@ -37,6 +40,7 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
                 ? <span class="s11-badge" title="Startelf bestätigt">S11</span>
                 : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:${tone.dot}`}></span>}
               {p.rival && <span class="swap-hint is-top" aria-hidden="true">⇄</span>}
+              {fresh.has(p.kickbase.id) && <NewsBadge />}
               {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -bottom-0.5 -left-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
             </span>
             <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{name}</span>
@@ -52,6 +56,7 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich oder Alternative</span>
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--red-fg)"></i>Nicht in der Startelf</span>
     <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--muted)"></i>Keine Infos</span>
+    {lines.some((line) => line.some((p) => fresh.has(p.kickbase.id))) && <span class="flex items-center gap-1"><NewsBadge class="is-inline" />Neue News</span>}
     <span>Tippen für Prognose</span>
   </Fragment>
 </PitchField>

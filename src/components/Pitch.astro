@@ -3,8 +3,9 @@ import type { Lineup, LineupPlayer, Ref } from "../../scraper/types.ts";
 import type { PlayerInsight } from "../lib/scorers.ts";
 import Avatar from "./Avatar.astro";
 import PitchField from "./PitchField.astro";
+import NewsBadge from "./NewsBadge.astro";
 import { AVATAR, slotStyle } from "../lib/pitch.ts";
-import { cardAttr, matchLine, rowPosition, type CardData, type CardNews } from "../lib/card.ts";
+import { cardAttr, hasFreshNews, matchLine, rowPosition, type CardData, type CardNews } from "../lib/card.ts";
 
 interface Props {
   lineup: Lineup;
@@ -44,6 +45,7 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
               <button type="button" data-card={mainStatus(p, rowPosition(i, rows))} class="press swap-face flex flex-col items-center text-center">
                 <span class="relative">
                   <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
+                  {hasFreshNews(news(p.id)) && <NewsBadge />}
                   {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.alternative.name} zeigen`}>⇄</span>
                 </span>
@@ -53,6 +55,7 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
               <button type="button" data-card={card(p.alternative, rowPosition(i, rows), `Alternative zu ${p.name}`, "yellow")} class="press swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
                 <span class="relative">
                   <Avatar src={p.alternative.photo} name={p.alternative.name} size={AVATAR} class="shadow-md ring-2 ring-[var(--yellow-dot)]" />
+                  {hasFreshNews(news(p.alternative.id)) && <NewsBadge />}
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.name} zeigen`}>⇄</span>
                 </span>
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.alternative.name}</span>
@@ -63,6 +66,7 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
             <button type="button" data-card={mainStatus(p, rowPosition(i, rows))} class="press flex w-full flex-col items-center text-center">
               <span class="relative">
                 <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
+                {hasFreshNews(news(p.id)) && <NewsBadge />}
                 {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
               </span>
               <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
@@ -80,6 +84,9 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
         <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
         <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
       </>
+    )}
+    {lineup.lines.flat().some((p) => hasFreshNews(news(p.id)) || (!!p.alternative && hasFreshNews(news(p.alternative.id)))) && (
+      <span class="flex items-center gap-1"><NewsBadge class="is-inline" />Neue News</span>
     )}
     <span>Tippen für Prognose</span>
   </Fragment>

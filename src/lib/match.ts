@@ -101,26 +101,6 @@ export function matchSquad(squad: KbPlayer[], clubs: Map<string, Lineup>, roster
   return squad.map((p) => matchPlayer(p, clubs.get(p.teamId), rosters?.get(p.teamId)));
 }
 
-/** Articles about the squad: by matched LigaInsider id, or by name at the same club. Newest first. */
-export function squadNews(players: MyPlayer[], articles: Article[]): Article[] {
-  const ids = new Set(players.flatMap((p) => (p.ligainsider ? [p.ligainsider.id] : [])));
-  const byClub = new Map<number, string[]>();
-  for (const p of players) {
-    if (!p.club) continue;
-    byClub.set(p.club.id, [...(byClub.get(p.club.id) ?? []), normalize(p.kickbase.name)]);
-  }
-  return articles
-    .filter((a) => {
-      if (!a.player) return false;
-      if (ids.has(a.player.id)) return true;
-      const names = a.club ? byClub.get(a.club.id) : undefined;
-      if (!names) return false;
-      const full = normalize(a.player.name);
-      return names.some((n) => full === n || full.endsWith(` ${n}`));
-    })
-    .sort((x, y) => y.publishedAt.localeCompare(x.publishedAt));
-}
-
 /** A Kickbase XI as pitch lines (goalkeeper first, attack last; empty lines left out) and its formation. */
 export function pitchLines(players: MyPlayer[]): { lines: MyPlayer[][]; formation: string } {
   const by = (pos: number) => players.filter((p) => p.kickbase.position === pos);

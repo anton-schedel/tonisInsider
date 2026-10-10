@@ -1,0 +1,8 @@
+---
+/** Newspaper icon on a player's photo (bottom right): he has fresh news, which his card lists. */
+interface Props { class?: string }
+const { class: className } = Astro.props;
+---
+<span class:list={["news-badge", className]} title="Neue News" aria-label="Neue News">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h12v14H6.5A2.5 2.5 0 0 1 4 16.5z" /><path d="M16 9h4v7.5a2.5 2.5 0 0 1-2.5 2.5" /><path d="M7.5 9h5M7.5 12.5h5" /></svg>
+</span>
