@@ -7,7 +7,7 @@ import { LIVE_URL, parseLive, type LiScore, type LiveMatch } from "./live.ts";
  */
 const POLL_MS = 30_000;
 const AFTER_MS = 3 * 3600_000;
-/** li: score and end from LigaInsider (what counts); matches: OpenLigaDB, for the goal scorers. */
+/** li: score and end from /api/live/ (LigaInsider, else ESPN); matches: OpenLigaDB, for the goal scorers. */
 type Stored = { at: number; li: LiScore[]; matches: LiveMatch[] };
 
 declare global {
@@ -41,7 +41,8 @@ async function tick() {
       fetch(LIVE_URL, { cache: "no-store" }).then(async (r) => (r.ok ? parseLive(await r.json()) : undefined)).catch(() => undefined),
     ]);
     if (li || matches) {
-      const next: Stored = { at: Date.now(), li: li ?? cache?.li ?? [], matches: matches ?? cache?.matches ?? [] };
+      // An empty answer (both sources down) keeps the scores already shown.
+      const next: Stored = { at: Date.now(), li: li?.length ? li : cache?.li ?? [], matches: matches ?? cache?.matches ?? [] };
       try { sessionStorage.setItem("live", JSON.stringify(next)); } catch {}
       window.__applyLive?.(document);
     }

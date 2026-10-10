@@ -73,7 +73,7 @@ describe("parseEspn", () => {
       event("in", false, ["FC Augsburg", "2"], ["Bayern Munich", "2"]),
       event("pre", false, ["RB Leipzig", "0"], ["Eintracht Frankfurt", "0"]),
     ] };
-    expect(parseEspn(json, clubs)).toEqual([
+    expect(parseEspn([json, { events: [] }, {}], clubs)).toEqual([
       { home: "1-fc-union-berlin", away: "sv-07-elversberg", score: [1, 0], finished: true },
       { home: "fc-augsburg", away: "fc-bayern-muenchen", score: [2, 2], finished: false },
       { home: "rb-leipzig", away: "eintracht-frankfurt", finished: false },

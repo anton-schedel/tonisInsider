@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { USER_AGENT } from "../../../scraper/fetch.ts";
 import type { Snapshot } from "../../../scraper/snapshot.ts";
 import { hedged, type EdgeCache } from "../../lib/comments.ts";
-import { espnUrl, LI_HOME_URL, mergeScores, parseEspn, parseLiScores, type LiScore } from "../../lib/live.ts";
+import { espnUrls, LI_HOME_URL, mergeScores, parseEspn, parseLiScores, type LiScore } from "../../lib/live.ts";
 
 export const prerender = false;
 
@@ -38,9 +38,11 @@ export const GET: APIRoute = async ({ url }) => {
 
 /** ESPN's games, named by our club slugs (the clubs come from the site's own data). */
 async function fromEspn(url: URL): Promise<LiScore[]> {
-  const [scores, snapshot] = await Promise.all([
-    fetch(espnUrl(new Date()), { signal: AbortSignal.timeout(5000) }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))),
+  const day = (u: string) => fetch(u, { signal: AbortSignal.timeout(5000) }).then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined);
+  const [days, snapshot] = await Promise.all([
+    Promise.all(espnUrls(new Date()).map(day)),
     env.ASSETS.fetch(new URL("/data/snapshot.json", url)).then((r: Response) => r.json() as Promise<Snapshot>),
   ]);
-  return parseEspn(scores, snapshot.lineups.map((l) => ({ name: l.club.name, slug: l.club.slug })));
+  if (days.every((d) => d === undefined)) throw new Error("ESPN unavailable");
+  return parseEspn(days, snapshot.lineups.map((l) => ({ name: l.club.name, slug: l.club.slug })));
 }

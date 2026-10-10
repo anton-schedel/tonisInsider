@@ -66,20 +66,23 @@ export function parseLiScores(html: string): LiScore[] {
   });
 }
 
-/** ESPN's Bundesliga scoreboard (free, no key): the stand-in when LigaInsider's match bar is missing. */
-export function espnUrl(now: Date): string {
-  const day = (offset: number) => new Date(now.getTime() + offset * 86_400_000).toISOString().slice(0, 10).replaceAll("-", "");
-  // The matchday so far (Friday to Sunday, or midweek) and the rest of today.
-  return `https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard?dates=${day(-3)}-${day(1)}`;
+/**
+ * ESPN's Bundesliga scoreboard (free, no key): the stand-in when LigaInsider's match bar is missing. One URL per
+ * day, the matchday so far (Friday to Sunday, or midweek) and tomorrow: its date ranges sometimes come back empty.
+ */
+export function espnUrls(now: Date): string[] {
+  return [-3, -2, -1, 0, 1].map((offset) => {
+    const day = new Date(now.getTime() + offset * 86_400_000).toISOString().slice(0, 10).replaceAll("-", "");
+    return `https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard?dates=${day}`;
+  });
 }
 
 type EspnTeam = { homeAway: "home" | "away"; score?: string; team: { displayName: string } };
 type EspnEvent = { date: string; status: { type: { state: string; completed: boolean } }; competitions: { competitors: EspnTeam[] }[] };
 
 /** ESPN's games as our clubs (English names matched like the odds), in the match bar's shape. */
-export function parseEspn(json: unknown, clubs: { name: string; slug: string }[]): LiScore[] {
-  const events = (json as { events?: EspnEvent[] })?.events;
-  if (!Array.isArray(events)) return [];
+export function parseEspn(days: unknown[], clubs: { name: string; slug: string }[]): LiScore[] {
+  const events = days.flatMap((json) => (json as { events?: EspnEvent[] })?.events ?? []);
   const slug = (name: string) => clubs.find((c) => sameClub(c.name, name))?.slug;
   return events.flatMap((e) => {
     const teams = e.competitions?.[0]?.competitors ?? [];

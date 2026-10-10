@@ -124,9 +124,9 @@ const tabs = [
         // Live scores on match cards (FixtureCard.astro), from the copy the poller (lib/liveClient.ts) keeps in
         // sessionStorage. Applied to the incoming page before it's shown, so a running match never flips from
         // its kickoff time to the score in front of you.
-        // Score and end come from LigaInsider (li); OpenLigaDB (matches) adds the goal scorers when its score
-        // agrees, and stands in if LigaInsider doesn't list the game. A game counts as over at the latest
-        // 2 h 10 min after kickoff, whatever the sources say.
+        // Score and end come from /api/live/ (li: LigaInsider, else ESPN); OpenLigaDB (matches) only adds the goal
+        // scorers when its score agrees: its own scores were wrong too often to show. A game counts as over at
+        // the latest 2 h 10 min after kickoff, whatever the sources say.
         window.__applyLive = (doc) => {
           let live;
           try { live = JSON.parse(sessionStorage.getItem("live") ?? "null"); } catch {}
@@ -139,12 +139,12 @@ const tabs = [
             if (kickoff > Date.now()) return;
             const li = live.li.find((g) => g.home === d.hs && g.away === d.as);
             const ol = live.matches.find((x) => key(x.home) === key(d.home) && key(x.away) === key(d.away));
-            const score = li ? li.score : ol?.score;
+            const score = li?.score;
             if (!score) return;
             const sameScore = ol && ol.score[0] === score[0] && ol.score[1] === score[1];
             const m = {
               score,
-              finished: !!(li?.finished || ol?.finished) || Date.now() > kickoff + 130 * 60000,
+              finished: !!li?.finished || Date.now() > kickoff + 130 * 60000,
               goals: sameScore ? ol.goals : [],
             };
             box.querySelector("[data-live-main]").textContent = m.score[0] + ":" + m.score[1];
