@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { parseLiScores, parseLive } from "./live.ts";
+import { mergeScores, parseEspn, parseLiScores, parseLive } from "./live.ts";
 
 const match = (over: object = {}) => ({
   matchDateTimeUTC: "2026-10-09T18:30:00Z",
@@ -49,5 +49,39 @@ describe("parseLiScores", () => {
   });
   it("is empty for other pages", () => {
     expect(parseLiScores("<html></html>")).toEqual([]);
+  });
+});
+
+describe("parseEspn", () => {
+  const clubs = [
+    { name: "1. FC Union Berlin", slug: "1-fc-union-berlin" },
+    { name: "SV 07 Elversberg", slug: "sv-07-elversberg" },
+    { name: "FC Augsburg", slug: "fc-augsburg" },
+    { name: "FC Bayern München", slug: "fc-bayern-muenchen" },
+    { name: "RB Leipzig", slug: "rb-leipzig" },
+    { name: "Eintracht Frankfurt", slug: "eintracht-frankfurt" },
+  ];
+  const team = (homeAway: string, displayName: string, score: string) => ({ homeAway, score, team: { displayName } });
+  const event = (state: string, completed: boolean, home: [string, string], away: [string, string]) => ({
+    date: "2026-10-10T13:30Z",
+    status: { type: { state, completed } },
+    competitions: [{ competitors: [team("home", ...home), team("away", ...away)] }],
+  });
+  it("maps ESPN's English names to our clubs, with the score once started", () => {
+    const json = { events: [
+      event("post", true, ["1. FC Union Berlin", "1"], ["SV Elversberg", "0"]),
+      event("in", false, ["FC Augsburg", "2"], ["Bayern Munich", "2"]),
+      event("pre", false, ["RB Leipzig", "0"], ["Eintracht Frankfurt", "0"]),
+    ] };
+    expect(parseEspn(json, clubs)).toEqual([
+      { home: "1-fc-union-berlin", away: "sv-07-elversberg", score: [1, 0], finished: true },
+      { home: "fc-augsburg", away: "fc-bayern-muenchen", score: [2, 2], finished: false },
+      { home: "rb-leipzig", away: "eintracht-frankfurt", finished: false },
+    ]);
+  });
+  it("prefers LigaInsider's game over ESPN's", () => {
+    const li = [{ home: "a", away: "b", score: [1, 1] as [number, number], finished: false }];
+    const espn = [{ home: "a", away: "b", score: [2, 1] as [number, number], finished: false }, { home: "c", away: "d", finished: false }];
+    expect(mergeScores(li, espn)).toEqual([li[0], espn[1]]);
   });
 });

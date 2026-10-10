@@ -1,3 +1,5 @@
+import { sameClub } from "./odds.ts";
+
 /** Live scores from OpenLigaDB (free, community-maintained, open CORS): fetched by the browser while games run. */
 export const LIVE_URL = "https://api.openligadb.de/getmatchdata/bl1";
 
@@ -62,4 +64,42 @@ export function parseLiScores(html: string): LiScore[] {
       finished: />\s*Noten\s*</i.test(item),
     }];
   });
+}
+
+/** ESPN's Bundesliga scoreboard (free, no key): the stand-in when LigaInsider's match bar is missing. */
+export function espnUrl(now: Date): string {
+  const day = (offset: number) => new Date(now.getTime() + offset * 86_400_000).toISOString().slice(0, 10).replaceAll("-", "");
+  // The matchday so far (Friday to Sunday, or midweek) and the rest of today.
+  return `https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard?dates=${day(-3)}-${day(1)}`;
+}
+
+type EspnTeam = { homeAway: "home" | "away"; score?: string; team: { displayName: string } };
+type EspnEvent = { date: string; status: { type: { state: string; completed: boolean } }; competitions: { competitors: EspnTeam[] }[] };
+
+/** ESPN's games as our clubs (English names matched like the odds), in the match bar's shape. */
+export function parseEspn(json: unknown, clubs: { name: string; slug: string }[]): LiScore[] {
+  const events = (json as { events?: EspnEvent[] })?.events;
+  if (!Array.isArray(events)) return [];
+  const slug = (name: string) => clubs.find((c) => sameClub(c.name, name))?.slug;
+  return events.flatMap((e) => {
+    const teams = e.competitions?.[0]?.competitors ?? [];
+    const home = teams.find((t) => t.homeAway === "home");
+    const away = teams.find((t) => t.homeAway === "away");
+    const hs = home && slug(home.team.displayName);
+    const as = away && slug(away.team.displayName);
+    if (!hs || !as || hs === as) return [];
+    const started = e.status?.type?.state !== "pre";
+    const score = [Number(home.score), Number(away.score)] as [number, number];
+    return [{
+      home: hs,
+      away: as,
+      ...(started && score.every(Number.isFinite) ? { score } : {}),
+      finished: !!e.status?.type?.completed,
+    }];
+  });
+}
+
+/** LigaInsider's games, plus ESPN's for any game LigaInsider doesn't list. */
+export function mergeScores(li: LiScore[], espn: LiScore[]): LiScore[] {
+  return [...li, ...espn.filter((g) => !li.some((x) => x.home === g.home && x.away === g.away))];
 }
