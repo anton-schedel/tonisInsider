@@ -10,6 +10,7 @@ import { parseNewsList } from "./parse/newsList.ts";
 import { NON_PLAYER_SLUGS, parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
+import { fillOpponents } from "./opponents.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
 import { bannerKey, ensureImage } from "./images.ts";
 
@@ -194,6 +195,11 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
         // The same match keeps its kickoff even if a later read can't tell it (the order of the matchday's
         // games, and the live score, hang on it).
         const before = store.getLineup(club.slug);
+        // A page that lost the match (LigaInsider glitch around kickoff) keeps the opponent of this matchday.
+        if (!lineup.opponent && before?.opponent && (lineup.matchday === undefined || before.matchday === lineup.matchday)) {
+          lineup.opponent = before.opponent;
+          lineup.matchday ??= before.matchday;
+        }
         if (!lineup.kickoff && before?.kickoff && before.matchday === lineup.matchday && before.opponent?.name === lineup.opponent?.name) {
           lineup.kickoff = before.kickoff;
         }
@@ -212,6 +218,11 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       } catch (err) {
         result.problems.push(`lineup ${club.slug}: ${(err as Error).message}`);
       }
+    }
+    // Still without an opponent: the other side's page names it.
+    for (const l of fillOpponents(store.lineups())) {
+      store.putLineup(l);
+      result.changed = true;
     }
     state.lineupsFetchedAt = now.toISOString();
     result.lineupsChecked = true;
