@@ -1,8 +1,9 @@
 import type { Article, Lineup } from "../../scraper/types.ts";
 
-/** A confirmed lineup post ("Aufstellung von Borussia Dortmund"): its XI and bench as text, shown right in the feed. */
+/** A confirmed lineup post ("Aufstellung von Borussia Dortmund", "… des FC Bayern München"): its XI and bench as text, shown right in the feed. */
 export function confirmedLineup(a: Pick<Article, "url" | "bodyHtml">): { xi: string; bench?: string } | undefined {
-  if (!/\/aufstellung-vo[mn]-/.test(a.url)) return undefined;
+  // The club's article varies: "von Bayer 04", "vom VfB", "des FC Bayern", "der SV Elversberg".
+  if (!/\/aufstellung-(?:von|vom|des|der)-/.test(a.url)) return undefined;
   const text = a.bodyHtml
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")

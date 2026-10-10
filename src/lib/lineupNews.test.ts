@@ -7,6 +7,11 @@ describe("confirmedLineup", () => {
   it("reads XI and bench from a lineup post", () => {
     expect(confirmedLineup({ url, bodyHtml })).toEqual({ xi: "Kobel – Gadou, Anton – Guirassy", bench: "Meyer – Reggiani, Inácio" });
   });
+  it("reads posts whatever the club's article (des, der, vom)", () => {
+    for (const slug of ["fc-bayern-muenchen/1/aufstellung-des-fc-bayern-muenchen-418943", "sv-07-elversberg/1331/aufstellung-der-sv-07-elversberg-418940", "vfb-stuttgart/12/aufstellung-vom-vfb-stuttgart-418941"]) {
+      expect(confirmedLineup({ url: `https://www.ligainsider.de/${slug}/`, bodyHtml })?.xi).toBe("Kobel – Gadou, Anton – Guirassy");
+    }
+  });
   it("ignores other articles", () => {
     expect(confirmedLineup({ url: "https://www.ligainsider.de/gregor-kobel_9357/kobel-418778/", bodyHtml })).toBeUndefined();
   });
