@@ -1,15 +1,9 @@
 ---
 import type { NewsType } from "../../scraper/types.ts";
+import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
 interface Props { type: NewsType }
-const STYLES: Record<NewsType, { label: string; tone: "red" | "yellow" | "green" } | undefined> = {
-  verletzung: { label: "Verletzung", tone: "red" },
-  angeschlagen: { label: "Angeschlagen", tone: "yellow" },
-  aufbautraining: { label: "Aufbautraining", tone: "green" },
-  fit: { label: "Fit", tone: "green" },
-  sonstiges: undefined,
-};
-const style = STYLES[Astro.props.type];
+const style = NEWS_TYPE[Astro.props.type];
 ---
 {style && (
   <span

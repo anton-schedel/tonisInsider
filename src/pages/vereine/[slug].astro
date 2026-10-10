@@ -6,6 +6,7 @@ import ArticleRow from "../../components/ArticleRow.astro";
 import PlayerCard from "../../components/PlayerCard.astro";
 import { articles, clubArticles, lineups, odds, scorers } from "../../lib/data.ts";
 import { confirmedClubs } from "../../lib/lineupNews.ts";
+import { newsByPlayer } from "../../lib/card.ts";
 import { matchInsights } from "../../lib/scorers.ts";
 import { chancesFor } from "../../lib/odds.ts";
 import { toFixtures } from "../../lib/fixtures.ts";
@@ -26,6 +27,7 @@ const cleanSheet = insights && (fixture?.home === lineup ? insights.cleanSheet.h
 const chances = fixture ? chancesFor(fixture, odds()) : undefined;
 const win = chances && (fixture?.home === lineup ? chances.home : chances.away);
 const confirmed = confirmedClubs(articles(), [lineup]).has(lineup.club.id);
+const playerNews = newsByPlayer(articles());
 ---
 <Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
   {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chances} />}
@@ -35,7 +37,7 @@ const confirmed = confirmedClubs(articles(), [lineup]).has(lineup.club.id);
       <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
       <span class="text-[15px] font-semibold text-muted tabular-nums">{lineup.formation}</span>
     </div>
-    <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} confirmed={confirmed} />
+    <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} confirmed={confirmed} news={playerNews} />
   </section>
 
   <section class="mt-7">

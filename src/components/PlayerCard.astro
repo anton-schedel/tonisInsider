@@ -33,6 +33,11 @@
       </div>
       <p data-f="match" class="mt-3 text-[14px] text-muted"></p>
       <div data-f="stats" class="fut-stats"></div>
+      {/* His latest news: tapping one opens the article (the card closes on the way). */}
+      <div data-f="news" class="fut-news" hidden>
+        <p class="fut-news-label">News</p>
+        <div data-f="newsList" class="divide-y divide-hairline"></div>
+      </div>
     </div>
 
     <div class="mt-5 flex gap-2">
@@ -43,8 +48,34 @@
 </dialog>
 
 <script>
-  import type { CardData } from "../lib/card.ts";
-  import { initials } from "../lib/format.ts";
+  import type { CardData, CardNews } from "../lib/card.ts";
+  import { ago, initials, kickoffDay } from "../lib/format.ts";
+  import { NEWS_TYPE } from "../lib/newsTypes.ts";
+
+  /** "vor 3 Std." within a day, else the day ("Mi. 07.10."). */
+  const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
+
+  function newsRow(n: CardNews, now: Date): HTMLElement {
+    const row = document.createElement("a");
+    row.href = `/artikel/${n.id}/`;
+    row.className = "press-row fut-news-item";
+    const title = document.createElement("span");
+    title.className = "fut-news-title";
+    title.textContent = n.title;
+    const meta = document.createElement("span");
+    meta.className = "fut-news-meta";
+    const type = NEWS_TYPE[n.type];
+    if (type) {
+      const pill = document.createElement("span");
+      pill.className = "fut-news-type";
+      pill.style.cssText = `background:var(--${type.tone}-bg);color:var(--${type.tone}-fg)`;
+      pill.textContent = type.label;
+      meta.append(pill);
+    }
+    meta.append(when(n.at, now));
+    row.append(title, meta);
+    return row;
+  }
 
   const STATS = [
     { key: "goal", label: "Tor" },
@@ -59,10 +90,15 @@
     const f = (name: string) => dialog.querySelector<HTMLElement>(`[data-f="${name}"]`)!;
     f("name").textContent = d.name;
     f("initials").textContent = initials(d.name);
-    // Without assist odds the goal chance stands in.
-    const rating = d.scorer ?? d.goal;
+    // The big number: the scorer chance; without assist odds the goal chance; for goalkeepers (no goal odds)
+    // the clean sheet. Whichever it is isn't repeated in the row below.
+    const hero = d.scorer !== undefined ? { key: "scorer", label: "Scorer" }
+      : d.goal !== undefined ? { key: "goal", label: "Tor" }
+      : d.cleanSheet !== undefined ? { key: "cleanSheet", label: "Zu Null" }
+      : undefined;
+    const rating = hero ? d[hero.key as "scorer" | "goal" | "cleanSheet"] : undefined;
     f("rating").textContent = rating !== undefined ? `${rating}%` : "–";
-    f("caption").textContent = d.scorer === undefined && d.goal !== undefined ? "Tor" : "Scorer";
+    f("caption").textContent = hero?.label ?? "Scorer";
     f("pos").textContent = d.pos ?? "";
     f("match").textContent = d.match ?? "";
     f("match").hidden = !d.match;
@@ -85,8 +121,8 @@
       : `background:var(--${d.tone}-bg);color:var(--${d.tone}-fg)`;
 
     // A row of stats like on a FIFA card: value, then the label.
-    // Only stats with a value; the goal chance standing in as the big number isn't repeated.
-    const shown = STATS.filter((s) => d[s.key] !== undefined && !(s.key === "goal" && d.scorer === undefined));
+    // Only stats with a value, and not the one already shown big.
+    const shown = STATS.filter((s) => d[s.key] !== undefined && s.key !== hero?.key);
     f("stats").replaceChildren(...shown.map((s) => {
       const v = d[s.key];
       const el = document.createElement("span");
@@ -98,6 +134,11 @@
       return el;
     }));
     f("stats").hidden = shown.length === 0;
+
+    const news = d.news ?? [];
+    const now = new Date();
+    f("newsList").replaceChildren(...news.map((n) => newsRow(n, now)));
+    f("news").hidden = news.length === 0;
 
     const link = f("href") as HTMLAnchorElement;
     link.hidden = !d.href;

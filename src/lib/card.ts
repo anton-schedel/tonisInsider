@@ -1,4 +1,4 @@
-import type { Lineup } from "../../scraper/types.ts";
+import type { Article, Lineup, NewsType } from "../../scraper/types.ts";
 import type { PlayerInsight } from "./scorers.ts";
 import { kickoffDay, time } from "./format.ts";
 import type { StartStatus } from "./match.ts";
@@ -21,7 +21,25 @@ export type CardData = PlayerInsight & {
   pos?: string;
   /** Club page link (Mein Team only; on the club page the player is already there). */
   href?: string;
+  /** His latest news, newest first. */
+  news?: CardNews[];
 };
+export type CardNews = { id: number; title: string; type: NewsType; at: string };
+
+/** How many of a player's articles the card lists. */
+export const CARD_NEWS = 3;
+
+/** A player's latest articles for the card, by LigaInsider player id (articles newest first). */
+export function newsByPlayer(articles: Pick<Article, "id" | "headline" | "newsType" | "publishedAt" | "player">[]) {
+  const by = new Map<number, CardNews[]>();
+  for (const a of articles) {
+    if (!a.player) continue;
+    const list = by.get(a.player.id) ?? [];
+    if (list.length < CARD_NEWS) list.push({ id: a.id, title: a.headline, type: a.newsType, at: a.publishedAt });
+    by.set(a.player.id, list);
+  }
+  return (playerId: number | undefined) => (playerId === undefined ? undefined : by.get(playerId));
+}
 
 /** The club's next match, seen from that club. */
 export function matchLine(l: Lineup | undefined): string | undefined {

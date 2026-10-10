@@ -10,7 +10,7 @@ import { mapClubs, matchSquad, pitchLines, squadNews, type MyPlayer } from "../l
 import { toFixtures } from "../lib/fixtures.ts";
 import { chancesFor } from "../lib/odds.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
-import { cardAttr, matchLine, POSITIONS, startLabel } from "../lib/card.ts";
+import { cardAttr, matchLine, newsByPlayer, POSITIONS, startLabel, type CardNews } from "../lib/card.ts";
 import { confirmedClubs } from "../lib/lineupNews.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Article } from "../../scraper/types.ts";
@@ -39,7 +39,7 @@ async function load(token: string) {
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
   const league = leagues.find((l) => l.id === wanted) ?? leagues[0];
-  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, news: [] as Article[], outlook: new Map<string, PlayerOutlook>() };
+  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, news: [] as Article[], outlook: new Map<string, PlayerOutlook>(), cardNews: new Map<string, CardNews[]>() };
   // Only an explicit choice is remembered (not prefetches or defaults).
   if (picked && league.id === picked) {
     Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
@@ -96,11 +96,17 @@ async function load(token: string) {
       win: chances && (fixture.home === p.lineup ? chances.home : chances.away),
     });
   }
-  return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), outlook };
+  const byNewest = [...(snapshot?.articles ?? [])].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  const playerNews = newsByPlayer(byNewest);
+  const cardNews = new Map(players.flatMap((p) => {
+    const list = playerNews(p.ligainsider?.id);
+    return list ? [[p.kickbase.id, list] as const] : [];
+  }));
+  return { leagues, league, players, starterCount: starters.length, news: squadNews(players, snapshot?.articles ?? []), outlook, cardNews };
 }
 
 let error: string | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, news: [], outlook: new Map() };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, news: [], outlook: new Map(), cardNews: new Map() };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -123,7 +129,7 @@ try {
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
-const { leagues, league, players, starterCount, news, outlook } = data;
+const { leagues, league, players, starterCount, news, outlook, cardNews } = data;
 // Player card per Kickbase id: status, next match and the odds-based outlook.
 const cards = new Map(players.map((p) => {
   const start = startLabel(p.status, p.statusLabel, p.rival);
@@ -137,6 +143,7 @@ const cards = new Map(players.map((p) => {
     tone: start.tone,
     href: p.club ? `/vereine/${p.club.slug}/` : undefined,
     ...outlook.get(p.kickbase.id),
+    news: cardNews.get(p.kickbase.id),
   })] as const;
 }));
 // matchSquad keeps the order: the first starterCount players are the XI.

@@ -4,7 +4,7 @@ import type { PlayerInsight } from "../lib/scorers.ts";
 import Avatar from "./Avatar.astro";
 import PitchField from "./PitchField.astro";
 import { AVATAR, slotStyle } from "../lib/pitch.ts";
-import { cardAttr, matchLine, rowPosition, type CardData } from "../lib/card.ts";
+import { cardAttr, matchLine, rowPosition, type CardData, type CardNews } from "../lib/card.ts";
 
 interface Props {
   lineup: Lineup;
@@ -16,12 +16,14 @@ interface Props {
   win?: number;
   /** LigaInsider confirmed this XI (shortly before kickoff). */
   confirmed?: boolean;
+  /** A player's latest news for the card, by LigaInsider player id. */
+  news?: (playerId: number) => CardNews[] | undefined;
 }
-const { lineup, insight = () => ({}), cleanSheet, win, confirmed = false } = Astro.props;
+const { lineup, insight = () => ({}), cleanSheet, win, confirmed = false, news = () => undefined } = Astro.props;
 const rows = lineup.lines.length;
 const match = matchLine(lineup);
 const card = (p: Ref & { photo?: string }, pos: string, status: string, tone: CardData["tone"]) =>
-  cardAttr({ name: p.name, photo: p.photo, crest: lineup.club.crest, pos, match, status, tone, ...insight(p), cleanSheet, win });
+  cardAttr({ name: p.name, photo: p.photo, crest: lineup.club.crest, pos, match, status, tone, ...insight(p), cleanSheet, win, news: news(p.id) });
 const mainStatus = (p: LineupPlayer, pos: string) =>
   confirmed
     ? card(p, pos, "S11", "green")
