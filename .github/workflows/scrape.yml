@@ -75,6 +75,10 @@ jobs:
       - name: Build
         if: steps.scrape.outputs.changed == 'true' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
         run: npm run build
+        # Public by design (it ends up in the page); repo variables so the build can inline them.
+        env:
+          PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.PUBLIC_POSTHOG_PROJECT_TOKEN }}
+          PUBLIC_POSTHOG_HOST: ${{ vars.PUBLIC_POSTHOG_HOST }}
 
       # The site is a Cloudflare Worker (Astro adapter): static pages as assets, /mein-team/ and /api/*
       # rendered on request. The name comes from a repo variable so the URL never appears in this repo.

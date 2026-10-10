@@ -8,6 +8,8 @@ export const TOKEN_COOKIE = "kb";
 export const LOGGED_IN_COOKIE = "kbin";
 /** Readable Kickbase display name for the settings page. Contains no secret. */
 export const KB_NAME_COOKIE = "kbn";
+/** Stable Kickbase account id used to identify analytics in the browser. */
+export const KB_USER_ID_COOKIE = "kbuid";
 /** Last chosen league id. */
 export const LEAGUE_COOKIE = "kbleague";
 /** Encrypted Kickbase email + password (AES-GCM, key only on the Worker) for automatic re-login. */
@@ -43,11 +45,13 @@ export function parseExpiry(tknex: string | undefined, now = Date.now()): Date {
   return Number.isNaN(d.getTime()) ? new Date(now + 86_400_000) : d;
 }
 
-export function setSession(cookies: CookieJar, token: string, expires: Date, name = ""): void {
+export function setSession(cookies: CookieJar, token: string, expires: Date, name = "", userId = ""): void {
   cookies.set(TOKEN_COOKIE, token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", expires });
   cookies.set(LOGGED_IN_COOKIE, "1", { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
   // Astro URL-encodes cookie values itself.
   if (name.trim()) cookies.set(KB_NAME_COOKIE, name.trim(), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+  if (userId.trim()) cookies.set(KB_USER_ID_COOKIE, userId.trim(), { httpOnly: false, secure: true, sameSite: "lax", path: "/", maxAge: LONG });
+  else cookies.delete(KB_USER_ID_COOKIE, { path: "/" });
 }
 
 /** Stores the credentials encrypted in the user's own browser — only if the Worker has a key. */
@@ -78,7 +82,7 @@ export async function relogin(
   }
   try {
     const session = await login(creds.e, creds.p);
-    setSession(cookies, session.token, parseExpiry(session.expires), session.name);
+    setSession(cookies, session.token, parseExpiry(session.expires), session.name, session.userId);
     return session.token;
   } catch (err) {
     if (err instanceof KickbaseAuthError) {
@@ -90,7 +94,7 @@ export async function relogin(
 }
 
 export function clearSession(cookies: CookieJar): void {
-  for (const name of [TOKEN_COOKIE, LOGGED_IN_COOKIE, KB_NAME_COOKIE, LEAGUE_COOKIE, CREDENTIALS_COOKIE]) cookies.delete(name, { path: "/" });
+  for (const name of [TOKEN_COOKIE, LOGGED_IN_COOKIE, KB_NAME_COOKIE, KB_USER_ID_COOKIE, LEAGUE_COOKIE, CREDENTIALS_COOKIE]) cookies.delete(name, { path: "/" });
 }
 
 const liCookies = [LI_SESSION_COOKIE, LI_CREDENTIALS_COOKIE, LI_LOGGED_IN_COOKIE, LI_NAME_COOKIE];

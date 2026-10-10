@@ -3,6 +3,7 @@ import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
 import { articles, lastUpdate, lineups } from "../lib/data.ts";
 import { fullDate } from "../lib/format.ts";
+import PostHog from "../components/posthog.astro";
 
 interface Props {
   title: string;
@@ -39,6 +40,24 @@ const tabs = [
     <title>TonInsider</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <PostHog />
+    <script is:inline>
+      // The Kickbase account id is a stable identifier, unlike a display name or email. Checked on every page
+      // (the login form lands on Mein Team without a full reload, and head scripts only run on the first one).
+      if (!window.__posthogIdentify) {
+        window.__posthogIdentify = () => {
+          const encoded = document.cookie.split("; ").find((c) => c.startsWith("kbuid="))?.slice("kbuid=".length);
+          if (!encoded) return;
+          let id = encoded;
+          try { id = decodeURIComponent(encoded); } catch {}
+          if (id && window.__posthogIdentifiedId !== id) {
+            window.posthog?.identify(id);
+            window.__posthogIdentifiedId = id;
+          }
+        };
+        document.addEventListener("astro:page-load", window.__posthogIdentify);
+      }
+    </script>
     <script is:inline>
       // Runs on first load and again after every client-side navigation (which swaps <html> attributes).
       if (!window.__themeInit) {
@@ -299,6 +318,25 @@ const tabs = [
           if (btn?.classList.contains("is-busy")) { e.preventDefault(); return; }
           btn?.classList.add("is-busy");
           btn?.setAttribute("aria-busy", "true");
+          const action = new URL(form.action).pathname;
+          if (action === "/api/login/") {
+            const setAnalyticsContext = (name, value) => {
+              if (!value) return;
+              const input = document.createElement("input");
+              input.type = "hidden";
+              input.name = name;
+              input.value = value;
+              form.append(input);
+            };
+            setAnalyticsContext("posthog_distinct_id", window.posthog?.get_distinct_id?.());
+            setAnalyticsContext("posthog_session_id", window.posthog?.get_session_id?.());
+          } else if (action === "/api/logout/") {
+            window.posthog?.capture("kickbase_logged_out");
+            window.posthog?.reset();
+            delete window.__posthogIdentifiedId;
+          } else if (action === "/api/li-logout/") {
+            window.posthog?.capture("ligainsider_logged_out");
+          }
         });
         // Back to a page from the browser cache: the buttons work again.
         addEventListener("pageshow", (e) => {

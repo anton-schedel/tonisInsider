@@ -202,6 +202,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) throw new Error(data.error || "Konnte nicht gesendet werden.");
+    window.posthog?.capture("ligainsider_interaction_completed", { action_kind: String(payload.kind) });
   }
 
   // Short message above the tab bar, so it's seen wherever on the page the tap was.
