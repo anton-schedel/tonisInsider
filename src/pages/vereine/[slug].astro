@@ -20,7 +20,10 @@ export function getStaticPaths() {
   }));
 }
 const { lineup, fixture } = Astro.props as { lineup: Lineup; fixture?: ReturnType<typeof toFixtures>[number] };
-const news = clubArticles(lineup.club.id);
+// News about players on the pitch (starters and alternatives) are in their cards; the list below keeps the
+// club's own news and those about everyone else.
+const onPitch = new Set(lineup.lines.flat().flatMap((p) => [p.id, ...(p.alternative ? [p.alternative.id] : [])]));
+const news = clubArticles(lineup.club.id).filter((a) => !a.player || !onPitch.has(a.player.id));
 // Odds-based outlook per player for the player card: goal, scorer (goal or assist), card, and the team's clean sheet.
 const insights = fixture ? matchInsights(fixture, odds(), scorers()) : undefined;
 const cleanSheet = insights && (fixture?.home === lineup ? insights.cleanSheet.home : insights.cleanSheet.away);
@@ -45,7 +48,7 @@ const playerNews = newsByPlayer(articles());
       <h2 class="text-[22px] font-bold tracking-[-0.02em]">News</h2>
       {news.length > 0 && <span class="text-[15px] font-semibold text-muted tabular-nums">{news.length}</span>}
     </div>
-    {news.length === 0 && <p class="py-4 text-sm text-muted">Keine aktuellen News zu diesem Team.</p>}
+    {news.length === 0 && <p class="py-4 text-sm text-muted">Keine weiteren News. Die zu den Spielern oben stehen in ihrer Karte.</p>}
     <div class="divide-y divide-hairline">
       {news.map((a, i) => <ArticleRow article={a} index={i} />)}
     </div>
