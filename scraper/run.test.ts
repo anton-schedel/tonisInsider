@@ -54,6 +54,23 @@ describe("run", () => {
     bookmakers: [{ key: "a", markets: [{ key: "h2h", outcomes: [{ name: "Borussia Dortmund", price: 1.6 }, { name: "Draw", price: 4.3 }, { name: "Werder Bremen", price: 5.2 }] }] }],
   }]);
 
+  it("keeps a match's kickoff when a later read of the club page can't tell it", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    const before = store.getLineup("borussia-dortmund");
+    expect(before?.kickoff).toBe("2026-10-09T18:30:00.000Z");
+    // Same match, but the date is gone from the page (e.g. a wording the parser doesn't know).
+    const { fetcher } = fakeFetcher();
+    const noDate: Fetcher = {
+      ...fetcher,
+      async text(url) {
+        const html = await fetcher.text(url);
+        return /\/borussia-dortmund\/\d+\/$/.test(url) ? html.replace(/\d{2}\.\d{2}\.\d{4}/g, "") : html;
+      },
+    };
+    await run({ store, fetcher: noDate, publicDir, now: new Date(NOW.getTime() + 60 * 60_000) });
+    expect(store.getLineup("borussia-dortmund")?.kickoff).toBe("2026-10-09T18:30:00.000Z");
+  });
+
   it("fetches odds when a key is set and stores the chances", async () => {
     const { fetcher, calls } = fakeFetcher({ [oddsUrl("SECRET")]: ODDS });
     const r = await run({ store, fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });

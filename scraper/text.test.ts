@@ -31,6 +31,9 @@ describe("text helpers", () => {
     expect(parseGermanDateTime("Heimspiel Morgen 20:30 gegen", now)).toBe("2026-10-09T18:30:00.000Z");
     expect(parseGermanDateTime("Auswärtsspiel Heute 18:30 bei", now)).toBe("2026-10-08T16:30:00.000Z");
     expect(parseGermanDateTime("Heimspiel Übermorgen 15:30 gegen", now)).toBe("2026-10-10T13:30:00.000Z");
+    // After the match the club page shows when it was played.
+    expect(parseGermanDateTime("Gestern 20:30", now)).toBe("2026-10-07T18:30:00.000Z");
+    expect(parseGermanDateTime("Vorgestern 15:30", now)).toBe("2026-10-06T13:30:00.000Z");
     // Just after midnight in Berlin it's already the next day there.
     expect(parseGermanDateTime("Heute 15:30", new Date("2026-10-08T22:30:00Z"))).toBe("2026-10-09T13:30:00.000Z");
     // Without a reference time a relative date can't be resolved.

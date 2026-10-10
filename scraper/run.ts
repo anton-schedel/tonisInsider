@@ -191,6 +191,12 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
           result.problems.push(`lineup ${club.slug}: ${problems.join(", ")}`);
           continue;
         }
+        // The same match keeps its kickoff even if a later read can't tell it (the order of the matchday's
+        // games, and the live score, hang on it).
+        const before = store.getLineup(club.slug);
+        if (!lineup.kickoff && before?.kickoff && before.matchday === lineup.matchday && before.opponent?.name === lineup.opponent?.name) {
+          lineup.kickoff = before.kickoff;
+        }
         lineup.club.crest = await ensureImage(fetcher, publicDir, "clubs", club.id, mediumCrest(club.crestUrl));
         for (const p of lineup.lines.flat()) {
           p.photo = await ensureImage(fetcher, publicDir, "players", p.id, p.photoUrl);

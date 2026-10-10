@@ -56,10 +56,11 @@ export function parseGermanDateTime(text: string, now?: Date): string | undefine
     const [, d, mo, y, h, mi] = m.map(Number);
     return berlinToIso(y, mo, d, h, mi);
   }
-  // Close matches are written relative to today: "Heimspiel Morgen 20:30 gegen …".
-  const rel = now && text.match(/(Übermorgen|Morgen|Heute)\D{1,10}?(\d{2}):(\d{2})/i);
+  // Close matches are written relative to today: "Heimspiel Morgen 20:30 gegen …", after the match "Gestern 20:30".
+  const rel = now && text.match(/(Vorgestern|Gestern|Übermorgen|Morgen|Heute)\D{1,10}?(\d{2}):(\d{2})/i);
   if (!rel || !now) return undefined;
-  const days = { heute: 0, morgen: 1, übermorgen: 2 }[rel[1].toLowerCase() as "heute" | "morgen" | "übermorgen"];
+  const offsets = { vorgestern: -2, gestern: -1, heute: 0, morgen: 1, übermorgen: 2 } as const;
+  const days = offsets[rel[1].toLowerCase() as keyof typeof offsets];
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
   return berlinToIso(get("year"), get("month"), get("day") + days, Number(rel[2]), Number(rel[3]));
