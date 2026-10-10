@@ -1,3 +1,4 @@
+/// <reference types="astro/client" />
 import { PostHog } from "posthog-node";
 
 let posthogClient: PostHog | undefined;
