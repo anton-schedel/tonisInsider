@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillOpponents } from "./opponents.ts";
+import { fillFromSchedule, fillOpponents } from "./opponents.ts";
 import type { Lineup } from "./types.ts";
 
 const lineup = (name: string, opponent?: Lineup["opponent"], kickoff?: string): Lineup => ({
@@ -23,5 +23,20 @@ describe("fillOpponents", () => {
     const hsv = lineup("HSV");
     expect(fillOpponents([hsv, lineup("TSG")])).toEqual([]);
     expect(hsv.opponent).toBeUndefined();
+  });
+});
+
+describe("fillFromSchedule", () => {
+  it("takes the opponent and kickoff from the schedule when no page names them", () => {
+    const scp = lineup("Paderborn");
+    const vfb = lineup("Stuttgart");
+    const games = [{ home: "Paderborn", away: "Stuttgart", kickoff: "2026-10-10T13:30:00.000Z" }];
+    expect(fillFromSchedule([scp, vfb], games)).toEqual([scp, vfb]);
+    expect(scp).toMatchObject({ opponent: { name: "Stuttgart", home: true }, kickoff: games[0].kickoff });
+    expect(vfb).toMatchObject({ opponent: { name: "Paderborn", home: false } });
+  });
+  it("keeps what a page already said", () => {
+    const mainz = lineup("Mainz", { name: "Leverkusen", home: true });
+    expect(fillFromSchedule([mainz], [{ home: "Mainz", away: "Köln", kickoff: "x" }])).toEqual([]);
   });
 });

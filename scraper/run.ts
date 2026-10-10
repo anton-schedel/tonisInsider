@@ -10,7 +10,8 @@ import { parseNewsList } from "./parse/newsList.ts";
 import { NON_PLAYER_SLUGS, parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
-import { fillOpponents } from "./opponents.ts";
+import { fillFromSchedule, fillOpponents } from "./opponents.ts";
+import { LIVE_URL, parseLive } from "../src/lib/live.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
 import { bannerKey, ensureImage } from "./images.ts";
 
@@ -219,8 +220,17 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
         result.problems.push(`lineup ${club.slug}: ${(err as Error).message}`);
       }
     }
-    // Still without an opponent: the other side's page names it.
-    for (const l of fillOpponents(store.lineups())) {
+    // Still without an opponent: the other side's page names it, else the matchday's schedule from OpenLigaDB.
+    const all = store.lineups();
+    const filled = fillOpponents(all);
+    if (all.some((l) => !l.opponent)) {
+      try {
+        filled.push(...fillFromSchedule(all, parseLive(JSON.parse(await fetcher.text(LIVE_URL)))));
+      } catch (err) {
+        console.warn(`schedule unavailable: ${(err as Error).message}`);
+      }
+    }
+    for (const l of filled) {
       store.putLineup(l);
       result.changed = true;
     }

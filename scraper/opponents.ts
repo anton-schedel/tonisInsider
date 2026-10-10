@@ -18,3 +18,23 @@ export function fillOpponents(lineups: Lineup[]): Lineup[] {
   }
   return filled;
 }
+
+export type ScheduledGame = { home: string; away: string; kickoff: string };
+
+/**
+ * The last resort when neither side's page names the match (both pages down): the matchday's schedule from
+ * another source (OpenLigaDB, which uses LigaInsider's club names). Returns the lineups that were filled in.
+ */
+export function fillFromSchedule(lineups: Lineup[], games: ScheduledGame[]): Lineup[] {
+  const filled: Lineup[] = [];
+  for (const l of lineups) {
+    if (l.opponent?.name) continue;
+    const g = games.find((x) => x.home === l.club.name || x.away === l.club.name);
+    if (!g) continue;
+    const home = g.home === l.club.name;
+    l.opponent = { name: home ? g.away : g.home, home };
+    l.kickoff ??= g.kickoff;
+    filled.push(l);
+  }
+  return filled;
+}
