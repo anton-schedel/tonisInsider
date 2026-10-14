@@ -61,6 +61,19 @@ const lineup = confirmedLineup(a);
   document.addEventListener("astro:page-load", async () => {
     const badges = document.querySelectorAll<HTMLElement>("[data-comment-count]");
     if (!badges.length) return;
+    // Our own posts: their count comes from our own comments.
+    for (const b of badges) {
+      const id = Number(b.dataset.commentCount);
+      if (id < 900_000_000) continue;
+      fetch(`/api/own-comments/${id}/`)
+        .then((r) => (r.ok ? (r.json() as Promise<{ total: number }>) : undefined))
+        .then((d) => {
+          if (!d) return;
+          b.querySelector("[data-n]")!.textContent = String(d.total);
+          b.classList.toggle("hidden", d.total === 0);
+        })
+        .catch(() => {});
+    }
     try {
       const res = await fetch("/api/comment-counts/");
       if (!res.ok) return;

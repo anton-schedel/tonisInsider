@@ -4,6 +4,7 @@ import Avatar from "../../components/Avatar.astro";
 import Crest from "../../components/Crest.astro";
 import StatusPill from "../../components/StatusPill.astro";
 import Comments from "../../components/Comments.astro";
+import OwnComments from "../../components/OwnComments.astro";
 import RatingsPitch from "../../components/RatingsPitch.astro";
 import { articles } from "../../lib/data.ts";
 import { fullDate } from "../../lib/format.ts";
@@ -51,5 +52,5 @@ const clubLineupHref = a.club && !a.own ? `/vereine/${a.club.slug}/` : undefined
       class="press mt-6 inline-flex rounded-full bg-surface px-4 py-2 text-sm font-medium"
     >Original auf ligainsider.de ↗</a>}
   </article>
-  {!a.own && <Comments articleId={a.id} url={a.url} />}
+  {a.own ? <OwnComments postId={a.id} /> : <Comments articleId={a.id} url={a.url} />}
 </Base>

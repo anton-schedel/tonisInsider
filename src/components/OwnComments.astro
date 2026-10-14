@@ -1,0 +1,196 @@
+---
+/**
+ * Comments on our own posts (content/posts/), from our own database via /api/own-comments/<id>/. No login:
+ * everyone writes under a name of their choice (remembered in this browser). LigaInsider's articles use
+ * Comments.astro instead.
+ */
+import { NAME_MAX, TEXT_MAX } from "../lib/ownComments.ts";
+
+interface Props { postId: number }
+const { postId } = Astro.props;
+const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
+---
+<section class="mt-10" data-own-comments={postId}>
+  <h2 class="mb-4 flex items-baseline gap-2 text-[20px] font-bold tracking-[-0.02em]">
+    Kommentare <span class="text-[15px] font-semibold text-muted" data-own-count></span>
+  </h2>
+
+  <form data-own-form class="mb-6 flex flex-col gap-2">
+    <input data-own-name maxlength={NAME_MAX} placeholder="Dein Name" autocomplete="nickname" class={field} />
+    <textarea data-own-text rows="3" maxlength={TEXT_MAX} placeholder="Was sagst du dazu?" class={field}></textarea>
+    <div class="flex items-center gap-3">
+      <p data-own-error class="min-w-0 flex-1 text-sm" style="color:var(--red-fg)"></p>
+      <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
+    </div>
+  </form>
+
+  <div data-own-skeleton role="status" aria-label="Kommentare werden geladen">
+    {[0.9, 0.6, 0.75].map((w) => (
+      <div class="flex gap-2.5 py-3.5">
+        <span class="skeleton size-8 shrink-0 rounded-full"></span>
+        <span class="flex-1">
+          <span class="skeleton block h-3 w-24 rounded-full"></span>
+          <span class="skeleton mt-2.5 block h-3 rounded-full" style={`width:${w * 100}%`}></span>
+        </span>
+      </div>
+    ))}
+  </div>
+  <p data-own-status class="hidden text-sm text-muted"></p>
+  <ul class="flex flex-col" data-own-list></ul>
+</section>
+
+<script>
+  import type { OwnComment } from "../lib/ownComments.ts";
+  import { NAME_MAX, TEXT_MAX } from "../lib/ownComments.ts";
+  import { ago, initials } from "../lib/format.ts";
+
+  const NAME_KEY = "commentName";
+  const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
+
+  // Builds DOM with textContent only: comment text is untrusted and never parsed as HTML.
+  function h(tag: string, cls = "", text?: string) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  const savedName = () => { try { return localStorage.getItem(NAME_KEY) ?? ""; } catch { return ""; } };
+  const saveName = (n: string) => { try { localStorage.setItem(NAME_KEY, n); } catch {} };
+
+  function renderComment(c: OwnComment, now: Date, reply = false, pending = false): HTMLElement {
+    const li = h("li", reply ? "comment comment-reply" : "comment");
+    if (pending) li.classList.add("is-pending");
+    const head = h("div", "flex items-center gap-2.5");
+    const size = reply ? "size-7 text-[10px]" : "size-8 text-[11px]";
+    head.append(
+      h("span", `flex ${size} shrink-0 items-center justify-center rounded-full bg-surface font-semibold text-muted`, initials(c.user) || "?"),
+      h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
+      h("span", "shrink-0 text-xs text-muted", pending ? "Wird gesendet …" : ago(c.date, now)),
+    );
+    li.append(head, h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
+    if (!reply && !pending) {
+      const btn = h("button", "press mt-1 text-xs font-medium text-muted", "Antworten");
+      (btn as HTMLButtonElement).type = "button";
+      btn.dataset.ownReply = String(c.id);
+      li.append(btn);
+    }
+    const ul = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
+    ul.dataset.ownReplies = String(c.id);
+    ul.hidden = c.replies.length === 0;
+    for (const r of c.replies) ul.append(renderComment(r, now, true));
+    li.append(ul);
+    return li;
+  }
+
+  function setCount(section: HTMLElement, n: number) {
+    section.dataset.n = String(n);
+    section.querySelector("[data-own-count]")!.textContent = n ? String(n) : "";
+  }
+
+  async function load(section: HTMLElement) {
+    const list = section.querySelector<HTMLElement>("[data-own-list]")!;
+    const status = section.querySelector<HTMLElement>("[data-own-status]")!;
+    try {
+      const res = await fetch(`/api/own-comments/${section.dataset.ownComments}/`);
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { total: number; comments: OwnComment[] };
+      const now = new Date();
+      list.replaceChildren(...data.comments.map((c) => renderComment(c, now)));
+      setCount(section, data.total);
+      status.classList.toggle("hidden", data.total > 0);
+      status.textContent = "Noch keine Kommentare. Schreib den ersten!";
+    } catch {
+      status.classList.remove("hidden");
+      status.textContent = "Kommentare konnten nicht geladen werden.";
+    } finally {
+      section.querySelector("[data-own-skeleton]")?.remove();
+    }
+  }
+
+  /** Sends a comment; shows it at once (faded) and replaces it with the saved one, or takes it back. */
+  async function send(section: HTMLElement, name: string, text: string, parent: number | undefined, target: HTMLElement, error: HTMLElement) {
+    const now = new Date();
+    const pending = renderComment({ id: 0, user: name, date: now.toISOString(), text, replies: [] }, now, !!parent, true);
+    if (parent) { target.hidden = false; target.append(pending); } else target.prepend(pending);
+    section.querySelector("[data-own-status]")?.classList.add("hidden");
+    try {
+      const res = await fetch(`/api/own-comments/${section.dataset.ownComments}/`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, text, parent }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; comment?: OwnComment };
+      if (!res.ok || !data.comment) throw new Error(data.error || "Konnte nicht gesendet werden.");
+      pending.replaceWith(renderComment(data.comment, new Date(), !!parent));
+      setCount(section, Number(section.dataset.n ?? 0) + 1);
+      return true;
+    } catch (err) {
+      pending.remove();
+      error.textContent = (err as Error).message;
+      return false;
+    }
+  }
+
+  function replyForm(section: HTMLElement, li: HTMLElement, parent: number) {
+    li.querySelector("[data-own-reply-form]")?.remove();
+    const form = h("form", "mt-2 flex flex-col gap-2") as HTMLFormElement;
+    form.dataset.ownReplyForm = "";
+    const name = h("input", field) as HTMLInputElement;
+    name.maxLength = NAME_MAX;
+    name.placeholder = "Dein Name";
+    name.value = savedName();
+    const text = h("textarea", field) as HTMLTextAreaElement;
+    text.rows = 2;
+    text.maxLength = TEXT_MAX;
+    text.placeholder = "Antworten …";
+    const row = h("div", "flex items-center gap-3");
+    const error = h("p", "min-w-0 flex-1 text-sm");
+    error.style.color = "var(--red-fg)";
+    const submit = h("button", "press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg", "Senden") as HTMLButtonElement;
+    submit.type = "submit";
+    row.append(error, submit);
+    form.append(name, text, row);
+    li.querySelector("[data-own-replies]")!.before(form);
+    (name.value ? text : name).focus();
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      error.textContent = "";
+      const n = name.value.trim();
+      const t = text.value.trim();
+      if (n.length < 2) return void (error.textContent = "Gib einen Namen ein.");
+      if (!t) return void (error.textContent = "Schreib etwas.");
+      saveName(n);
+      form.hidden = true;
+      if (await send(section, n, t, parent, li.querySelector<HTMLElement>("[data-own-replies]")!, error)) form.remove();
+      else form.hidden = false;
+    });
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    const section = document.querySelector<HTMLElement>("[data-own-comments]");
+    if (!section) return;
+    const form = section.querySelector<HTMLFormElement>("[data-own-form]")!;
+    const name = form.querySelector<HTMLInputElement>("[data-own-name]")!;
+    const text = form.querySelector<HTMLTextAreaElement>("[data-own-text]")!;
+    const error = form.querySelector<HTMLElement>("[data-own-error]")!;
+    name.value = savedName();
+    void load(section);
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      error.textContent = "";
+      const n = name.value.trim();
+      const t = text.value.trim();
+      if (n.length < 2) return void (error.textContent = "Gib einen Namen ein.");
+      if (!t) return void (error.textContent = "Schreib etwas.");
+      saveName(n);
+      text.value = "";
+      if (!(await send(section, n, t, undefined, section.querySelector<HTMLElement>("[data-own-list]")!, error))) text.value = t;
+    });
+    section.addEventListener("click", (e) => {
+      const btn = (e.target as Element).closest<HTMLElement>("[data-own-reply]");
+      if (btn) replyForm(section, btn.closest("li")!, Number(btn.dataset.ownReply));
+    });
+  });
+</script>

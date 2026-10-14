@@ -5,5 +5,17 @@ declare module "cloudflare:workers" {
     ASSETS: { fetch(input: Request | URL | string): Promise<Response> };
     /** 32 random bytes, base64. Encrypts the "stay logged in" cookie. Missing → weekly login instead. */
     CREDENTIALS_KEY?: string;
+    /** Comments on our own posts (D1, see migrations/). */
+    COMMENTS?: D1;
+  };
+  /** The part of Cloudflare's D1 API used here. */
+  export type D1 = {
+    prepare(sql: string): {
+      bind(...values: unknown[]): {
+        all<T>(): Promise<{ results: T[] }>;
+        first<T>(): Promise<T | null>;
+        run(): Promise<{ meta: { last_row_id: number } }>;
+      };
+    };
   };
 }

@@ -4,6 +4,10 @@
   "main": "./src/worker.ts",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./dist", "binding": "ASSETS" },
+  // Comments on our own posts (migrations/). Not secret: only this account can reach it.
+  "d1_databases": [
+    { "binding": "COMMENTS", "database_name": "tonisinsider-comments", "database_id": "b1c9699c-44aa-4592-8990-db27053ae88d" }
+  ],
   // Every 5 minutes: start the scrape workflow on GitHub (see src/worker.ts).
   "triggers": { "crons": ["*/5 * * * *"] }
 }
