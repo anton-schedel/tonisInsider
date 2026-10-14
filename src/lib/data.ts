@@ -4,9 +4,14 @@ import type { Article, Lineup, State } from "../../scraper/types.ts";
 import { dayKey } from "./format.ts";
 
 const STORE = join(process.cwd(), "store");
+/** Our own posts (e.g. our uni league club's lineup), written by hand: one Article JSON per file. */
+const POSTS = join(process.cwd(), "content", "posts");
 
 function readDir<T>(dir: string): T[] {
-  const path = join(STORE, dir);
+  return readJsonFiles<T>(join(STORE, dir));
+}
+
+function readJsonFiles<T>(path: string): T[] {
   if (!existsSync(path)) return [];
   return readdirSync(path)
     .filter((f) => f.endsWith(".json"))
@@ -19,7 +24,7 @@ function load() {
   if (!cache) {
     const statePath = join(STORE, "state.json");
     cache = {
-      articles: readDir<Article>("articles").sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
+      articles: [...readDir<Article>("articles"), ...readJsonFiles<Article>(POSTS)].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
       lineups: readDir<Lineup>("lineups").sort((a, b) => a.club.name.localeCompare(b.club.name, "de")),
       state: existsSync(statePath) ? (JSON.parse(readFileSync(statePath, "utf8")) as State) : {},
     };
@@ -57,9 +62,10 @@ export function scorers() {
 }
 
 /** Articles LigaInsider pins on top of its news list (e.g. the press-conference schedule), in its order. */
-export function pinnedArticles(): Article[] {
+export function pinnedArticles(now = new Date()): Article[] {
   const byId = new Map(articles().map((a) => [a.id, a]));
-  return (load().state.pinned ?? []).flatMap((id) => byId.get(id) ?? []);
+  const own = articles().filter((a) => a.pinnedUntil && Date.parse(a.pinnedUntil) > now.getTime());
+  return [...own, ...(load().state.pinned ?? []).flatMap((id) => byId.get(id) ?? [])];
 }
 
 export function lastUpdate(): string | undefined {

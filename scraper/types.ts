@@ -41,6 +41,10 @@ export type Article = {
   banner?: string | null;
   /** When LigaInsider's list last showed it as new (from "Vor 46 Min."); detects republishing. */
   listedAt?: string;
+  /** Our own post (content/posts/), not LigaInsider's: no comments there, no link to the original. */
+  own?: boolean;
+  /** Own posts: pinned on top of the news until then. */
+  pinnedUntil?: string;
   fetchedAt: string;
 };
 

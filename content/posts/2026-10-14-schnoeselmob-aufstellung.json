@@ -1,0 +1,16 @@
+{
+  "id": 900000001,
+  "url": "/tus-schnoeselmob/aufstellung-des-tus-schnoeselmob-900000001/",
+  "headline": "Aufstellung des TuS Schnöselmob",
+  "listHeadline": "Aufstellung des TuS Schnöselmob",
+  "category": "bundesliga",
+  "newsType": "sonstiges",
+  "club": { "id": 0, "slug": "tus-schnoeselmob", "name": "TuS Schnöselmob", "crest": "/brand/schnoeselmob.png" },
+  "source": { "name": "TonInsider" },
+  "publishedAt": "2026-10-14T20:40:00.000Z",
+  "pinnedUntil": "2026-10-14T21:40:00.000Z",
+  "bodyHtml": "<p><b>Startelf: </b>Coach – Dallwig, Chatfield, Torres, Ellenberger, Kowol, Nguyen<br>\n<b>Bank: </b>Enciu, Gerl, Paule, Schedel, Loibl, Leonhard</p>",
+  "banner": "/img/custom/schnoeselmob-banner.jpg",
+  "own": true,
+  "fetchedAt": "2026-10-14T20:40:00.000Z"
+}

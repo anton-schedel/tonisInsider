@@ -13,13 +13,17 @@ interface Props {
   index?: number;
   /** Show the date too (outside the day-grouped feed, e.g. pinned articles). */
   withDay?: boolean;
+  /** Pinned for a while: removed from the top once this time has passed (script in NewsFeed). */
+  pinnedUntil?: string;
+  /** The same post in the feed: hidden until its pin runs out. */
+  showAfter?: string;
 }
-const { article: a, index = 0, withDay = false } = Astro.props;
+const { article: a, index = 0, withDay = false, pinnedUntil, showAfter } = Astro.props;
 const comments = commentCount(a.id);
 // Confirmed lineups show the XI right here, no need to open them.
 const lineup = confirmedLineup(a);
 ---
-<a href={`/artikel/${a.id}/`} class="press-row enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`}>
+<a href={`/artikel/${a.id}/`} class="press-row enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
   <span class="relative">
     {a.player
       ? <Avatar src={a.player.photo} name={a.player.name} size={52} />

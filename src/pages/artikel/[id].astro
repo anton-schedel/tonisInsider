@@ -14,7 +14,8 @@ export function getStaticPaths() {
   return articles().map((article) => ({ params: { id: String(article.id) }, props: { article } }));
 }
 const { article: a } = Astro.props as { article: Article };
-const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
+// Our own posts have no club page, no original on LigaInsider and no comments there.
+const clubLineupHref = a.club && !a.own ? `/vereine/${a.club.slug}/` : undefined;
 ---
 <Base title={a.headline} tab="news" back={{ href: "/", label: "News" }} hideHeading>
   <div slot="top" class="flex min-w-0 flex-1 items-center gap-3">
@@ -43,12 +44,12 @@ const clubLineupHref = a.club ? `/vereine/${a.club.slug}/` : undefined;
     <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
     {/* Match reports: each team's grades on a pitch. */}
     {a.ratings?.map((team) => <RatingsPitch team={team} />)}
-    <a
+    {!a.own && <a
       href={a.url}
       target="_blank"
       rel="noopener noreferrer"
       class="press mt-6 inline-flex rounded-full bg-surface px-4 py-2 text-sm font-medium"
-    >Original auf ligainsider.de ↗</a>
+    >Original auf ligainsider.de ↗</a>}
   </article>
-  <Comments articleId={a.id} url={a.url} />
+  {!a.own && <Comments articleId={a.id} url={a.url} />}
 </Base>

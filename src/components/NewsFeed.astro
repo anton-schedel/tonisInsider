@@ -8,16 +8,18 @@ interface Props { articles: Article[]; pinned?: Article[] }
 const { pinned = [] } = Astro.props;
 const now = new Date();
 const groups = groupByDay(Astro.props.articles);
+// A post pinned for a while: on top until then, in its day after (the page may be older than the pin).
+const until = new Map(pinned.flatMap((a) => (a.pinnedUntil ? [[a.id, a.pinnedUntil] as const] : [])));
 let index = 0;
 ---
 {pinned.length > 0 && (
-  <section class="mb-4">
+  <section class="mb-4" data-pinned>
     <h2 class="flex items-center gap-1.5 pt-3 pb-1.5 text-[15px] font-semibold">
       <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" /></svg>
       Angeheftet
     </h2>
     <div class="divide-y divide-hairline">
-      {pinned.map((a) => <ArticleRow article={a} index={index++} withDay />)}
+      {pinned.map((a) => <ArticleRow article={a} index={index++} withDay pinnedUntil={a.pinnedUntil} />)}
     </div>
   </section>
 )}
@@ -32,11 +34,22 @@ let index = 0;
     </h2>
     <div class="feed-rows -mx-2.5 px-2.5" style={`--n:${g.items.length}`}>
       <div class="divide-y divide-hairline">
-        {g.items.map((a) => <ArticleRow article={a} index={index++} />)}
+        {g.items.map((a) => <ArticleRow article={a} index={index++} showAfter={until.get(a.id)} />)}
       </div>
     </div>
   </section>
 ))}
+
+<script is:inline>
+  // Unpin posts whose time is up, before the page shows (also runs again after each client-side navigation).
+  (() => {
+    const now = Date.now();
+    for (const el of document.querySelectorAll("[data-pinned-until]")) if (Date.parse(el.dataset.pinnedUntil) <= now) el.remove();
+    for (const el of document.querySelectorAll("[data-show-after]")) if (Date.parse(el.dataset.showAfter) <= now) el.hidden = false;
+    const section = document.querySelector("[data-pinned]");
+    if (section && !section.querySelector("a")) section.remove();
+  })();
+</script>
 
 <script>
   import { dayLabel } from "../lib/format.ts";
