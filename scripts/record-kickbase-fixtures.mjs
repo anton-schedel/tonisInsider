@@ -1,10 +1,10 @@
 // Records Kickbase API responses into scraper/__fixtures__/ (git-ignored) for the matching tests.
-// Reads KICKBASE_EMAIL / KICKBASE_PASSWORD from .env.kickbase (git-ignored; never read by the build).
+// Reads KICKBASE_EMAIL / KICKBASE_PASSWORD from .env (git-ignored).
 // Never prints credentials or the token. Usage: node scripts/record-kickbase-fixtures.mjs
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync } from "node:fs";
 
 const env = Object.fromEntries(
-  readFileSync(".env.kickbase", "utf8")
+  readFileSync(".env", "utf8")
     .split("\n")
     .filter((l) => l.includes("="))
     .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim().replace(/^["']|["']$/g, "")]),

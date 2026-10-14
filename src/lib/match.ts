@@ -109,3 +109,16 @@ export function pitchLines(players: MyPlayer[]): { lines: MyPlayer[][]; formatio
     formation: [2, 3, 4].map((pos) => by(pos).length).join("-"),
   };
 }
+
+/**
+ * The LigaInsider player behind a squad player outside the predicted lineup (injured, on the bench), found among
+ * the players his club's articles are about. Same surname rule as the lineup; two candidates → none.
+ */
+export function articlePlayer(p: MyPlayer, articles: Pick<Article, "club" | "player">[]): Ref | undefined {
+  if (p.ligainsider || p.status !== "bench" || !p.club) return p.ligainsider;
+  const hits = new Map<number, Ref>();
+  for (const a of articles) {
+    if (a.player && a.club?.id === p.club.id && nameMatches(p.kickbase.name, a.player)) hits.set(a.player.id, a.player);
+  }
+  return hits.size === 1 ? [...hits.values()][0] : undefined;
+}

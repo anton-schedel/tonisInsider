@@ -5,7 +5,7 @@ import MyPitch from "../components/MyPitch.astro";
 import PlayerCard from "../components/PlayerCard.astro";
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
-import { mapClubs, matchSquad, pitchLines, type MyPlayer } from "../lib/match.ts";
+import { articlePlayer, mapClubs, matchSquad, pitchLines, type MyPlayer } from "../lib/match.ts";
 import { toFixtures } from "../lib/fixtures.ts";
 import { chancesFor } from "../lib/odds.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
@@ -97,7 +97,8 @@ async function load(token: string) {
   const byNewest = [...(snapshot?.articles ?? [])].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
   const playerNews = newsByPlayer(byNewest);
   const cardNews = new Map(players.flatMap((p) => {
-    const list = playerNews(p.ligainsider?.id);
+    // Players outside the predicted lineup have no LigaInsider id from it; their club's news names them.
+    const list = playerNews(articlePlayer(p, byNewest)?.id);
     return list ? [[p.kickbase.id, list] as const] : [];
   }));
   return { leagues, league, players, starterCount: starters.length, outlook, cardNews };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
+import { articlePlayer, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 import type { Article, Lineup, LineupPlayer } from "../../scraper/types.ts";
 
@@ -110,5 +110,22 @@ describe("pitchLines", () => {
     const { lines, formation } = pitchLines([p("T", 1), p("S1", 4)]);
     expect(lines.map((l) => l.length)).toEqual([1, 1]);
     expect(formation).toBe("0-0-1");
+  });
+});
+
+describe("articlePlayer", () => {
+  const club = bvb.club;
+  const kuehn = { id: 13968, slug: "nicolas-kuehn", name: "Nicolas Kühn" };
+  it("finds a player outside the XI through his club's news", () => {
+    const p = matchPlayer(kb("Kühn"), bvb);
+    expect(articlePlayer(p, [{ club, player: kuehn }])?.id).toBe(13968);
+  });
+  it("ignores other clubs' articles and refuses to guess between namesakes", () => {
+    const p = matchPlayer(kb("Kühn"), bvb);
+    expect(articlePlayer(p, [{ club: { ...club, id: 1 }, player: kuehn }])).toBeUndefined();
+    expect(articlePlayer(p, [{ club, player: kuehn }, { club, player: { id: 5, slug: "jan-kuehn", name: "Jan Kühn" } }])).toBeUndefined();
+  });
+  it("keeps the lineup's match", () => {
+    expect(articlePlayer(matchPlayer(kb("Kobel"), bvb), [])?.id).toBe(9357);
   });
 });
