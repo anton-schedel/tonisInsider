@@ -109,6 +109,8 @@
     return row;
   }
 
+  /** Lines of the breakdown shown at first. */
+  const SHOWN_LINES = 6;
   // The card can be reopened for someone else while a breakdown is still loading: only the latest one is drawn.
   let shown = 0;
 
@@ -118,6 +120,7 @@
     const box = f("breakdown");
     const list = f("breakdownList");
     const mine = ++shown;
+    box.querySelector(".fut-points-more")?.remove();
     box.hidden = !player;
     if (!player) return;
     const stats = f("stats");
@@ -135,7 +138,21 @@
       const data = (await res.json()) as PlayerPoints;
       if (mine !== shown) return;
       if (data.live.state === 0 || data.lines.length === 0) throw new Error();
-      list.replaceChildren(...data.lines.map(pointsRow));
+      // The biggest effects first; the rest one tap away, so his news stays in reach.
+      const rows = data.lines.map(pointsRow);
+      rows.slice(SHOWN_LINES).forEach((r) => (r.hidden = true));
+      list.replaceChildren(...rows);
+      if (rows.length > SHOWN_LINES) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "press fut-points-more";
+        more.textContent = `Alle ${rows.length} Aktionen`;
+        more.addEventListener("click", () => {
+          rows.forEach((r) => (r.hidden = false));
+          more.remove();
+        });
+        list.after(more);
+      }
     } catch {
       if (mine !== shown) return;
       box.hidden = true;
@@ -153,7 +170,14 @@
     const rating = dialog.querySelector<HTMLElement>('[data-f="rating"]')!;
     rating.textContent = text;
     setTier(rating, TIERS.find((t) => source.classList.contains(t)));
-    dialog.querySelector<HTMLElement>('[data-f="caption"]')!.textContent = source.classList.contains("is-live") ? "Punkte · live" : "Punkte";
+    const caption = dialog.querySelector<HTMLElement>('[data-f="caption"]')!;
+    caption.textContent = "Punkte";
+    if (source.classList.contains("is-live")) {
+      const dot = document.createElement("span");
+      dot.className = "kb-points-dot";
+      dot.setAttribute("aria-label", "live");
+      caption.append(dot);
+    }
   }
 
   function fill(dialog: HTMLDialogElement, d: CardData) {

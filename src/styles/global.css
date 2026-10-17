@@ -202,6 +202,8 @@ html:has(.player-card[open]) { overflow: hidden; }
   color: var(--muted); font-size: 40px; font-weight: 700;
 }
 .fut-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* The photo sits in its own rounded frame, like the picture window of a trading card. */
+.fut-photo { border-radius: 18px; overflow: hidden; background: var(--surface); }
 /* One row of equal columns, value over label, however many stats there are. */
 .fut-stats {
   display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 12px;
@@ -221,7 +223,11 @@ html:has(.player-card[open]) { overflow: hidden; }
 .fut-news-type { border-radius: 9999px; padding: 1px 7px; font-size: 10.5px; font-weight: 600; }
 .fut-stat b.is-warn { color: var(--yellow-fg); }
 /* The points breakdown (from kickoff on): action, how often, points. */
-.fut-points-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 0; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+.fut-points-row { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 6px 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.fut-points-more { margin-top: 2px; padding: 8px 0 2px; font-size: 13px; font-weight: 600; color: var(--muted); }
+/* "Punkte" with the red live dot while he plays, as on the pitch. */
+.fut-caption .kb-points-dot { display: inline-block; margin-left: 6px; vertical-align: 1px; background: #ff453a; animation: kb-live 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .fut-caption .kb-points-dot { animation: none; } }
 .fut-points-row b { min-width: 3ch; text-align: right; font-weight: 700; }
 .fut-points-row b.is-negative { color: var(--red-fg); }
 

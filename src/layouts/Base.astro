@@ -91,8 +91,10 @@ const tabs = [
           const t = shown();
           doc.querySelectorAll("[data-theme-set]").forEach((btn) => {
             const on = btn.getAttribute("data-theme-set") === t;
-            btn.classList.toggle("bg-fg", on);
-            btn.classList.toggle("text-bg", on);
+            btn.classList.toggle("bg-raised", on);
+            btn.classList.toggle("shadow-sm", on);
+            btn.classList.toggle("text-fg", on);
+            btn.classList.toggle("text-muted", !on);
             btn.setAttribute("aria-pressed", String(on));
           });
         };
@@ -153,6 +155,9 @@ const tabs = [
             sub.style.color = m.finished ? "" : "var(--red-fg)";
             sub.style.fontWeight = m.finished ? "" : "600";
             box.querySelector("[data-live-tip]")?.remove();
+            // Once it's over only the result counts: the pre-match odds go.
+            const odds = box.closest("[data-fixture]")?.querySelector("[data-live-odds]");
+            if (odds) odds.hidden = m.finished;
             const goals = box.closest("[data-fixture]")?.querySelector("[data-live-goals]");
             if (!goals) return;
             // Scorers in two columns, home left and away right, in the order they fell.

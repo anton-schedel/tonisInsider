@@ -36,9 +36,10 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
 
   <section class="mb-8">
     <h2 class="mb-3 text-[15px] font-semibold">Darstellung</h2>
-    <div class="grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1" role="group" aria-label="Darstellung">
-      <button type="button" data-theme-set="light" class="press rounded-xl py-2.5 text-[15px] font-semibold">Hell</button>
-      <button type="button" data-theme-set="dark" class="press rounded-xl py-2.5 text-[15px] font-semibold">Dunkel</button>
+    {/* The same segmented control as Mein Team's league switch: the choice is raised, the other muted. */}
+    <div class="grid grid-cols-2 rounded-[10px] bg-surface p-[2px]" role="group" aria-label="Darstellung">
+      <button type="button" data-theme-set="light" class="press rounded-lg py-2 text-[14px] font-semibold text-muted">Hell</button>
+      <button type="button" data-theme-set="dark" class="press rounded-lg py-2 text-[14px] font-semibold text-muted">Dunkel</button>
     </div>
   </section>
 

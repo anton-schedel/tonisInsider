@@ -72,7 +72,7 @@ const sides: { lineup?: Lineup; name: string }[] = [
 </div>
 {hero && <div data-live-goals class="mt-4 grid grid-cols-2 gap-x-6 px-3 text-[13px] text-muted tabular-nums" hidden></div>}
 {chances && (
-  <div class:list={["px-3", hero ? "mt-5" : "mt-3"]} aria-label={`Siegchancen laut Wettquoten: ${f.homeName} ${chances.home} %, Unentschieden ${chances.draw} %, ${f.awayName} ${chances.away} %`}>
+  <div data-live-odds class:list={["px-3", hero ? "mt-5" : "mt-3"]} aria-label={`Siegchancen laut Wettquoten: ${f.homeName} ${chances.home} %, Unentschieden ${chances.draw} %, ${f.awayName} ${chances.away} %`}>
     <div class="flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
       <span class:list={["odds-seg", strong === "home" ? "is-strong" : "is-weak"]} style={`flex:${chances.home}`}></span>
       <span class="odds-seg is-draw" style={`flex:${chances.draw}`}></span>
