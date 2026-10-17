@@ -55,7 +55,7 @@
 
 <script>
   import type { CardData, CardNews } from "../lib/card.ts";
-  import type { PlayerPoints, PointsLine } from "../lib/livePoints.ts";
+  import { setTier, TIERS, type PlayerPoints, type PointsLine } from "../lib/livePoints.ts";
   import { ago, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
@@ -152,7 +152,7 @@
     const text = source.querySelector("[data-kb-text]")?.textContent ?? "";
     const rating = dialog.querySelector<HTMLElement>('[data-f="rating"]')!;
     rating.textContent = text;
-    rating.classList.toggle("is-negative", source.classList.contains("is-negative"));
+    setTier(rating, TIERS.find((t) => source.classList.contains(t)));
     dialog.querySelector<HTMLElement>('[data-f="caption"]')!.textContent = source.classList.contains("is-live") ? "Punkte · live" : "Punkte";
   }
 
@@ -168,7 +168,7 @@
       : undefined;
     const rating = hero ? d[hero.key as "scorer" | "goal" | "cleanSheet"] : undefined;
     f("rating").textContent = rating !== undefined ? `${rating}%` : "–";
-    f("rating").classList.remove("is-negative");
+    setTier(f("rating"), undefined);
     f("caption").textContent = hero?.label ?? "Scorer";
     f("pos").textContent = d.pos ?? "";
     f("match").textContent = d.match ?? "";

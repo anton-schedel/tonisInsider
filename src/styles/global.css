@@ -223,7 +223,7 @@ html:has(.player-card[open]) { overflow: hidden; }
 /* The points breakdown (from kickoff on): action, how often, points. */
 .fut-points-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 0; font-size: 14.5px; font-variant-numeric: tabular-nums; }
 .fut-points-row b { min-width: 3ch; text-align: right; font-weight: 700; }
-.fut-points-row b.is-negative, .fut-rating.is-negative { color: var(--red-fg); }
+.fut-points-row b.is-negative { color: var(--red-fg); }
 
 @media (min-width: 640px) {
   .player-card { inset: 0; margin: auto; border-radius: 24px; height: fit-content; }
@@ -374,19 +374,40 @@ html:not([data-navigated]) .enter {
 }
 .s11-badge.is-legend { position: static; border: 0; }
 
-/* Kickbase points (Mein Team): from kickoff on, a red dot while the match runs. Dark chip on the pitch. */
+/* Kickbase points (Mein Team, club pages, player card): from kickoff on, coloured by how many like in Kickbase
+   (the grade colours: red below 0, orange, yellow, light to deep green). bg/fg for chips, ink for text on the page. */
+.pts-neg { --pts-bg: #ff453a; --pts-fg: #fff; --pts-ink: var(--red-fg); }
+.pts-0 { --pts-bg: #ff9f0a; --pts-fg: #3a1d00; --pts-ink: #c25e00; }
+.pts-50 { --pts-bg: #ffd60a; --pts-fg: #3a2c00; --pts-ink: #9a6b00; }
+.pts-100 { --pts-bg: #34c759; --pts-fg: #06290f; --pts-ink: #248a3d; }
+.pts-150 { --pts-bg: #1f9d55; --pts-fg: #fff; --pts-ink: #1a7f46; }
+.pts-200 { --pts-bg: #0b6b3a; --pts-fg: #fff; --pts-ink: #0b6b3a; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pts-0 { --pts-ink: #ff9f0a; }
+  :root:not([data-theme="light"]) .pts-50 { --pts-ink: #ffd60a; }
+  :root:not([data-theme="light"]) .pts-100 { --pts-ink: #30d158; }
+  :root:not([data-theme="light"]) .pts-150 { --pts-ink: #34c759; }
+  :root:not([data-theme="light"]) .pts-200 { --pts-ink: #4cd97b; }
+}
+:root[data-theme="dark"] .pts-0 { --pts-ink: #ff9f0a; }
+:root[data-theme="dark"] .pts-50 { --pts-ink: #ffd60a; }
+:root[data-theme="dark"] .pts-100 { --pts-ink: #30d158; }
+:root[data-theme="dark"] .pts-150 { --pts-ink: #34c759; }
+:root[data-theme="dark"] .pts-200 { --pts-ink: #4cd97b; }
+
+/* The chip: dark until there are points ("0" live, "–" didn't play), then in its colour. */
 .kb-points {
   display: inline-flex; align-items: center; gap: 4px; margin-top: 3px;
   padding: 1px 7px; border-radius: 9999px; background: rgba(0, 0, 0, 0.5); color: #fff;
   font-size: 11.5px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums;
 }
 .kb-points.is-row { margin-top: 0; padding: 2px 9px; background: var(--surface); color: var(--fg); font-size: 14px; line-height: 20px; }
-.kb-points.is-negative { color: #ff8a80; }
-.kb-points.is-row.is-negative { color: var(--red-fg); }
-.kb-points-dot { display: none; width: 6px; height: 6px; border-radius: 9999px; background: #ff453a; }
+.kb-points[class*="pts-"] { background: var(--pts-bg); color: var(--pts-fg); }
+.kb-points-dot { display: none; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
 .kb-points.is-live .kb-points-dot { display: block; animation: kb-live 1.6s ease-in-out infinite; }
-@keyframes kb-live { 50% { opacity: 0.35; } }
+@keyframes kb-live { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .kb-points.is-live .kb-points-dot { animation: none; } }
+.fut-rating[class*="pts-"] { color: var(--pts-ink); }
 
 /* Switching light/dark (Base.astro): every colour changes in the same frame. */
 .theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }

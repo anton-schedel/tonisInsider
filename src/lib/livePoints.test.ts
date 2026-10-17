@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anyRunning, pointsLabel, summarize } from "./livePoints.ts";
+import { anyRunning, pointsLabel, pointsTier, summarize } from "./livePoints.ts";
 
 describe("pointsLabel", () => {
   it("shows nothing before kickoff", () => {
@@ -7,8 +7,8 @@ describe("pointsLabel", () => {
     expect(pointsLabel(undefined)).toBeUndefined();
   });
   it("shows live and final points", () => {
-    expect(pointsLabel({ state: 1, points: 31, minute: 63 })).toEqual({ text: "31", live: true, negative: false });
-    expect(pointsLabel({ state: 2, points: -10 })).toEqual({ text: "-10", live: false, negative: true });
+    expect(pointsLabel({ state: 1, points: 31, minute: 63 })).toEqual({ text: "31", live: true, negative: false, tier: "pts-0" });
+    expect(pointsLabel({ state: 2, points: -10 })).toEqual({ text: "-10", live: false, negative: true, tier: "pts-neg" });
   });
   it("0 while running without points, – after a match he didn't play", () => {
     expect(pointsLabel({ state: 1 })?.text).toBe("0");
@@ -40,5 +40,14 @@ describe("summarize", () => {
       { name: "Sonstiges", count: 1, points: 3 },
       { name: "Ballverlust", count: 1, points: -1 },
     ]);
+  });
+});
+
+describe("pointsTier", () => {
+  it("steps like Kickbase: red below 0, orange, yellow, then greens", () => {
+    expect([-1, 0, 49, 50, 99, 100, 149, 150, 199, 200, 525].map(pointsTier)).toEqual([
+      "pts-neg", "pts-0", "pts-0", "pts-50", "pts-50", "pts-100", "pts-100", "pts-150", "pts-150", "pts-200", "pts-200",
+    ]);
+    expect(pointsTier(undefined)).toBeUndefined();
   });
 });

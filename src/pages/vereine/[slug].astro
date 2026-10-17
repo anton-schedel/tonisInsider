@@ -59,7 +59,7 @@ const playerNews = newsByPlayer(articles());
 </Base>
 
 <script>
-  import { pointsLabel, type ClubPoints } from "../../lib/livePoints.ts";
+  import { pointsLabel, setTier, type ClubPoints } from "../../lib/livePoints.ts";
 
   const POLL_MS = 30_000;
   /** Points matter from kickoff until the next matchday's lineup replaces this one; polled while it runs. */
@@ -77,7 +77,7 @@ const playerNews = newsByPlayer(articles());
       if (!label) continue;
       el.querySelector("[data-kb-text]")!.textContent = label.text;
       el.classList.toggle("is-live", label.live);
-      el.classList.toggle("is-negative", label.negative);
+      setTier(el, label.tier);
       el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
     }
   }

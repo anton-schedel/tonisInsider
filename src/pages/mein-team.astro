@@ -225,7 +225,7 @@ let index = 0;
 
 <script>
   import type { KbLive } from "../lib/kickbase.ts";
-  import { anyRunning, pointsLabel } from "../lib/livePoints.ts";
+  import { anyRunning, pointsLabel, setTier } from "../lib/livePoints.ts";
 
   const POLL_MS = 30_000;
   let timer = 0;
@@ -237,7 +237,7 @@ let index = 0;
       if (!label) continue;
       el.querySelector("[data-kb-text]")!.textContent = label.text;
       el.classList.toggle("is-live", label.live);
-      el.classList.toggle("is-negative", label.negative);
+      setTier(el, label.tier);
       el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
     }
     const total = document.querySelector<HTMLElement>("[data-kb-total]");

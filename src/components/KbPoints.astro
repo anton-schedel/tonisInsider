@@ -17,7 +17,7 @@ const { id, live, class: cls, player } = Astro.props;
 const label = pointsLabel(live);
 ---
 <span
-  class:list={["kb-points", cls, label?.live && "is-live", label?.negative && "is-negative"]}
+  class:list={["kb-points", cls, label?.live && "is-live", label?.tier]}
   data-kb-points={id}
   data-kb-player={player}
   hidden={!label}
