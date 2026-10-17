@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anyRunning, pointsLabel, pointsTier, summarize } from "./livePoints.ts";
+import { actionTier, anyRunning, pointsLabel, pointsTier, summarize } from "./livePoints.ts";
 
 describe("pointsLabel", () => {
   it("shows nothing before kickoff", () => {
@@ -7,7 +7,7 @@ describe("pointsLabel", () => {
     expect(pointsLabel(undefined)).toBeUndefined();
   });
   it("shows live and final points", () => {
-    expect(pointsLabel({ state: 1, points: 31, minute: 63 })).toEqual({ text: "31", live: true, negative: false, tier: "pts-0" });
+    expect(pointsLabel({ state: 1, points: 31, minute: 63 })).toEqual({ text: "31", live: true, negative: false, tier: "pts-low" });
     expect(pointsLabel({ state: 2, points: -10 })).toEqual({ text: "-10", live: false, negative: true, tier: "pts-neg" });
   });
   it("0 while running without points, – after a match he didn't play", () => {
@@ -44,10 +44,17 @@ describe("summarize", () => {
 });
 
 describe("pointsTier", () => {
-  it("steps like Kickbase: red below 0, orange, yellow, then greens", () => {
-    expect([-1, 0, 49, 50, 99, 100, 149, 150, 199, 200, 525].map(pointsTier)).toEqual([
-      "pts-neg", "pts-0", "pts-0", "pts-50", "pts-50", "pts-100", "pts-100", "pts-150", "pts-150", "pts-200", "pts-200",
+  it("steps like Kickbase's app: red-orange below 0, orange, lime, emerald", () => {
+    expect([-1, 0, 58, 60, 70, 107, 149, 150, 184, 288].map((p) => pointsTier(p))).toEqual([
+      "pts-neg", "pts-low", "pts-low", "pts-mid", "pts-mid", "pts-mid", "pts-mid", "pts-top", "pts-top", "pts-top",
     ]);
     expect(pointsTier(undefined)).toBeUndefined();
+  });
+  it("keeps a keeper's 187 lime, like Kickbase", () => {
+    expect(pointsTier(187, true)).toBe("pts-mid");
+    expect(pointsTier(200, true)).toBe("pts-top");
+  });
+  it("colours single actions like the live list: +1 lime, +80 emerald, -1 red-orange", () => {
+    expect([1, 80, -1].map(actionTier)).toEqual(["pts-mid", "pts-top", "pts-neg"]);
   });
 });

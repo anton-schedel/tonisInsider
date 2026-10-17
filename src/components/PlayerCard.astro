@@ -55,7 +55,7 @@
 
 <script>
   import type { CardData, CardNews } from "../lib/card.ts";
-  import { setTier, TIERS, type PlayerPoints, type PointsLine } from "../lib/livePoints.ts";
+  import { actionTier, setTier, TIERS, type PlayerPoints, type PointsLine } from "../lib/livePoints.ts";
   import { ago, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
@@ -103,7 +103,7 @@
     count.className = "text-muted";
     count.textContent = l.count > 1 ? `${l.count}×` : "";
     const pts = document.createElement("b");
-    pts.className = l.points < 0 ? "is-negative" : "";
+    setTier(pts, actionTier(l.points));
     pts.textContent = l.points > 0 ? `+${l.points}` : String(l.points);
     row.append(name, count, pts);
     return row;

@@ -47,7 +47,7 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
             <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{name}</span>
             {/* Before kickoff: will he start? From kickoff on: his Kickbase points. */}
             {note && !p.kickbase.live?.state && <span class="line-clamp-1 text-[9.5px] leading-tight" style={`color:${noteColor}`}>{note}</span>}
-            <KbPoints id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} />
+            <KbPoints id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} keeper={p.kickbase.position === 1} />
           </button>
         </div>
       );

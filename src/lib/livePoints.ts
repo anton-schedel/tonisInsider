@@ -27,18 +27,27 @@ export function summarize(events: KbEvent[], names: Map<number, string>): Points
 /** Shown from kickoff on: the player's Kickbase points (live while his match runs). Nothing before kickoff. */
 export type PointsLabel = { text: string; live: boolean; negative: boolean; tier?: PointsTier };
 
-/** Kickbase-style colour steps (CSS classes .pts-*): red below 0, then orange, yellow and greens up to 200+. */
-export type PointsTier = "pts-neg" | "pts-0" | "pts-50" | "pts-100" | "pts-150" | "pts-200";
-export const TIERS: PointsTier[] = ["pts-neg", "pts-0", "pts-50", "pts-100", "pts-150", "pts-200"];
+/**
+ * Kickbase's colours for points, measured from its app (App Store screenshots, 2026): red-orange below 0, orange
+ * for a weak match (58), lime for a normal one (70–187), emerald for a strong one (184, 245, 288). A keeper's
+ * 187 is still lime, so for keepers the top step starts later. CSS classes .pts-*.
+ */
+export type PointsTier = "pts-neg" | "pts-low" | "pts-mid" | "pts-top";
+export const TIERS: PointsTier[] = ["pts-neg", "pts-low", "pts-mid", "pts-top"];
+const LOW_BELOW = 60;
+const TOP_FROM = 150;
+const TOP_FROM_KEEPER = 200;
 
-export function pointsTier(points: number | undefined): PointsTier | undefined {
+export function pointsTier(points: number | undefined, keeper = false): PointsTier | undefined {
   if (points === undefined) return undefined;
   if (points < 0) return "pts-neg";
-  if (points < 50) return "pts-0";
-  if (points < 100) return "pts-50";
-  if (points < 150) return "pts-100";
-  if (points < 200) return "pts-150";
-  return "pts-200";
+  if (points < LOW_BELOW) return "pts-low";
+  return points < (keeper ? TOP_FROM_KEEPER : TOP_FROM) ? "pts-mid" : "pts-top";
+}
+
+/** A single action in the breakdown, like Kickbase's live list: +1 lime, +80 emerald, -1 red-orange. */
+export function actionTier(points: number): PointsTier {
+  return points < 0 ? "pts-neg" : points >= 20 ? "pts-top" : "pts-mid";
 }
 
 /** Puts an element in its colour step (and out of the others). */
@@ -47,11 +56,11 @@ export function setTier(el: Element, tier: PointsTier | undefined) {
   if (tier) el.classList.add(tier);
 }
 
-export function pointsLabel(live: KbLive | undefined): PointsLabel | undefined {
+export function pointsLabel(live: KbLive | undefined, keeper = false): PointsLabel | undefined {
   if (!live || live.state === 0) return undefined;
   // No points yet: 0 while the match runs, "–" once it's over (he didn't play).
   const text = live.points !== undefined ? String(live.points) : live.state === 1 ? "0" : "–";
-  const tier = pointsTier(live.points);
+  const tier = pointsTier(live.points, keeper);
   return { text, live: live.state === 1, negative: (live.points ?? 0) < 0, ...(tier ? { tier } : {}) };
 }
 
