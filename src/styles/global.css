@@ -403,6 +403,8 @@ html:not([data-navigated]) .enter {
 }
 .kb-points.is-row { margin-top: 0; padding: 2px 9px; background: var(--surface); color: var(--fg); font-size: 14px; line-height: 20px; }
 .kb-points[class*="pts-"] { background: var(--pts-bg); color: var(--pts-fg); }
+/* On the grass the green steps need an edge: a thin light rim and a soft shadow. */
+.pitch .kb-points[class*="pts-"] { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 1px 3px rgba(0, 0, 0, 0.3); }
 .kb-points-dot { display: none; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
 .kb-points.is-live .kb-points-dot { display: block; animation: kb-live 1.6s ease-in-out infinite; }
 @keyframes kb-live { 50% { opacity: 0.3; } }
