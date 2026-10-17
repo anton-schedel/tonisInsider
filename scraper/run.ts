@@ -176,7 +176,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
         console.log(`article ${ref.id} is listed but gone (404), skipping`);
         unavailable[ref.id] = ref.headline;
       } else {
-        result.problems.push(`article ${ref.id}: ${(err as Error).message}`);
+        result.problems.push(`download article ${ref.id}: ${(err as Error).message}`);
       }
     }
   }
