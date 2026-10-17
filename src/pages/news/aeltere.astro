@@ -1,0 +1,10 @@
+---
+/** The News page's older days, without the page around them: fetched and appended by NewsFeed. */
+import NewsFeed from "../../components/NewsFeed.astro";
+import { FIRST_DAYS, feedArticles, pinnedArticles } from "../../lib/data.ts";
+
+export const partial = true;
+const pinned = pinnedArticles();
+const pinnedIds = new Set(pinned.filter((a) => !a.pinnedUntil).map((a) => a.id));
+---
+<NewsFeed articles={feedArticles(pinnedIds)} pinned={[]} days={{ from: FIRST_DAYS }} />

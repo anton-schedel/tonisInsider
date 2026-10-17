@@ -4,10 +4,19 @@ import ArticleRow from "./ArticleRow.astro";
 import { groupByDay } from "../lib/data.ts";
 import { dayLabel } from "../lib/format.ts";
 
-interface Props { articles: Article[]; pinned?: Article[] }
-const { pinned = [] } = Astro.props;
+interface Props {
+  articles: Article[];
+  pinned?: Article[];
+  /** Only these day groups (index from, to); the rest comes from `more`. */
+  days?: { from: number; to?: number };
+  /** Where the older days are (a partial page): loaded when the reader scrolls near the end. */
+  more?: string;
+}
+const { pinned = [], days = { from: 0 }, more } = Astro.props;
 const now = new Date();
-const groups = groupByDay(Astro.props.articles);
+const allGroups = groupByDay(Astro.props.articles);
+const groups = allGroups.slice(days.from, days.to);
+const hasMore = !!more && days.to !== undefined && allGroups.length > days.to;
 // A post pinned for a while: on top until then, in its day after (the page may be older than the pin).
 const until = new Map(pinned.flatMap((a) => (a.pinnedUntil ? [[a.id, a.pinnedUntil] as const] : [])));
 let index = 0;
@@ -23,7 +32,7 @@ let index = 0;
     </div>
   </section>
 )}
-{groups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
+{allGroups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section class="mb-4">
     <h2 class="sticky top-0 z-10 -mx-1 bg-bg px-1 pt-3 pb-1.5 text-[15px] font-semibold" data-day={g.first}>
@@ -39,25 +48,37 @@ let index = 0;
     </div>
   </section>
 ))}
+{hasMore && (
+  // Older days: fetched once the reader gets near here (script below); the button is the fallback.
+  <div data-feed-more={more} class="pb-4">
+    <button type="button" data-feed-more-btn class="press w-full rounded-xl bg-surface py-3 text-[15px] font-semibold">Ältere News laden</button>
+  </div>
+)}
 
 <script is:inline>
-  // Unpin posts whose time is up, before the page shows (also runs again after each client-side navigation).
-  (() => {
+  // Unpin posts whose time is up, before the page shows (also runs again after each client-side navigation,
+  // and for older days once they're loaded).
+  window.__unpin = () => {
     const now = Date.now();
     for (const el of document.querySelectorAll("[data-pinned-until]")) if (Date.parse(el.dataset.pinnedUntil) <= now) el.remove();
     for (const el of document.querySelectorAll("[data-show-after]")) if (Date.parse(el.dataset.showAfter) <= now) el.hidden = false;
     const section = document.querySelector("[data-pinned]");
     if (section && !section.querySelector("a")) section.remove();
-  })();
+  };
+  window.__unpin();
 </script>
 
 <script>
   import { dayLabel } from "../lib/format.ts";
 
+  declare global {
+    interface Window { __unpin?: () => void }
+  }
+
   // "Heute" / "Gestern" relative to now, not to when the page was built (it may be from yesterday).
-  document.addEventListener("astro:page-load", () => {
+  function labelDays(root: ParentNode) {
     const now = new Date();
-    for (const h of document.querySelectorAll<HTMLElement>("[data-day]")) {
+    for (const h of root.querySelectorAll<HTMLElement>("[data-day]")) {
       const [rel, date] = dayLabel(h.dataset.day!, now).split(" · ");
       h.textContent = rel;
       if (date) {
@@ -67,5 +88,56 @@ let index = 0;
         h.append(" ", muted);
       }
     }
+  }
+
+  /** The older days once fetched: back on News (e.g. from an article opened down there) they're put in at once,
+   * before the router restores the scroll position. */
+  let olderHtml: string | undefined;
+
+  function appendOlder(marker: HTMLElement, html: string) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    // Rows from the partial page shouldn't play the first-load entrance again.
+    for (const el of doc.querySelectorAll(".enter")) el.classList.remove("enter");
+    labelDays(doc);
+    marker.replaceWith(...[...doc.querySelectorAll("section")].map((s) => document.importNode(s, true)));
+    window.__unpin?.();
+  }
+
+  /** Fetches the older days (the partial page) and appends their sections where the "more" marker is. */
+  async function loadMore(marker: HTMLElement) {
+    if (marker.dataset.loading) return;
+    marker.dataset.loading = "1";
+    const btn = marker.querySelector<HTMLButtonElement>("[data-feed-more-btn]");
+    if (btn) btn.textContent = "Lädt …";
+    try {
+      const res = await fetch(marker.dataset.feedMore!);
+      if (!res.ok) throw new Error();
+      olderHtml = await res.text();
+      if (marker.isConnected) appendOlder(marker, olderHtml);
+    } catch {
+      delete marker.dataset.loading;
+      if (btn) btn.textContent = "Ältere News laden";
+    }
+  }
+
+  document.addEventListener("astro:after-swap", () => {
+    const marker = document.querySelector<HTMLElement>("[data-feed-more]");
+    if (marker && olderHtml) appendOlder(marker, olderHtml);
+  });
+
+  document.addEventListener("astro:page-load", () => {
+    labelDays(document);
+    const marker = document.querySelector<HTMLElement>("[data-feed-more]");
+    if (!marker) return;
+    marker.querySelector("[data-feed-more-btn]")?.addEventListener("click", () => void loadMore(marker));
+    // Well before the end, so scrolling doesn't stop at it.
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        io.disconnect();
+        void loadMore(marker);
+      }
+    }, { rootMargin: "1500px 0px" });
+    io.observe(marker);
+    document.addEventListener("astro:before-swap", () => io.disconnect(), { once: true });
   });
 </script>

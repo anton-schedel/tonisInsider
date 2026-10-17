@@ -62,6 +62,14 @@ export function scorers() {
 }
 
 /** Articles LigaInsider pins on top of its news list (e.g. the press-conference schedule), in its order. */
+/** Days of news on the News page itself; older ones load while scrolling (a page for all is ~750 KB). */
+export const FIRST_DAYS = 3;
+
+/** The news feed: everything except LigaInsider's pinned articles (those are only on top). */
+export function feedArticles(pinnedIds: Set<number>): Article[] {
+  return articles().filter((a) => !pinnedIds.has(a.id));
+}
+
 export function pinnedArticles(now = new Date()): Article[] {
   const byId = new Map(articles().map((a) => [a.id, a]));
   const own = articles().filter((a) => a.pinnedUntil && Date.parse(a.pinnedUntil) > now.getTime());

@@ -1,7 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import NewsFeed from "../components/NewsFeed.astro";
-import { articles, pinnedArticles } from "../lib/data.ts";
+import { FIRST_DAYS, feedArticles, pinnedArticles } from "../lib/data.ts";
 
 // Like on LigaInsider: pinned articles on top, and only there. Our own posts are pinned for a while only:
 // they're in the feed too (hidden until the pin runs out, see NewsFeed).
@@ -9,5 +9,6 @@ const pinned = pinnedArticles();
 const pinnedIds = new Set(pinned.filter((a) => !a.pinnedUntil).map((a) => a.id));
 ---
 <Base title="News" tab="news" logo>
-  <NewsFeed articles={articles().filter((a) => !pinnedIds.has(a.id))} pinned={pinned} />
+  {/* The last few days right away; older ones load while scrolling (pages/news/aeltere.astro). */}
+  <NewsFeed articles={feedArticles(pinnedIds)} pinned={pinned} days={{ from: 0, to: FIRST_DAYS }} more="/news/aeltere/" />
 </Base>
