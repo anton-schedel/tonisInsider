@@ -8,8 +8,13 @@ export class KickbaseUnavailableError extends Error {}
 
 export type KbLogin = { token: string; expires: string; userId: string; name: string };
 export type KbLeague = { id: string; name: string };
+/**
+ * A player's match today from Kickbase's team center: state 0 = not started, 1 = running, 2 = over. points are
+ * the live Kickbase points (missing until he gets any, and for players who didn't play).
+ */
+export type KbLive = { state: 0 | 1 | 2; points?: number; minute?: number; kickoff?: string };
 /** pos: 1 = TW, 2 = ABW, 3 = MF, 4 = ST */
-export type KbPlayer = { id: string; name: string; teamId: string; position: 1 | 2 | 3 | 4; image?: string };
+export type KbPlayer = { id: string; name: string; teamId: string; position: 1 | 2 | 3 | 4; image?: string; live?: KbLive };
 export type KbTeam = { id: string; name: string };
 
 type Fetch = typeof fetch;
@@ -54,7 +59,7 @@ export async function leagues(fetchFn: Fetch, token: string): Promise<KbLeague[]
   return (r.it ?? []).map((l) => ({ id: String(l.i), name: l.n }));
 }
 
-type ApiPlayer = { i: string; n: string; tid: string; pos: number; pim?: string };
+type ApiPlayer = { i: string; n: string; tid: string; pos: number; pim?: string; p?: number; mst?: number; mt?: number; md?: string };
 
 function toPlayer(p: ApiPlayer): KbPlayer {
   return {
@@ -63,6 +68,17 @@ function toPlayer(p: ApiPlayer): KbPlayer {
     teamId: String(p.tid),
     position: ([1, 2, 3, 4].includes(p.pos) ? p.pos : 3) as KbPlayer["position"],
     image: p.pim ? `https://kickbase.b-cdn.net/${p.pim}` : undefined,
+    ...(p.mst !== undefined ? { live: toLive(p) } : {}),
+  };
+}
+
+function toLive(p: ApiPlayer): KbLive {
+  const state = (p.mst === 1 || p.mst === 2 ? p.mst : 0) as KbLive["state"];
+  return {
+    state,
+    ...(typeof p.p === "number" ? { points: p.p } : {}),
+    ...(state === 1 && typeof p.mt === "number" ? { minute: p.mt } : {}),
+    ...(p.md ? { kickoff: p.md } : {}),
   };
 }
 
@@ -71,12 +87,15 @@ export async function squad(fetchFn: Fetch, token: string, leagueId: string): Pr
   return (r.it ?? []).map(toPlayer);
 }
 
-/** The manager's Kickbase lineup: starting XI (lp) and the rest of the squad (nlp). */
-export async function myEleven(fetchFn: Fetch, token: string, leagueId: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[] }> {
-  const r = await call<{ lp?: ApiPlayer[]; nlp?: ApiPlayer[] }>(
+/**
+ * The manager's Kickbase lineup: starting XI (lp) and the rest of the squad (nlp), with each player's live
+ * match state, and the XI's points on this matchday (p).
+ */
+export async function myEleven(fetchFn: Fetch, token: string, leagueId: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[]; points?: number }> {
+  const r = await call<{ lp?: ApiPlayer[]; nlp?: ApiPlayer[]; p?: number }>(
     fetchFn, `/v4/leagues/${encodeURIComponent(leagueId)}/teamcenter/myeleven`, { token },
   );
-  return { starters: (r.lp ?? []).map(toPlayer), bench: (r.nlp ?? []).map(toPlayer) };
+  return { starters: (r.lp ?? []).map(toPlayer), bench: (r.nlp ?? []).map(toPlayer), ...(typeof r.p === "number" ? { points: r.p } : {}) };
 }
 
 /** All player names of a Bundesliga club (Kickbase display names), used to detect same-surname teammates. */

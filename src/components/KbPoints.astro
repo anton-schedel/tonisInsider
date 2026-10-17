@@ -1,0 +1,18 @@
+---
+import type { KbLive } from "../lib/kickbase.ts";
+import { pointsLabel } from "../lib/livePoints.ts";
+
+/**
+ * A player's Kickbase points from kickoff on, with a red dot while his match runs. Always rendered (hidden
+ * before kickoff), so the live updates on Mein Team can fill it in.
+ */
+interface Props { id: string; live?: KbLive; class?: string }
+const { id, live, class: cls } = Astro.props;
+const label = pointsLabel(live);
+---
+<span
+  class:list={["kb-points", cls, label?.live && "is-live", label?.negative && "is-negative"]}
+  data-kb-points={id}
+  hidden={!label}
+  aria-label={label ? `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}` : undefined}
+><span class="kb-points-dot" aria-hidden="true"></span><span data-kb-text>{label?.text}</span></span>

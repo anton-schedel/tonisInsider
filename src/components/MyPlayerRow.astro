@@ -3,6 +3,7 @@ import type { MyPlayer } from "../lib/match.ts";
 import Avatar from "./Avatar.astro";
 import StartBadge from "./StartBadge.astro";
 import NewsBadge from "./NewsBadge.astro";
+import KbPoints from "./KbPoints.astro";
 import { matchLine } from "../lib/card.ts";
 
 interface Props {
@@ -29,5 +30,7 @@ const match = matchLine(p.lineup);
     </span>
     {match && <span class="block truncate text-xs text-muted">{match}</span>}
   </span>
-  <StartBadge status={p.status} label={p.statusLabel} rival={p.rival} />
+  {/* Before kickoff: will he start? From kickoff on: his Kickbase points. */}
+  {!p.kickbase.live?.state && <StartBadge status={p.status} label={p.statusLabel} rival={p.rival} />}
+  <KbPoints id={p.kickbase.id} live={p.kickbase.live} class="is-row" />
 </button>

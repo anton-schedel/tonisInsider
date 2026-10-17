@@ -3,6 +3,7 @@ import type { MyPlayer, StartStatus } from "../lib/match.ts";
 import Avatar from "./Avatar.astro";
 import PitchField from "./PitchField.astro";
 import NewsBadge from "./NewsBadge.astro";
+import KbPoints from "./KbPoints.astro";
 import { AVATAR, slotStyle } from "../lib/pitch.ts";
 
 interface Props {
@@ -44,7 +45,9 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
               {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -bottom-0.5 -left-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
             </span>
             <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{name}</span>
-            {note && <span class="line-clamp-1 text-[9.5px] leading-tight" style={`color:${noteColor}`}>{note}</span>}
+            {/* Before kickoff: will he start? From kickoff on: his Kickbase points. */}
+            {note && !p.kickbase.live?.state && <span class="line-clamp-1 text-[9.5px] leading-tight" style={`color:${noteColor}`}>{note}</span>}
+            <KbPoints id={p.kickbase.id} live={p.kickbase.live} />
           </button>
         </div>
       );

@@ -11,6 +11,7 @@ import { chancesFor } from "../lib/odds.ts";
 import { matchInsights, type PlayerInsight } from "../lib/scorers.ts";
 import { cardAttr, hasFreshNews, matchLine, newsByPlayer, POSITIONS, startLabel, type CardNews } from "../lib/card.ts";
 import { confirmedClubs } from "../lib/lineupNews.ts";
+import { anyRunning } from "../lib/livePoints.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import type { Snapshot } from "../../scraper/snapshot.ts";
 
@@ -37,7 +38,7 @@ async function load(token: string) {
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
   const league = leagues.find((l) => l.id === wanted) ?? leagues[0];
-  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, outlook: new Map<string, PlayerOutlook>(), cardNews: new Map<string, CardNews[]>() };
+  if (!league) return { leagues, league, players: [] as MyPlayer[], starterCount: 0, points: undefined as number | undefined, outlook: new Map<string, PlayerOutlook>(), cardNews: new Map<string, CardNews[]>() };
   // Only an explicit choice is remembered (not prefetches or defaults).
   if (picked && league.id === picked) {
     Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
@@ -47,12 +48,12 @@ async function load(token: string) {
     if (teams.length > 0) g.__kbTable = { at: Date.now(), teams };
   }
   // The manager's own XI and bench; if Kickbase can't deliver it, fall back to the plain squad list.
-  const eleven = (token: string, id: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[] }> =>
+  const eleven = (token: string, id: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[]; points?: number }> =>
     myEleven(fetch, token, id).catch((err) => {
       if (err instanceof KickbaseAuthError) throw err;
       return fetchSquad(fetch, token, id).then((all) => ({ starters: [], bench: all }));
     });
-  const [{ starters, bench }, snapshot] = await Promise.all([
+  const [{ starters, bench, points }, snapshot] = await Promise.all([
     eleven(token, league.id),
     env.ASSETS.fetch(new URL("/data/snapshot.json", Astro.url))
       .then((r: Response) => (r.ok ? (r.json() as Promise<Snapshot>) : undefined))
@@ -101,11 +102,11 @@ async function load(token: string) {
     const list = playerNews(articlePlayer(p, byNewest)?.id);
     return list ? [[p.kickbase.id, list] as const] : [];
   }));
-  return { leagues, league, players, starterCount: starters.length, outlook, cardNews };
+  return { leagues, league, players, starterCount: starters.length, points, outlook, cardNews };
 }
 
 let error: string | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, outlook: new Map(), cardNews: new Map() };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, points: undefined, outlook: new Map(), cardNews: new Map() };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -128,7 +129,10 @@ try {
   }
   error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
-const { leagues, league, players, starterCount, outlook, cardNews } = data;
+const { leagues, league, players, starterCount, points, outlook, cardNews } = data;
+// The XI's Kickbase points this matchday, once one of its matches has started (updated live, script below).
+const started = players.slice(0, starterCount).some((p) => p.kickbase.live?.state);
+const running = anyRunning(players.map((p) => p.kickbase.live), Date.now());
 // Player card per Kickbase id: status, next match and the odds-based outlook.
 const cards = new Map(players.map((p) => {
   const start = startLabel(p.status, p.statusLabel, p.rival);
@@ -177,9 +181,12 @@ let index = 0;
   {starterCount > 0 ? (
     <>
       <section>
-        <div class="mb-3 flex items-baseline justify-between">
+        <div class="mb-3 flex items-baseline justify-between gap-3">
           <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
-          <span class="text-[15px] font-semibold text-muted tabular-nums">{pitch.formation}</span>
+          <span class="flex items-baseline gap-2 text-[15px] font-semibold text-muted tabular-nums">
+            {pitch.formation}
+            <span data-kb-total hidden={!started || points === undefined} class="text-fg">· <span data-kb-total-n>{points}</span> Pkt.</span>
+          </span>
         </div>
         <MyPitch lines={pitch.lines} cards={cards} fresh={fresh} />
       </section>
@@ -207,8 +214,60 @@ let index = 0;
     })
   )}
 
+  {/* While a match runs: the points every 30 s (only while the page is visible). */}
+  {league && <div hidden data-kb-live-league={league.id} data-kb-running={running ? "1" : ""}></div>}
+
   <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>
     <button type="submit" class="press w-full rounded-xl bg-surface py-3 text-sm font-semibold" style="color:var(--red-fg)">Abmelden</button>
   </form>
   <PlayerCard />
 </Base>
+
+<script>
+  import type { KbLive } from "../lib/kickbase.ts";
+  import { anyRunning, pointsLabel } from "../lib/livePoints.ts";
+
+  const POLL_MS = 30_000;
+  let timer = 0;
+
+  function draw(data: { points?: number; players: Record<string, KbLive> }) {
+    for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points]")) {
+      const label = pointsLabel(data.players[el.dataset.kbPoints!]);
+      el.hidden = !label;
+      if (!label) continue;
+      el.querySelector("[data-kb-text]")!.textContent = label.text;
+      el.classList.toggle("is-live", label.live);
+      el.classList.toggle("is-negative", label.negative);
+      el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
+    }
+    const total = document.querySelector<HTMLElement>("[data-kb-total]");
+    if (total && data.points !== undefined) {
+      total.querySelector("[data-kb-total-n]")!.textContent = String(data.points);
+      total.hidden = false;
+    }
+  }
+
+  async function tick() {
+    clearTimeout(timer);
+    const box = document.querySelector<HTMLElement>("[data-kb-live-league]");
+    if (!box?.dataset.kbRunning || document.visibilityState !== "visible") return;
+    try {
+      const res = await fetch(`/api/kickbase/live/?league=${encodeURIComponent(box.dataset.kbLiveLeague!)}`);
+      if (res.ok) {
+        const data = (await res.json()) as { points?: number; players: Record<string, KbLive> };
+        draw(data);
+        // All matches over: stop asking.
+        if (!anyRunning(Object.values(data.players), Date.now())) box.dataset.kbRunning = "";
+      }
+    } catch {}
+    if (box.isConnected && box.dataset.kbRunning) timer = window.setTimeout(tick, POLL_MS);
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    clearTimeout(timer);
+    if (document.querySelector("[data-kb-live-league]")) timer = window.setTimeout(tick, POLL_MS);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && document.querySelector("[data-kb-live-league]")) void tick();
+  });
+</script>

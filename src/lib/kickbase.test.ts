@@ -72,6 +72,24 @@ describe("myEleven", () => {
     expect(r.bench.map((p) => p.name)).toEqual(["Pinckert"]);
   });
 
+  it("reads each player's live points and match state, and the XI's points", async () => {
+    const s = fakeFetch(200, {
+      lp: [
+        { ...kb("1", "Caci", 2), p: 142, mst: 2, mt: 94 },
+        { ...kb("2", "Saibari", 4), p: 31, mst: 1, mt: 63 },
+        { ...kb("3", "Schick", 4), mst: 0 },
+      ],
+      p: 455,
+    });
+    const r = await myEleven(s.fn, "T", "7");
+    expect(r.points).toBe(455);
+    expect(r.starters.map((p) => p.live)).toEqual([
+      { state: 2, points: 142, kickoff: "2026-10-10T13:30:00Z" },
+      { state: 1, points: 31, minute: 63, kickoff: "2026-10-10T13:30:00Z" },
+      { state: 0, kickoff: "2026-10-10T13:30:00Z" },
+    ]);
+  });
+
   it("copes with a manager who hasn't set a lineup", async () => {
     expect(await myEleven(fakeFetch(200, {}).fn, "T", "7")).toEqual({ starters: [], bench: [] });
   });

@@ -370,6 +370,20 @@ html:not([data-navigated]) .enter {
 }
 .s11-badge.is-legend { position: static; border: 0; }
 
+/* Kickbase points (Mein Team): from kickoff on, a red dot while the match runs. Dark chip on the pitch. */
+.kb-points {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 3px;
+  padding: 1px 7px; border-radius: 9999px; background: rgba(0, 0, 0, 0.5); color: #fff;
+  font-size: 11.5px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums;
+}
+.kb-points.is-row { margin-top: 0; padding: 2px 9px; background: var(--surface); color: var(--fg); font-size: 14px; line-height: 20px; }
+.kb-points.is-negative { color: #ff8a80; }
+.kb-points.is-row.is-negative { color: var(--red-fg); }
+.kb-points-dot { display: none; width: 6px; height: 6px; border-radius: 9999px; background: #ff453a; }
+.kb-points.is-live .kb-points-dot { display: block; animation: kb-live 1.6s ease-in-out infinite; }
+@keyframes kb-live { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .kb-points.is-live .kb-points-dot { animation: none; } }
+
 /* Switching light/dark (Base.astro): every colour changes in the same frame. */
 .theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
 
