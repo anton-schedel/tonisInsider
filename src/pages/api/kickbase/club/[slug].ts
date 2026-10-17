@@ -31,7 +31,8 @@ export const GET: APIRoute = async ({ params, url }) => {
       const teamId = [...mapClubs(table, [lineup]).keys()][0];
       if (!teamId) return undefined;
       const center = await teamCenter(fetch, token, teamId);
-      return { live: center.live, players: pointsByLigaInsiderId(lineup, center.players) } satisfies ClubPoints;
+      const { points, ids } = pointsByLigaInsiderId(lineup, center.players);
+      return { live: center.live, players: points, ids } satisfies ClubPoints;
     });
     if (!body) return Response.json({ error: "Keine Kickbase-Daten." }, { status: 503, headers: { "cache-control": "no-store" } });
     const ttl = body.live.state === 2 ? DONE_TTL : LIVE_TTL;

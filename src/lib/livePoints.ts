@@ -1,7 +1,28 @@
-import type { KbLive } from "./kickbase.ts";
+import type { KbEvent, KbLive } from "./kickbase.ts";
 
-/** The points of a club's lineup players (club pages), by LigaInsider id, and the state of its match. */
-export type ClubPoints = { live: Omit<KbLive, "points">; players: Record<number, number> };
+/**
+ * The points of a club's lineup players (club pages), by LigaInsider id, and the state of its match.
+ * ids: their Kickbase ids, for the breakdown in the player card.
+ */
+export type ClubPoints = { live: Omit<KbLive, "points">; players: Record<number, number>; ids: Record<number, string> };
+
+/** One line of a player's points breakdown: an action, how often, and its points in total. */
+export type PointsLine = { name: string; count: number; points: number };
+/** What the player card shows from kickoff on. */
+export type PlayerPoints = { live: KbLive; lines: PointsLine[] };
+
+/** The actions behind a player's points, grouped by kind, biggest effect first. Actions worth nothing are left out. */
+export function summarize(events: KbEvent[], names: Map<number, string>): PointsLine[] {
+  const by = new Map<number, PointsLine>();
+  for (const e of events) {
+    if (!e.points) continue;
+    const line = by.get(e.type) ?? { name: names.get(e.type) ?? "Sonstiges", count: 0, points: 0 };
+    line.count++;
+    line.points += e.points;
+    by.set(e.type, line);
+  }
+  return [...by.values()].filter((l) => l.points !== 0).sort((a, b) => Math.abs(b.points) - Math.abs(a.points) || b.count - a.count);
+}
 
 /** Shown from kickoff on: the player's Kickbase points (live while his match runs). Nothing before kickoff. */
 export type PointsLabel = { text: string; live: boolean; negative: boolean };

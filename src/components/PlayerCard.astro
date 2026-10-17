@@ -38,6 +38,11 @@
         <span data-f="points" class="kb-points is-card ml-auto shrink-0" hidden><span class="kb-points-dot" aria-hidden="true"></span><span data-f="pointsText"></span></span>
       </div>
       <div data-f="stats" class="fut-stats"></div>
+      {/* From kickoff to the end of the matchday, instead of the odds: what he did and what it was worth. */}
+      <div data-f="breakdown" class="fut-news" hidden>
+        <p class="fut-news-label">Punkte am Spieltag</p>
+        <div data-f="breakdownList" class="divide-y divide-hairline"></div>
+      </div>
       {/* His latest news: tapping one opens the article (the card closes on the way). */}
       <div data-f="news" class="fut-news" hidden>
         <p class="fut-news-label">News</p>
@@ -54,6 +59,7 @@
 
 <script>
   import type { CardData, CardNews } from "../lib/card.ts";
+  import type { PlayerPoints, PointsLine } from "../lib/livePoints.ts";
   import { ago, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
@@ -91,11 +97,62 @@
   // Cards cost points: a high risk is marked.
   const CARD_WARN = 30;
 
+  function pointsRow(l: PointsLine): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "fut-points-row";
+    const name = document.createElement("span");
+    name.className = "min-w-0 flex-1 truncate";
+    name.textContent = l.name;
+    const count = document.createElement("span");
+    count.className = "text-muted";
+    count.textContent = l.count > 1 ? `${l.count}×` : "";
+    const pts = document.createElement("b");
+    pts.className = l.points < 0 ? "is-negative" : "";
+    pts.textContent = l.points > 0 ? `+${l.points}` : String(l.points);
+    row.append(name, count, pts);
+    return row;
+  }
+
+  // The card can be reopened for someone else while a breakdown is still loading: only the latest one is drawn.
+  let shown = 0;
+
+  /** From kickoff on: the actions behind his points, instead of the odds (back to them if Kickbase fails). */
+  async function fillBreakdown(dialog: HTMLDialogElement, player: string | undefined) {
+    const f = (name: string) => dialog.querySelector<HTMLElement>(`[data-f="${name}"]`)!;
+    const box = f("breakdown");
+    const list = f("breakdownList");
+    const mine = ++shown;
+    box.hidden = !player;
+    if (!player) return;
+    const stats = f("stats");
+    const hadStats = !stats.hidden;
+    stats.hidden = true;
+    list.replaceChildren(...[0.7, 0.5, 0.6].map((w) => {
+      const row = document.createElement("div");
+      row.className = "fut-points-row";
+      row.innerHTML = `<span class="skeleton block h-3 rounded-full" style="width:${w * 100}%"></span>`;
+      return row;
+    }));
+    try {
+      const res = await fetch(`/api/kickbase/player/${player}/`);
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as PlayerPoints;
+      if (mine !== shown) return;
+      if (data.live.state === 0 || data.lines.length === 0) throw new Error();
+      list.replaceChildren(...data.lines.map(pointsRow));
+    } catch {
+      if (mine !== shown) return;
+      box.hidden = true;
+      stats.hidden = !hadStats;
+    }
+  }
+
   /** The points chip of the tapped player (Mein Team, club pitch) into the card, live dot included. */
   function fillPoints(dialog: HTMLDialogElement, trigger: HTMLElement) {
     const chip = dialog.querySelector<HTMLElement>('[data-f="points"]')!;
     const source = [...trigger.querySelectorAll<HTMLElement>("[data-kb-points]")].find((el) => !el.hidden);
     chip.hidden = !source;
+    void fillBreakdown(dialog, source?.dataset.kbPlayer);
     if (!source) return;
     const text = source.querySelector("[data-kb-text]")?.textContent ?? "";
     chip.querySelector('[data-f="pointsText"]')!.textContent = `${text} Pkt.`;

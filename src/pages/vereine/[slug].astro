@@ -68,7 +68,9 @@ const playerNews = newsByPlayer(articles());
 
   function draw(data: ClubPoints) {
     for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points^='li']")) {
-      const points = data.players[Number(el.dataset.kbPoints!.slice(2))];
+      const liId = Number(el.dataset.kbPoints!.slice(2));
+      const points = data.players[liId];
+      if (data.ids?.[liId]) el.dataset.kbPlayer = data.ids[liId];
       // A player without points after the match didn't play: "–"; during it "0".
       const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) });
       el.hidden = !label;

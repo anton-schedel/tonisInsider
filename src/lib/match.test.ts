@@ -132,12 +132,12 @@ describe("articlePlayer", () => {
 
 describe("pointsByLigaInsiderId", () => {
   it("gives each lineup player his Kickbase points, alternatives too", () => {
-    const pts = pointsByLigaInsiderId(bvb, [{ name: "Kobel", points: 88 }, { name: "Bensebaini", points: 12 }, { name: "Veerman" }]);
-    expect(pts).toEqual({ 9357: 88, 7791: 12 });
+    const pts = pointsByLigaInsiderId(bvb, [{ id: "1873", name: "Kobel", points: 88 }, { name: "Bensebaini", points: 12 }, { id: "9", name: "Veerman" }]);
+    expect(pts).toEqual({ points: { 9357: 88, 7791: 12 }, ids: { 9357: "1873", 3: "9" } });
   });
   it("leaves out names that fit two lineup players", () => {
     // "Nmecha" fits F. Nmecha and L. Nmecha; "Felix Nmecha" only the one.
-    expect(pointsByLigaInsiderId(bvb, [{ name: "Nmecha", points: 50 }])).toEqual({});
-    expect(pointsByLigaInsiderId(bvb, [{ name: "Felix Nmecha", points: 50 }])).toEqual({ 1: 50 });
+    expect(pointsByLigaInsiderId(bvb, [{ name: "Nmecha", points: 50 }]).points).toEqual({});
+    expect(pointsByLigaInsiderId(bvb, [{ name: "Felix Nmecha", points: 50 }]).points).toEqual({ 1: 50 });
   });
 });

@@ -124,16 +124,22 @@ export function articlePlayer(p: MyPlayer, articles: Pick<Article, "club" | "pla
 }
 
 /**
- * Kickbase points for LigaInsider's lineup players (starters and alternatives), by LigaInsider id. Matched by
- * surname like the squad; a Kickbase name that fits two of them, or two Kickbase players that fit one, is left out.
+ * Kickbase points (and Kickbase ids) for LigaInsider's lineup players, starters and alternatives, by LigaInsider
+ * id. Matched by surname like the squad; a Kickbase name that fits two of them, or two Kickbase players that fit
+ * one, is left out.
  */
-export function pointsByLigaInsiderId(lineup: Lineup, kb: { name: string; points?: number }[]): Record<number, number> {
-  const out: Record<number, number> = {};
+export function pointsByLigaInsiderId(
+  lineup: Lineup,
+  kb: { id?: string; name: string; points?: number }[],
+): { points: Record<number, number>; ids: Record<number, string> } {
+  const points: Record<number, number> = {};
+  const ids: Record<number, string> = {};
   const refs = lineup.lines.flat().flatMap((p) => [p, ...(p.alternative ? [p.alternative] : [])]);
   for (const ref of refs) {
     const hits = kb.filter((k) => nameMatches(k.name, ref));
-    const clash = hits.length === 1 && refs.filter((r) => nameMatches(hits[0].name, r)).length > 1;
-    if (hits.length === 1 && !clash && hits[0].points !== undefined) out[ref.id] = hits[0].points;
+    if (hits.length !== 1 || refs.filter((r) => nameMatches(hits[0].name, r)).length > 1) continue;
+    if (hits[0].points !== undefined) points[ref.id] = hits[0].points;
+    if (hits[0].id) ids[ref.id] = hits[0].id;
   }
-  return out;
+  return { points, ids };
 }

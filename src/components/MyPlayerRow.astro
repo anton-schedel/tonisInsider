@@ -32,5 +32,5 @@ const match = matchLine(p.lineup);
   </span>
   {/* Before kickoff: will he start? From kickoff on: his Kickbase points. */}
   {!p.kickbase.live?.state && <StartBadge status={p.status} label={p.statusLabel} rival={p.rival} />}
-  <KbPoints id={p.kickbase.id} live={p.kickbase.live} class="is-row" />
+  <KbPoints id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} class="is-row" />
 </button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anyRunning, pointsLabel } from "./livePoints.ts";
+import { anyRunning, pointsLabel, summarize } from "./livePoints.ts";
 
 describe("pointsLabel", () => {
   it("shows nothing before kickoff", () => {
@@ -24,5 +24,21 @@ describe("anyRunning", () => {
   });
   it("is false when all are over or yet to come", () => {
     expect(anyRunning([{ state: 2 }, { state: 0, kickoff: "2026-10-18T13:30:00Z" }, undefined], now)).toBe(false);
+  });
+});
+
+describe("summarize", () => {
+  const names = new Map([[4201, "Pass vorderes Drittel"], [4240, "Ballverlust"], [4234, "Gelbe Karte"], [-10, "Erste Halbzeit beendet"]]);
+  it("groups actions by kind, biggest effect first, and leaves out those worth nothing", () => {
+    const events = [
+      { type: 4201, points: 2, minute: 5 }, { type: 4240, points: -1, minute: 9 }, { type: 4201, points: 2, minute: 30 },
+      { type: 4234, points: -10, minute: 44 }, { type: -10, points: 0, minute: 45 }, { type: 4999, points: 3, minute: 60 },
+    ];
+    expect(summarize(events, names)).toEqual([
+      { name: "Gelbe Karte", count: 1, points: -10 },
+      { name: "Pass vorderes Drittel", count: 2, points: 4 },
+      { name: "Sonstiges", count: 1, points: 3 },
+      { name: "Ballverlust", count: 1, points: -1 },
+    ]);
   });
 });

@@ -123,3 +123,34 @@ export async function teamCenter(fetchFn: Fetch, token: string, teamId: string):
     players: (r.it ?? []).map((p) => ({ id: String(p.i), name: p.n, ...(typeof p.p === "number" ? { points: p.p } : {}) })),
   };
 }
+
+/** One action that earned or cost a player points (type: Kickbase event type id). */
+export type KbEvent = { type: number; points: number; minute?: number };
+
+/** A player's match on the current matchday: state, points and every action behind them. */
+export async function playerCenter(fetchFn: Fetch, token: string, playerId: string): Promise<{ live: KbLive; events: KbEvent[] }> {
+  const r = await call<ApiPlayer & { events?: { eti: number; p: number; mt?: number }[] }>(
+    fetchFn, `/v4/competitions/1/playercenter/${encodeURIComponent(playerId)}`, { token },
+  );
+  return {
+    live: toLive(r),
+    events: (r.events ?? []).map((e) => ({ type: e.eti, points: e.p, ...(typeof e.mt === "number" ? { minute: e.mt } : {}) })),
+  };
+}
+
+/** Kickbase's names of the event types ("Pass vorderes Drittel"), in German. */
+export async function eventTypes(fetchFn: Fetch, token: string): Promise<Map<number, string>> {
+  let res: Response;
+  try {
+    res = await fetchFn(`${KICKBASE_API}/v4/live/eventtypes`, {
+      headers: { accept: "application/json", "accept-language": "de-DE", authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new KickbaseUnavailableError("network error or timeout");
+  }
+  if (res.status === 401) throw new KickbaseAuthError(`HTTP ${res.status}`);
+  if (!res.ok) throw new KickbaseUnavailableError(`HTTP ${res.status}`);
+  const r = (await res.json().catch(() => ({}))) as { it?: { i: number; ti: string }[] };
+  return new Map((r.it ?? []).map((t) => [t.i, t.ti]));
+}
