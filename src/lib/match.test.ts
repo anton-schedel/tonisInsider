@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { articlePlayer, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
+import { articlePlayer, pointsByLigaInsiderId, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 import type { Article, Lineup, LineupPlayer } from "../../scraper/types.ts";
 
@@ -127,5 +127,17 @@ describe("articlePlayer", () => {
   });
   it("keeps the lineup's match", () => {
     expect(articlePlayer(matchPlayer(kb("Kobel"), bvb), [])?.id).toBe(9357);
+  });
+});
+
+describe("pointsByLigaInsiderId", () => {
+  it("gives each lineup player his Kickbase points, alternatives too", () => {
+    const pts = pointsByLigaInsiderId(bvb, [{ name: "Kobel", points: 88 }, { name: "Bensebaini", points: 12 }, { name: "Veerman" }]);
+    expect(pts).toEqual({ 9357: 88, 7791: 12 });
+  });
+  it("leaves out names that fit two lineup players", () => {
+    // "Nmecha" fits F. Nmecha and L. Nmecha; "Felix Nmecha" only the one.
+    expect(pointsByLigaInsiderId(bvb, [{ name: "Nmecha", points: 50 }])).toEqual({});
+    expect(pointsByLigaInsiderId(bvb, [{ name: "Felix Nmecha", points: 50 }])).toEqual({ 1: 50 });
   });
 });

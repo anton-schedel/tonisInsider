@@ -5,6 +5,9 @@ declare module "cloudflare:workers" {
     ASSETS: { fetch(input: Request | URL | string): Promise<Response> };
     /** 32 random bytes, base64. Encrypts the "stay logged in" cookie. Missing → weekly login instead. */
     CREDENTIALS_KEY?: string;
+    /** Kickbase account the server uses for public live points (club pages); `wrangler secret put`. */
+    KICKBASE_EMAIL?: string;
+    KICKBASE_PASSWORD?: string;
     /** Comments on our own posts (D1, see migrations/). */
     COMMENTS?: D1;
   };

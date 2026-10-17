@@ -59,7 +59,7 @@ function lastWord(s: string): string {
 }
 
 /** Surname-based: never matches a first name ("Can" must not match "can-uzun"). */
-function nameMatches(kickbaseName: string, candidate: Ref): boolean {
+export function nameMatches(kickbaseName: string, candidate: Ref): boolean {
   const kb = normalize(kickbaseName);
   const name = normalize(candidate.name);
   if (kb === name || kb === lastWord(name)) return true;
@@ -121,4 +121,19 @@ export function articlePlayer(p: MyPlayer, articles: Pick<Article, "club" | "pla
     if (a.player && a.club?.id === p.club.id && nameMatches(p.kickbase.name, a.player)) hits.set(a.player.id, a.player);
   }
   return hits.size === 1 ? [...hits.values()][0] : undefined;
+}
+
+/**
+ * Kickbase points for LigaInsider's lineup players (starters and alternatives), by LigaInsider id. Matched by
+ * surname like the squad; a Kickbase name that fits two of them, or two Kickbase players that fit one, is left out.
+ */
+export function pointsByLigaInsiderId(lineup: Lineup, kb: { name: string; points?: number }[]): Record<number, number> {
+  const out: Record<number, number> = {};
+  const refs = lineup.lines.flat().flatMap((p) => [p, ...(p.alternative ? [p.alternative] : [])]);
+  for (const ref of refs) {
+    const hits = kb.filter((k) => nameMatches(k.name, ref));
+    const clash = hits.length === 1 && refs.filter((r) => nameMatches(hits[0].name, r)).length > 1;
+    if (hits.length === 1 && !clash && hits[0].points !== undefined) out[ref.id] = hits[0].points;
+  }
+  return out;
 }

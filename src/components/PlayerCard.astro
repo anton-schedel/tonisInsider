@@ -32,7 +32,11 @@
           <img data-f="photo" alt="" hidden />
         </span>
       </div>
-      <p data-f="match" class="mt-3 text-[14px] text-muted"></p>
+      <div class="mt-3 flex items-center gap-2">
+        <p data-f="match" class="min-w-0 text-[14px] text-muted"></p>
+        {/* His Kickbase points once his match started, as on the pitch he was tapped on. */}
+        <span data-f="points" class="kb-points is-card ml-auto shrink-0" hidden><span class="kb-points-dot" aria-hidden="true"></span><span data-f="pointsText"></span></span>
+      </div>
       <div data-f="stats" class="fut-stats"></div>
       {/* His latest news: tapping one opens the article (the card closes on the way). */}
       <div data-f="news" class="fut-news" hidden>
@@ -86,6 +90,19 @@
   ] as const;
   // Cards cost points: a high risk is marked.
   const CARD_WARN = 30;
+
+  /** The points chip of the tapped player (Mein Team, club pitch) into the card, live dot included. */
+  function fillPoints(dialog: HTMLDialogElement, trigger: HTMLElement) {
+    const chip = dialog.querySelector<HTMLElement>('[data-f="points"]')!;
+    const source = [...trigger.querySelectorAll<HTMLElement>("[data-kb-points]")].find((el) => !el.hidden);
+    chip.hidden = !source;
+    if (!source) return;
+    const text = source.querySelector("[data-kb-text]")?.textContent ?? "";
+    chip.querySelector('[data-f="pointsText"]')!.textContent = `${text} Pkt.`;
+    chip.classList.toggle("is-live", source.classList.contains("is-live"));
+    chip.classList.toggle("is-negative", source.classList.contains("is-negative"));
+    chip.setAttribute("aria-label", source.getAttribute("aria-label") ?? "");
+  }
 
   function fill(dialog: HTMLDialogElement, d: CardData) {
     const f = (name: string) => dialog.querySelector<HTMLElement>(`[data-f="${name}"]`)!;
@@ -180,6 +197,7 @@
     if (!trigger) return;
     try {
       fill(dialog, JSON.parse(trigger.dataset.card!) as CardData);
+      fillPoints(dialog, trigger);
     } catch {
       return;
     }

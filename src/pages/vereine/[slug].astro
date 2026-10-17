@@ -41,6 +41,8 @@ const playerNews = newsByPlayer(articles());
       <span class="text-[15px] font-semibold text-muted tabular-nums">{lineup.formation}</span>
     </div>
     <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} confirmed={confirmed} news={playerNews} />
+    {/* From kickoff on: the players' Kickbase points (script below). */}
+    {lineup.kickoff && <div hidden data-kb-club={lineup.club.slug} data-kickoff={lineup.kickoff}></div>}
   </section>
 
   <section class="mt-7">
@@ -55,3 +57,47 @@ const playerNews = newsByPlayer(articles());
   </section>
   <PlayerCard />
 </Base>
+
+<script>
+  import { pointsLabel, type ClubPoints } from "../../lib/livePoints.ts";
+
+  const POLL_MS = 30_000;
+  /** Points matter from kickoff until the next matchday's lineup replaces this one; polled while it runs. */
+  const MAX_AFTER_MS = 4 * 86_400_000;
+  let timer = 0;
+
+  function draw(data: ClubPoints) {
+    for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points^='li']")) {
+      const points = data.players[Number(el.dataset.kbPoints!.slice(2))];
+      // A player without points after the match didn't play: "–"; during it "0".
+      const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) });
+      el.hidden = !label;
+      if (!label) continue;
+      el.querySelector("[data-kb-text]")!.textContent = label.text;
+      el.classList.toggle("is-live", label.live);
+      el.classList.toggle("is-negative", label.negative);
+      el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
+    }
+  }
+
+  async function tick() {
+    clearTimeout(timer);
+    const box = document.querySelector<HTMLElement>("[data-kb-club]");
+    if (!box || document.visibilityState !== "visible") return;
+    const kickoff = Date.parse(box.dataset.kickoff!);
+    if (!(kickoff <= Date.now() && Date.now() < kickoff + MAX_AFTER_MS)) return;
+    let running = true;
+    try {
+      const res = await fetch(`/api/kickbase/club/${box.dataset.kbClub}/`);
+      if (res.ok) {
+        const data = (await res.json()) as ClubPoints;
+        draw(data);
+        running = data.live.state !== 2;
+      }
+    } catch {}
+    if (box.isConnected && running) timer = window.setTimeout(tick, POLL_MS);
+  }
+
+  document.addEventListener("astro:page-load", () => void tick());
+  document.addEventListener("visibilitychange", () => void tick());
+</script>

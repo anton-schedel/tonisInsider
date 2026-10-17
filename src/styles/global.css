@@ -377,7 +377,9 @@ html:not([data-navigated]) .enter {
   font-size: 11.5px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums;
 }
 .kb-points.is-row { margin-top: 0; padding: 2px 9px; background: var(--surface); color: var(--fg); font-size: 14px; line-height: 20px; }
+.kb-points.is-card { margin-top: 0; padding: 3px 10px; background: var(--surface); color: var(--fg); font-size: 14px; line-height: 20px; }
 .kb-points.is-negative { color: #ff8a80; }
+.kb-points.is-card.is-negative { color: var(--red-fg); }
 .kb-points.is-row.is-negative { color: var(--red-fg); }
 .kb-points-dot { display: none; width: 6px; height: 6px; border-radius: 9999px; background: #ff453a; }
 .kb-points.is-live .kb-points-dot { display: block; animation: kb-live 1.6s ease-in-out infinite; }

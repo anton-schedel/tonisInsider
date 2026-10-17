@@ -1,5 +1,8 @@
 import type { KbLive } from "./kickbase.ts";
 
+/** The points of a club's lineup players (club pages), by LigaInsider id, and the state of its match. */
+export type ClubPoints = { live: Omit<KbLive, "points">; players: Record<number, number> };
+
 /** Shown from kickoff on: the player's Kickbase points (live while his match runs). Nothing before kickoff. */
 export type PointsLabel = { text: string; live: boolean; negative: boolean };
 

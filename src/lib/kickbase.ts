@@ -108,3 +108,18 @@ export async function clubTable(fetchFn: Fetch, token: string): Promise<KbTeam[]
   const r = await call<{ it?: { tid: string; tn: string }[] }>(fetchFn, "/v4/competitions/1/table", { token });
   return (r.it ?? []).map((t) => ({ id: String(t.tid), name: t.tn }));
 }
+
+/** A club's players and their Kickbase points on the current matchday (none before kickoff). */
+export type KbTeamCenter = { live: Omit<KbLive, "points">; players: { id: string; name: string; points?: number }[] };
+
+export async function teamCenter(fetchFn: Fetch, token: string, teamId: string): Promise<KbTeamCenter> {
+  const r = await call<{
+    ma?: { st?: number; mt?: number; dt?: string };
+    it?: { i: string; n: string; p?: number }[];
+  }>(fetchFn, `/v4/competitions/1/teams/${encodeURIComponent(teamId)}/teamcenter`, { token });
+  const state = (r.ma?.st === 1 || r.ma?.st === 2 ? r.ma.st : 0) as KbLive["state"];
+  return {
+    live: { state, ...(state === 1 && typeof r.ma?.mt === "number" ? { minute: r.ma.mt } : {}), ...(r.ma?.dt ? { kickoff: r.ma.dt } : {}) },
+    players: (r.it ?? []).map((p) => ({ id: String(p.i), name: p.n, ...(typeof p.p === "number" ? { points: p.p } : {}) })),
+  };
+}
