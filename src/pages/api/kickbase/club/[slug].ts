@@ -2,9 +2,9 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import type { Snapshot } from "../../../../../scraper/snapshot.ts";
 import type { EdgeCache } from "../../../../lib/comments.ts";
-import { teamCenter } from "../../../../lib/kickbase.ts";
+import { matchDetails, teamCenter } from "../../../../lib/kickbase.ts";
 import type { ClubPoints } from "../../../../lib/livePoints.ts";
-import { mapClubs, pointsByLigaInsiderId } from "../../../../lib/match.ts";
+import { mapClubs, pointsByLigaInsiderId, slotPlays } from "../../../../lib/match.ts";
 import { serviceTable, withService } from "../../../../lib/serviceKickbase.ts";
 
 export const prerender = false;
@@ -32,7 +32,16 @@ export const GET: APIRoute = async ({ params, url }) => {
       if (!teamId) return undefined;
       const center = await teamCenter(fetch, token, teamId);
       const { points, ids } = pointsByLigaInsiderId(lineup, center.players);
-      return { live: center.live, players: points, ids } satisfies ClubPoints;
+      // From kickoff: who really started in each slot, and who came on.
+      let slots: ClubPoints["slots"];
+      if (center.live.state > 0 && center.matchId) {
+        const details = await matchDetails(fetch, token, center.matchId).catch(() => undefined);
+        const starters = details?.starters[teamId];
+        if (details && starters?.length) {
+          slots = slotPlays(lineup, starters, details.subs.filter((x) => x.teamId === teamId), center.players);
+        }
+      }
+      return { live: center.live, players: points, ids, ...(slots ? { slots } : {}) } satisfies ClubPoints;
     });
     if (!body) return Response.json({ error: "Keine Kickbase-Daten." }, { status: 503, headers: { "cache-control": "no-store" } });
     const ttl = body.live.state === 2 ? DONE_TTL : LIVE_TTL;

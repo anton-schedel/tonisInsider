@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, myEleven, squad, teamRoster } from "./kickbase.ts";
+import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, matchDetails, myEleven, squad, teamRoster } from "./kickbase.ts";
 
 type Call = { url: string; init: RequestInit };
 
@@ -96,5 +96,26 @@ describe("myEleven", () => {
 
   it("throws KickbaseAuthError on 401", async () => {
     await expect(myEleven(fakeFetch(401, {}).fn, "T", "7")).rejects.toBeInstanceOf(KickbaseAuthError);
+  });
+});
+
+describe("matchDetails", () => {
+  it("reads both starting elevens and the substitutions, earliest first", async () => {
+    const s = fakeFetch(200, {
+      t1: "40", t2: "3",
+      t1lp: [{ i: 2279, n: "Rönnow" }], t2lp: [{ i: 1873, n: "Kobel" }, { i: 17309, n: "Nwaneri" }],
+      events: [
+        { pi: "16378", pn: "Karetsas", tid: "3", ke: 8, mt: 62, rev: { pi: "0", pn: "Beier", ke: 9 }, pim: "content/file/k" },
+        { pi: "9698", pn: "Fábio Silva", tid: "3", ke: 8, mt: 61, rev: { pi: "0", pn: "Nwaneri", ke: 9 } },
+        { pi: "1920", pn: "Guirassy", tid: "3", ke: 4, mt: 13 },
+      ],
+    });
+    const d = await matchDetails(s.fn, "T", "12064");
+    expect(s.calls[0].url).toBe("https://api.kickbase.com/v4/matches/12064/details");
+    expect(d.starters).toEqual({ 40: ["Rönnow"], 3: ["Kobel", "Nwaneri"] });
+    expect(d.subs).toEqual([
+      { teamId: "3", minute: 61, inId: "9698", inName: "Fábio Silva", outName: "Nwaneri" },
+      { teamId: "3", minute: 62, inId: "16378", inName: "Karetsas", outName: "Beier", inPhoto: "https://kickbase.b-cdn.net/content/file/k" },
+    ]);
   });
 });

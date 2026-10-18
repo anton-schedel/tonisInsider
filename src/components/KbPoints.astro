@@ -12,17 +12,14 @@ interface Props {
   class?: string;
   /** His Kickbase id, for the points breakdown in the player card (club pages set it once they know it). */
   player?: string;
-  /** Keepers reach Kickbase's top colour later. */
-  keeper?: boolean;
 }
-const { id, live, class: cls, player, keeper = false } = Astro.props;
-const label = pointsLabel(live, keeper);
+const { id, live, class: cls, player } = Astro.props;
+const label = pointsLabel(live);
 ---
 <span
   class:list={["kb-points", cls, label?.live && "is-live", label?.tier]}
   data-kb-points={id}
   data-kb-player={player}
-  data-kb-keeper={keeper ? "" : undefined}
   hidden={!label}
   aria-label={label ? `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}` : undefined}
 ><span class="kb-points-dot" aria-hidden="true"></span><span data-kb-text>{label?.text}</span></span>

@@ -39,7 +39,8 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
   {lineup.lines.map((line, i) =>
     line.map((p, j) => (
       <div class="absolute w-[24%]" style={slotStyle(i, rows, j, line.length, { mirror: true })}>
-        <div>
+        {/* From kickoff on the club page puts in who really played here (data-slot: the predicted starter). */}
+        <div data-slot={p.id}>
           {p.alternative ? (
             // Tap opens the player card; the ⇄ mark swaps to the alternative and back (handler in Base.astro).
             <div data-swap class="swap grid w-full">
@@ -50,9 +51,9 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
                   {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.alternative.name} zeigen`}>⇄</span>
                 </span>
+                <KbPoints id={`li${p.id}`} />
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
-                <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
-                <KbPoints id={`li${p.id}`} keeper={i === 0} />
+                <span data-prediction class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
               </button>
               <button type="button" data-card={card(p.alternative, rowPosition(i, rows), `Alternative zu ${p.name}`, "yellow")} class="press swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
                 <span class="relative">
@@ -60,9 +61,9 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
                   {hasFreshNews(news(p.alternative.id)) && <NewsBadge />}
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.name} zeigen`}>⇄</span>
                 </span>
+                <KbPoints id={`li${p.alternative.id}`} />
                 <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.alternative.name}</span>
-                <span class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">statt {p.name}</span>
-                <KbPoints id={`li${p.alternative.id}`} keeper={i === 0} />
+                <span data-prediction class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">statt {p.name}</span>
               </button>
             </div>
           ) : (
@@ -72,8 +73,8 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
                 {hasFreshNews(news(p.id)) && <NewsBadge />}
                 {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
               </span>
+              <KbPoints id={`li${p.id}`} />
               <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
-              <KbPoints id={`li${p.id}`} keeper={i === 0} />
             </button>
           )}
         </div>

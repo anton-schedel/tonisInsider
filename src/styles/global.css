@@ -380,19 +380,20 @@ html:not([data-navigated]) .enter {
 }
 .s11-badge.is-legend { position: static; border: 0; }
 
-/* Kickbase points (Mein Team, club pages, player card) in Kickbase's own colours, measured from its app:
-   red-orange below 0, orange (weak), lime (normal), emerald (strong). Kickbase shows them as coloured digits on
-   dark, so: --pts for digits on dark (pitch chips, dark mode); --pts-ink, a darker shade for light backgrounds. */
-.pts-neg { --pts: #ff4600; --pts-ink: #d63b00; }
-.pts-low { --pts: #ea8a32; --pts-ink: #b8620f; }
+/* Kickbase points (Mein Team, club pages, player card): red below 0, orange to 99, light green 100–199, darker
+   green 200–399, gold from 400. Coloured digits on dark like Kickbase: --pts for digits on dark (pitch chips,
+   dark mode), --pts-ink a darker shade for light backgrounds. */
+.pts-neg { --pts: #ff453a; --pts-ink: #d70015; }
+.pts-low { --pts: #ff9f0a; --pts-ink: #b85c00; }
 .pts-mid { --pts: #9cdd49; --pts-ink: #4f8a12; }
-.pts-top { --pts: #24dc84; --pts-ink: #0b9a57; }
+.pts-high { --pts: #1fc46f; --pts-ink: #0b8a4c; }
+.pts-gold { --pts: #ffd23f; --pts-ink: #a87800; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) [class*="pts-"] { --pts-ink: var(--pts); } }
 :root[data-theme="dark"] [class*="pts-"] { --pts-ink: var(--pts); }
 
 /* The chip: dark with white digits until there are points ("0" live, "–" didn't play), then Kickbase's colour. */
 .kb-points {
-  display: inline-flex; align-items: center; gap: 4px; margin-top: 3px;
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
   padding: 1px 7px; border-radius: 9999px; background: rgba(0, 0, 0, 0.5); color: #fff;
   font-size: 11.5px; font-weight: 700; line-height: 16px; font-variant-numeric: tabular-nums;
 }

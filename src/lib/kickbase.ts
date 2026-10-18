@@ -109,17 +109,18 @@ export async function clubTable(fetchFn: Fetch, token: string): Promise<KbTeam[]
   return (r.it ?? []).map((t) => ({ id: String(t.tid), name: t.tn }));
 }
 
-/** A club's players and their Kickbase points on the current matchday (none before kickoff). */
-export type KbTeamCenter = { live: Omit<KbLive, "points">; players: { id: string; name: string; points?: number }[] };
+/** A club's players and their Kickbase points on the current matchday (none before kickoff), and its match. */
+export type KbTeamCenter = { live: Omit<KbLive, "points">; matchId?: string; players: { id: string; name: string; points?: number }[] };
 
 export async function teamCenter(fetchFn: Fetch, token: string, teamId: string): Promise<KbTeamCenter> {
   const r = await call<{
-    ma?: { st?: number; mt?: number; dt?: string };
+    ma?: { mi?: string; st?: number; mt?: number; dt?: string };
     it?: { i: string; n: string; p?: number }[];
   }>(fetchFn, `/v4/competitions/1/teams/${encodeURIComponent(teamId)}/teamcenter`, { token });
   const state = (r.ma?.st === 1 || r.ma?.st === 2 ? r.ma.st : 0) as KbLive["state"];
   return {
     live: { state, ...(state === 1 && typeof r.ma?.mt === "number" ? { minute: r.ma.mt } : {}), ...(r.ma?.dt ? { kickoff: r.ma.dt } : {}) },
+    ...(r.ma?.mi ? { matchId: String(r.ma.mi) } : {}),
     players: (r.it ?? []).map((p) => ({ id: String(p.i), name: p.n, ...(typeof p.p === "number" ? { points: p.p } : {}) })),
   };
 }
@@ -153,4 +154,26 @@ export async function eventTypes(fetchFn: Fetch, token: string): Promise<Map<num
   if (!res.ok) throw new KickbaseUnavailableError(`HTTP ${res.status}`);
   const r = (await res.json().catch(() => ({}))) as { it?: { i: number; ti: string }[] };
   return new Map((r.it ?? []).map((t) => [t.i, t.ti]));
+}
+
+/** A substitution: who came on (with his photo) for whom, and when. */
+export type KbSub = { teamId: string; minute: number; inId: string; inName: string; inPhoto?: string; outName: string };
+
+/** A match's starting elevens (names, by Kickbase club id) and its substitutions so far. */
+export async function matchDetails(fetchFn: Fetch, token: string, matchId: string): Promise<{ starters: Record<string, string[]>; subs: KbSub[] }> {
+  type Side = { i: number | string; n: string }[];
+  const r = await call<{
+    t1?: string; t2?: string; t1lp?: Side; t2lp?: Side;
+    events?: { pi?: string; pn?: string; tid?: string; ke?: number; mt?: number; pim?: string; rev?: { pn?: string; ke?: number } }[];
+  }>(fetchFn, `/v4/matches/${encodeURIComponent(matchId)}/details`, { token });
+  const starters: Record<string, string[]> = {};
+  if (r.t1) starters[String(r.t1)] = (r.t1lp ?? []).map((p) => p.n);
+  if (r.t2) starters[String(r.t2)] = (r.t2lp ?? []).map((p) => p.n);
+  // Event 8 is "came on", its reverse (9) "went off".
+  const subs = (r.events ?? []).flatMap((e) =>
+    e.ke === 8 && e.pi && e.pn && e.rev?.pn && e.tid
+      ? [{ teamId: String(e.tid), minute: e.mt ?? 0, inId: String(e.pi), inName: e.pn, outName: e.rev.pn, ...(e.pim ? { inPhoto: `https://kickbase.b-cdn.net/${e.pim}` } : {}) }]
+      : [],
+  );
+  return { starters, subs: subs.sort((a, b) => a.minute - b.minute) };
 }

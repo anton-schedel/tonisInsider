@@ -232,7 +232,7 @@ let index = 0;
 
   function draw(data: { points?: number; players: Record<string, KbLive> }) {
     for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points]")) {
-      const label = pointsLabel(data.players[el.dataset.kbPoints!], el.dataset.kbKeeper !== undefined);
+      const label = pointsLabel(data.players[el.dataset.kbPoints!]);
       el.hidden = !label;
       if (!label) continue;
       el.querySelector("[data-kb-text]")!.textContent = label.text;

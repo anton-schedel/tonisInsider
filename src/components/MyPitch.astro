@@ -44,10 +44,11 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
               {fresh.has(p.kickbase.id) && <NewsBadge />}
               {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -bottom-0.5 -left-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
             </span>
+            {/* Right under the photo, so every player's points are level, however long his name. */}
+            <KbPoints id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} />
             <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{name}</span>
             {/* Before kickoff: will he start? From kickoff on: his Kickbase points. */}
             {note && !p.kickbase.live?.state && <span class="line-clamp-1 text-[9.5px] leading-tight" style={`color:${noteColor}`}>{note}</span>}
-            <KbPoints id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} keeper={p.kickbase.position === 1} />
           </button>
         </div>
       );

@@ -143,3 +143,41 @@ export function pointsByLigaInsiderId(
   }
   return { points, ids };
 }
+
+/** Who actually played in one pitch slot, from kickoff on (by the LigaInsider id of the predicted starter). */
+export type SlotPlay = {
+  /** The predicted starter, or his alternative if it was him who started. */
+  show: "main" | "alt";
+  /** Came on for the one shown. */
+  sub?: { kb: string; name: string; photo?: string; minute: number; points?: number };
+};
+
+/**
+ * Kickbase's starting eleven and substitutions on LigaInsider's predicted lineup: per slot, whether the
+ * predicted starter or his alternative started, and who replaced him (if anyone). Names matched by surname.
+ */
+export function slotPlays(
+  lineup: Lineup,
+  starters: string[],
+  subs: { minute: number; inId: string; inName: string; inPhoto?: string; outName: string }[],
+  points: { id: string; points?: number }[] = [],
+): Record<number, SlotPlay> {
+  const out: Record<number, SlotPlay> = {};
+  const started = (ref: Ref) => starters.some((n) => nameMatches(n, ref));
+  for (const p of lineup.lines.flat()) {
+    const show: SlotPlay["show"] = !started(p) && p.alternative && started(p.alternative) ? "alt" : "main";
+    const shown = show === "alt" ? p.alternative! : p;
+    const sub = subs.find((x) => nameMatches(x.outName, shown));
+    out[p.id] = {
+      show,
+      ...(sub ? {
+        sub: {
+          kb: sub.inId, name: sub.inName, minute: sub.minute,
+          ...(sub.inPhoto ? { photo: sub.inPhoto } : {}),
+          ...(points.find((x) => x.id === sub.inId)?.points !== undefined ? { points: points.find((x) => x.id === sub.inId)!.points } : {}),
+        },
+      } : {}),
+    };
+  }
+  return out;
+}

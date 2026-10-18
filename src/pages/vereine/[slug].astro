@@ -60,19 +60,106 @@ const playerNews = newsByPlayer(articles());
 
 <script>
   import { pointsLabel, setTier, type ClubPoints } from "../../lib/livePoints.ts";
+  import type { SlotPlay } from "../../lib/match.ts";
 
   const POLL_MS = 30_000;
   /** Points matter from kickoff until the next matchday's lineup replaces this one; polled while it runs. */
   const MAX_AFTER_MS = 4 * 86_400_000;
   let timer = 0;
 
+  /** One player face: no longer flippable, no predictions ("Alt: …", "statt …"). */
+  function settle(face: HTMLElement) {
+    face.classList.remove("swap-face", "swap-alt");
+    face.removeAttribute("inert");
+    face.removeAttribute("aria-hidden");
+    face.querySelectorAll("[data-swap-hint], [data-prediction]").forEach((el) => el.remove());
+    return face;
+  }
+
+  function note(text: string) {
+    const el = document.createElement("span");
+    el.className = "line-clamp-1 text-[9.5px] leading-tight";
+    el.style.color = "var(--yellow-fg)";
+    el.dataset.subNote = "";
+    el.textContent = text;
+    return el;
+  }
+
+  function hint(label: string) {
+    const el = document.createElement("span");
+    el.className = "swap-hint";
+    el.dataset.swapHint = "";
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", label);
+    el.textContent = "⇄";
+    return el;
+  }
+
+  /**
+   * From kickoff on the pitch shows who really played: the alternative goes (or takes the slot, if it was him who
+   * started), and a substitution gets the ⇄ mark, which flips to the one who came on (handler in Base.astro).
+   */
+  function applySlot(slot: HTMLElement, play: SlotPlay) {
+    if (!slot.dataset.settled) {
+      const swap = slot.querySelector<HTMLElement>("[data-swap]");
+      if (swap) {
+        const face = swap.querySelector<HTMLElement>(play.show === "alt" ? ".swap-alt" : ".swap-face:not(.swap-alt)")!;
+        swap.replaceWith(settle(face));
+      }
+      slot.dataset.settled = "1";
+    }
+    if (!play.sub || slot.dataset.sub) return;
+    const main = slot.querySelector<HTMLElement>(":scope > button")!;
+    const shownName = main.querySelector(".line-clamp-2")?.textContent ?? "";
+    // The one who came on: a copy of the face with his photo, name and points.
+    const sub = main.cloneNode(true) as HTMLElement;
+    const img = sub.querySelector("img");
+    if (img && play.sub.photo) {
+      img.src = play.sub.photo;
+      img.alt = play.sub.name;
+      img.classList.replace("ring-white/80", "ring-[var(--yellow-dot)]");
+    }
+    sub.querySelectorAll(".s11-badge, .news-badge, [data-sub-note]").forEach((el) => el.remove());
+    sub.querySelector(".line-clamp-2")!.textContent = play.sub.name;
+    const chip = sub.querySelector<HTMLElement>("[data-kb-points]")!;
+    chip.dataset.kbPoints = `kb${play.sub.kb}`;
+    chip.dataset.kbPlayer = play.sub.kb;
+    try {
+      const card = JSON.parse(main.dataset.card!) as Record<string, unknown>;
+      sub.dataset.card = JSON.stringify({
+        name: play.sub.name, photo: play.sub.photo, crest: card.crest, pos: card.pos, match: card.match, href: card.href,
+        status: `Eingewechselt (${play.sub.minute}')`, tone: "yellow",
+      });
+    } catch {}
+    sub.querySelector(".relative")!.append(hint(`${shownName} zeigen`));
+    sub.append(note(`ab ${play.sub.minute}' für ${shownName}`));
+    main.querySelector(".relative")!.append(hint(`${play.sub.name} zeigen`));
+    main.append(note(`bis ${play.sub.minute}' · ${play.sub.name}`));
+    const wrap = document.createElement("div");
+    wrap.className = "swap grid w-full";
+    wrap.dataset.swap = "";
+    main.classList.add("swap-face");
+    sub.classList.add("swap-face", "swap-alt");
+    sub.setAttribute("inert", "");
+    sub.setAttribute("aria-hidden", "true");
+    main.replaceWith(wrap);
+    wrap.append(main, sub);
+    slot.dataset.sub = "1";
+  }
+
   function draw(data: ClubPoints) {
-    for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points^='li']")) {
-      const liId = Number(el.dataset.kbPoints!.slice(2));
-      const points = data.players[liId];
-      if (data.ids?.[liId]) el.dataset.kbPlayer = data.ids[liId];
+    for (const [id, play] of Object.entries(data.slots ?? {})) {
+      const slot = document.querySelector<HTMLElement>(`[data-slot="${id}"]`);
+      if (slot) applySlot(slot, play);
+    }
+    const subPoints = new Map(Object.values(data.slots ?? {}).flatMap((p) => (p.sub ? [[p.sub.kb, p.sub.points] as const] : [])));
+    for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points^='li'], [data-kb-points^='kb']")) {
+      const key = el.dataset.kbPoints!;
+      const liId = Number(key.slice(2));
+      const points = key.startsWith("kb") ? subPoints.get(key.slice(2)) : data.players[liId];
+      if (key.startsWith("li") && data.ids?.[liId]) el.dataset.kbPlayer = data.ids[liId];
       // A player without points after the match didn't play: "–"; during it "0".
-      const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) }, el.dataset.kbKeeper !== undefined);
+      const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) });
       el.hidden = !label;
       if (!label) continue;
       el.querySelector("[data-kb-text]")!.textContent = label.text;

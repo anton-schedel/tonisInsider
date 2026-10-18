@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { articlePlayer, pointsByLigaInsiderId, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
+import { articlePlayer, pointsByLigaInsiderId, slotPlays, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 import type { Article, Lineup, LineupPlayer } from "../../scraper/types.ts";
 
@@ -139,5 +139,19 @@ describe("pointsByLigaInsiderId", () => {
     // "Nmecha" fits F. Nmecha and L. Nmecha; "Felix Nmecha" only the one.
     expect(pointsByLigaInsiderId(bvb, [{ name: "Nmecha", points: 50 }]).points).toEqual({});
     expect(pointsByLigaInsiderId(bvb, [{ name: "Felix Nmecha", points: 50 }]).points).toEqual({ 1: 50 });
+  });
+});
+
+describe("slotPlays", () => {
+  it("shows the alternative when it was him who started, and who came on for the one shown", () => {
+    const plays = slotPlays(bvb, ["Kobel", "Bensebaini", "Felix Nmecha", "Veerman"], [
+      { minute: 61, inId: "9698", inName: "Fábio Silva", inPhoto: "https://x/silva.png", outName: "Veerman" },
+    ], [{ id: "9698", points: 25 }]);
+    expect(plays[9357]).toEqual({ show: "main" });
+    expect(plays[20052]).toEqual({ show: "alt" }); // Schlotterbeck predicted, Bensebaini started
+    expect(plays[3]).toEqual({ show: "main", sub: { kb: "9698", name: "Fábio Silva", photo: "https://x/silva.png", minute: 61, points: 25 } });
+  });
+  it("keeps the predicted starter when neither he nor his alternative is in the eleven", () => {
+    expect(slotPlays(bvb, [], [])[20052]).toEqual({ show: "main" });
   });
 });

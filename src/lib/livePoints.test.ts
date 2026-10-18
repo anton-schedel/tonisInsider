@@ -44,17 +44,13 @@ describe("summarize", () => {
 });
 
 describe("pointsTier", () => {
-  it("steps like Kickbase's app: red-orange below 0, orange, lime, emerald", () => {
-    expect([-1, 0, 58, 60, 70, 107, 149, 150, 184, 288].map((p) => pointsTier(p))).toEqual([
-      "pts-neg", "pts-low", "pts-low", "pts-mid", "pts-mid", "pts-mid", "pts-mid", "pts-top", "pts-top", "pts-top",
+  it("red below 0, orange to 99, light green to 199, darker green to 399, gold from 400", () => {
+    expect([-1, 0, 1, 99, 100, 199, 200, 399, 400, 525].map((p) => pointsTier(p))).toEqual([
+      "pts-neg", "pts-low", "pts-low", "pts-low", "pts-mid", "pts-mid", "pts-high", "pts-high", "pts-gold", "pts-gold",
     ]);
     expect(pointsTier(undefined)).toBeUndefined();
   });
-  it("keeps a keeper's 187 lime, like Kickbase", () => {
-    expect(pointsTier(187, true)).toBe("pts-mid");
-    expect(pointsTier(200, true)).toBe("pts-top");
-  });
-  it("colours single actions like the live list: +1 lime, +80 emerald, -1 red-orange", () => {
-    expect([1, 80, -1].map(actionTier)).toEqual(["pts-mid", "pts-top", "pts-neg"]);
+  it("colours single actions: minus red, plus light green, big ones darker green", () => {
+    expect([1, 80, -1].map(actionTier)).toEqual(["pts-mid", "pts-high", "pts-neg"]);
   });
 });
