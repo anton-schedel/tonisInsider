@@ -401,6 +401,10 @@ html:not([data-navigated]) .enter {
 .pitch .kb-points { background: rgba(10, 12, 16, 0.78); }
 .pitch .kb-points[class*="pts-"] { color: var(--pts); }
 .kb-points.is-row[class*="pts-"] { color: var(--pts-ink); }
+/* Before the points arrive: a placeholder of the chip's size in its place (club pages). */
+.kb-points.is-loading { min-width: 34px; height: 18px; color: transparent; background: var(--surface); opacity: 0.55; animation: kb-wait 1.3s ease-in-out infinite; }
+@keyframes kb-wait { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .kb-points.is-loading { animation: none; } }
 .kb-points-dot { display: none; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
 .kb-points.is-live .kb-points-dot { display: block; animation: kb-live 1.6s ease-in-out infinite; }
 @keyframes kb-live { 50% { opacity: 0.3; } }

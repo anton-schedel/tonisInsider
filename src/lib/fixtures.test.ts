@@ -39,4 +39,12 @@ describe("toFixtures", () => {
     const none = { ...lineup("x", "X", "", true), opponent: undefined };
     expect(toFixtures([none, bvb, svw]).map((f) => f.homeName)).toEqual(["Borussia Dortmund", "X"]);
   });
+
+  it("pairs a side whose page names the opponent short (\"Mönchengladbach\")", () => {
+    const bmg = lineup("bmg", "Borussia Mönchengladbach", "TSG Hoffenheim", true, "2026-10-18T15:30:00.000Z");
+    const tsg2 = lineup("tsg", "TSG Hoffenheim", "Mönchengladbach", false, "2026-10-18T15:30:00.000Z");
+    expect(toFixtures([tsg2, bmg])).toEqual([
+      { home: bmg, away: tsg2, homeName: "Borussia Mönchengladbach", awayName: "TSG Hoffenheim", kickoff: bmg.kickoff },
+    ]);
+  });
 });

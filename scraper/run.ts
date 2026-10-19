@@ -10,7 +10,7 @@ import { parseNewsList } from "./parse/newsList.ts";
 import { NON_PLAYER_SLUGS, parseArticle } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
-import { fillFromSchedule, fillOpponents } from "./opponents.ts";
+import { canonicalOpponent, fillFromSchedule, fillOpponents } from "./opponents.ts";
 import { LIVE_URL, parseLive } from "../src/lib/live.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
 import { bannerKey, ensureImage } from "./images.ts";
@@ -188,6 +188,10 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     for (const club of clubs) {
       try {
         const lineup = parseClubPage(await fetcher.text(`${BASE_URL}/${club.slug}/${club.id}/`), club, now);
+        if (lineup.opponent) {
+          const names = [...new Set([...clubs.map((c) => c.name), ...store.lineups().map((l) => l.club.name)])];
+          lineup.opponent.name = canonicalOpponent(lineup.opponent.name, names);
+        }
         const problems = validateLineup(lineup);
         if (problems.length) {
           result.problems.push(`lineup ${club.slug}: ${problems.join(", ")}`);

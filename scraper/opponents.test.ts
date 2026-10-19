@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillFromSchedule, fillOpponents } from "./opponents.ts";
+import { canonicalOpponent, fillFromSchedule, fillOpponents } from "./opponents.ts";
 import type { Lineup } from "./types.ts";
 
 const lineup = (name: string, opponent?: Lineup["opponent"], kickoff?: string): Lineup => ({
@@ -38,5 +38,18 @@ describe("fillFromSchedule", () => {
   it("keeps what a page already said", () => {
     const mainz = lineup("Mainz", { name: "Leverkusen", home: true });
     expect(fillFromSchedule([mainz], [{ home: "Mainz", away: "Köln", kickoff: "x" }])).toEqual([]);
+  });
+});
+
+describe("canonicalOpponent", () => {
+  const clubs = ["Borussia Mönchengladbach", "Borussia Dortmund", "TSG Hoffenheim", "Hamburger SV"];
+  it("gives the short name from the match header the club's full name", () => {
+    expect(canonicalOpponent("Mönchengladbach", clubs)).toBe("Borussia Mönchengladbach");
+    expect(canonicalOpponent("Hoffenheim", clubs)).toBe("TSG Hoffenheim");
+    expect(canonicalOpponent("Hamburg", clubs)).toBe("Hamburger SV");
+  });
+  it("leaves full and unknown names alone", () => {
+    expect(canonicalOpponent("Borussia Dortmund", clubs)).toBe("Borussia Dortmund");
+    expect(canonicalOpponent("FC Barcelona", clubs)).toBe("FC Barcelona");
   });
 });

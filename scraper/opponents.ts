@@ -1,4 +1,15 @@
 import type { Lineup } from "./types.ts";
+import { sameClub } from "../src/lib/odds.ts";
+
+/**
+ * LigaInsider's match header (during and after a game) names clubs short ("Mönchengladbach"); the opponent is
+ * stored with the club's full name ("Borussia Mönchengladbach"), so both sides of a match find each other.
+ */
+export function canonicalOpponent(name: string, clubNames: string[]): string {
+  if (clubNames.includes(name)) return name;
+  const hits = clubNames.filter((c) => sameClub(c, name));
+  return hits.length === 1 ? hits[0] : name;
+}
 
 /**
  * Clubs whose page didn't name the opponent (LigaInsider sometimes shows a broken match page, or none, around
@@ -9,7 +20,7 @@ export function fillOpponents(lineups: Lineup[]): Lineup[] {
   const filled: Lineup[] = [];
   for (const l of lineups) {
     if (l.opponent?.name) continue;
-    const other = lineups.find((o) => o.opponent?.name === l.club.name);
+    const other = lineups.find((o) => !!o.opponent?.name && sameClub(l.club.name, o.opponent.name));
     if (!other?.opponent) continue;
     l.opponent = { name: other.club.name, home: !other.opponent.home };
     l.kickoff ??= other.kickoff;

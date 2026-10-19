@@ -109,6 +109,16 @@
     return row;
   }
 
+  /** Breakdowns already loaded (a player tapped again shows his at once). */
+  const breakdowns = new Map<string, { at: number; data: PlayerPoints }>();
+  async function loadBreakdown(player: string): Promise<PlayerPoints> {
+    const res = await fetch(`/api/kickbase/player/${player}/`);
+    if (!res.ok) throw new Error();
+    const data = (await res.json()) as PlayerPoints;
+    breakdowns.set(player, { at: Date.now(), data });
+    return data;
+  }
+
   /** Lines of the breakdown shown at first. */
   const SHOWN_LINES = 6;
   // The card can be reopened for someone else while a breakdown is still loading: only the latest one is drawn.
@@ -126,22 +136,26 @@
     const stats = f("stats");
     const hadStats = !stats.hidden;
     stats.hidden = true;
-    list.replaceChildren(...[0.7, 0.5, 0.6].map((w) => {
-      const row = document.createElement("div");
-      row.className = "fut-points-row";
-      row.innerHTML = `<span class="skeleton block h-3 rounded-full" style="width:${w * 100}%"></span>`;
-      return row;
-    }));
+    // Placeholders as tall as the lines that replace them (6 shown), so the card keeps its height.
+    const hit = breakdowns.get(player);
+    const fresh = hit && Date.now() - hit.at < (hit.data.live.state === 2 ? 600_000 : 30_000);
+    if (!fresh) {
+      list.replaceChildren(...[0.62, 0.48, 0.55, 0.4, 0.5, 0.36].map((w) => {
+        const row = document.createElement("div");
+        row.className = "fut-points-row";
+        row.innerHTML = `<span class="skeleton block h-3 rounded-full" style="width:${w * 100}%"></span><span class="skeleton ml-auto block h-3 w-7 rounded-full"></span>`;
+        return row;
+      }));
+    }
     try {
-      const res = await fetch(`/api/kickbase/player/${player}/`);
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as PlayerPoints;
+      const data = fresh ? hit.data : await loadBreakdown(player);
       if (mine !== shown) return;
       if (data.live.state === 0 || data.lines.length === 0) throw new Error();
       // The biggest effects first; the rest one tap away, so his news stays in reach.
       const rows = data.lines.map(pointsRow);
       rows.slice(SHOWN_LINES).forEach((r) => (r.hidden = true));
       list.replaceChildren(...rows);
+      if (!fresh) list.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" });
       if (rows.length > SHOWN_LINES) {
         const more = document.createElement("button");
         more.type = "button";

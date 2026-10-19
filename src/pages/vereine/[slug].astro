@@ -43,6 +43,21 @@ const playerNews = newsByPlayer(articles());
     <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} confirmed={confirmed} news={playerNews} />
     {/* From kickoff on: the players' Kickbase points (script below). */}
     {lineup.kickoff && <div hidden data-kb-club={lineup.club.slug} data-kickoff={lineup.kickoff}></div>}
+    {/* From kickoff on, before the first paint: the points chips wait as placeholders where the points will be,
+        and the predictions (alternatives) are hidden, so nothing jumps when the points arrive. */}
+    <script is:inline>
+      (() => {
+        const box = document.querySelector("[data-kb-club]");
+        const kickoff = Date.parse(box?.dataset.kickoff ?? "");
+        if (!(kickoff <= Date.now() && Date.now() < kickoff + 4 * 86400000)) return;
+        for (const el of document.querySelectorAll("[data-kb-points^='li']")) {
+          if (!el.hidden) continue;
+          el.hidden = false;
+          el.classList.add("is-loading");
+        }
+        for (const el of document.querySelectorAll("[data-slot] [data-prediction], [data-slot] [data-swap-hint]")) el.hidden = true;
+      })();
+    </script>
   </section>
 
   <section class="mt-7">
@@ -160,6 +175,7 @@ const playerNews = newsByPlayer(articles());
       if (key.startsWith("li") && data.ids?.[liId]) el.dataset.kbPlayer = data.ids[liId];
       // A player without points after the match didn't play: "–"; during it "0".
       const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) });
+      el.classList.remove("is-loading");
       el.hidden = !label;
       if (!label) continue;
       el.querySelector("[data-kb-text]")!.textContent = label.text;
@@ -169,24 +185,36 @@ const playerNews = newsByPlayer(articles());
     }
   }
 
-  async function tick() {
+  /** The last points per club, for an instant first draw when the page is opened again. */
+  const cacheKey = (slug: string) => `kbclub:${slug}`;
+  function cached(slug: string): ClubPoints | undefined {
+    try { return JSON.parse(sessionStorage.getItem(cacheKey(slug)) ?? "null") ?? undefined; } catch { return undefined; }
+  }
+
+  async function tick(first = false) {
     clearTimeout(timer);
     const box = document.querySelector<HTMLElement>("[data-kb-club]");
     if (!box || document.visibilityState !== "visible") return;
     const kickoff = Date.parse(box.dataset.kickoff!);
     if (!(kickoff <= Date.now() && Date.now() < kickoff + MAX_AFTER_MS)) return;
+    const slug = box.dataset.kbClub!;
+    if (first) {
+      const last = cached(slug);
+      if (last) draw(last);
+    }
     let running = true;
     try {
-      const res = await fetch(`/api/kickbase/club/${box.dataset.kbClub}/`);
+      const res = await fetch(`/api/kickbase/club/${slug}/`);
       if (res.ok) {
         const data = (await res.json()) as ClubPoints;
         draw(data);
         running = data.live.state !== 2;
+        try { sessionStorage.setItem(cacheKey(slug), JSON.stringify(data)); } catch {}
       }
     } catch {}
     if (box.isConnected && running) timer = window.setTimeout(tick, POLL_MS);
   }
 
-  document.addEventListener("astro:page-load", () => void tick());
+  document.addEventListener("astro:page-load", () => void tick(true));
   document.addEventListener("visibilitychange", () => void tick());
 </script>
