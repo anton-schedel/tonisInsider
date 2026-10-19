@@ -155,14 +155,14 @@ html {
 
 /* Player card (PlayerCard.astro): a sheet from the bottom on phones, centred on wide screens. */
 .player-card {
-  position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px; max-height: 88dvh; overflow-y: auto;
+  position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px; max-height: 88dvh; overflow: hidden;
   padding: 0; border: 0; border-radius: 24px 24px 0 0;
   background: var(--surface-raised); color: var(--fg);
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.2);
   opacity: 0; transform: translateY(24px);
   transition: opacity 200ms ease, transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1), overlay 280ms allow-discrete, display 280ms allow-discrete;
 }
-.player-card[open] { opacity: 1; transform: none; }
+.player-card[open] { display: flex; flex-direction: column; opacity: 1; transform: none; }
 @starting-style { .player-card[open] { opacity: 0; transform: translateY(24px); } }
 .player-card::backdrop { background: rgba(0, 0, 0, 0); transition: background 200ms, overlay 280ms allow-discrete, display 280ms allow-discrete; }
 .player-card[open]::backdrop { background: rgba(0, 0, 0, 0.4); }
@@ -183,7 +183,13 @@ html:has(.player-card[open]) { overflow: hidden; }
 .player-card-body:focus { outline: none; }
 /* Focus rings only for keyboard use, never after a tap. */
 :focus:not(:focus-visible) { outline: none; }
-.player-card-body { padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); }
+/* The content scrolls; the buttons below it stay put (.player-card-foot). */
+.player-card-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 20px 18px; }
+.player-card-foot {
+  flex: none; display: flex; gap: 8px;
+  padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hairline); background: var(--surface-raised);
+}
 /* The card's content: laid out like a FIFA card (number and position beside the photo, stats in two
    columns), drawn straight on the sheet in the app's own colours. */
 .fut { padding: 4px 4px 0; }

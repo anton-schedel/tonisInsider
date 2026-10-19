@@ -46,10 +46,11 @@
       </div>
     </div>
 
-    <div class="mt-5 flex gap-2">
-      <a data-f="href" class="press flex-1 rounded-xl bg-surface py-3 text-center text-[15px] font-semibold" hidden>Zum Verein</a>
-      <button type="button" data-card-close class="press flex-1 rounded-xl bg-fg py-3 text-[15px] font-semibold text-bg">Schließen</button>
-    </div>
+  </div>
+  {/* Always in reach: points and news scroll above it. */}
+  <div class="player-card-foot">
+    <a data-f="href" class="press flex-1 rounded-xl bg-surface py-3 text-center text-[15px] font-semibold" hidden>Zum Verein</a>
+    <button type="button" data-card-close class="press flex-1 rounded-xl bg-fg py-3 text-[15px] font-semibold text-bg">Schließen</button>
   </div>
 </dialog>
 
@@ -306,7 +307,8 @@
   let drag: { y: number; t: number; dialog: HTMLDialogElement } | undefined;
   document.addEventListener("touchstart", (e) => {
     const dialog = (e.target as Element).closest?.<HTMLDialogElement>("[data-player-card]");
-    if (!dialog?.open || dialog.scrollTop > 0) return;
+    // Only from the top of the content: further down a swipe scrolls it.
+    if (!dialog?.open || (dialog.querySelector(".player-card-body")?.scrollTop ?? 0) > 0) return;
     drag = { y: e.touches[0].clientY, t: e.timeStamp, dialog };
   }, { passive: true });
   document.addEventListener("touchmove", (e) => {
