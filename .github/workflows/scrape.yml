@@ -68,20 +68,18 @@ jobs:
       - name: Own post banners
         run: |
           f=public/img/custom/schnoeselmob-banner.jpg
-          # Our players in our kit: their head (public/brand/<name>-head.png) on a LigaInsider player portrait.
+          # Our players: their cut-out in our kit (public/brand/<name>-kit.png) in front of our crest.
           players="nguyen"
-          portrait="https://cdn.ligainsider.de/images/player/team/large/Santiago-Castaneda-paderborn-2627.jpg"
-          missing=$([ -f "$f" ] || echo y; for p in $players; do [ -f "public/img/custom/${p}3-banner.jpg" ] || echo y; done)
+          missing=$([ -f "$f" ] || echo y; for p in $players; do [ -f "public/img/custom/${p}4-banner.jpg" ] || echo y; done)
           [ -z "$missing" ] && exit 0
-          python3 -m pip install --quiet --user --break-system-packages pillow numpy
+          python3 -m pip install --quiet --user --break-system-packages pillow
           mkdir -p public/img/custom
           if [ ! -f "$f" ]; then
             curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/bvb.jpg" "https://cdn.ligainsider.com/ligainsider//newsarticle/tr:w-1200,q-80,fo-top,l-text,i-%C2%A9Getty%20Images%2FLigaInsider,fs-22,co-e3e3e3,rt-270,lx-5,ly-10,l-end/borussia-dortmund-artikelbild-2025-v2.jpg?updatedAt=1758910190729"
             python3 scripts/club-banner.py "$RUNNER_TEMP/bvb.jpg" public/brand/schnoeselmob.png "$f" 0.2 1.48 602 338
           fi
-          curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/portrait.jpg" "$portrait"
           for p in $players; do
-            [ -f "public/img/custom/${p}3-banner.jpg" ] || python3 scripts/player-portrait.py "public/brand/$p-head.png" "$RUNNER_TEMP/portrait.jpg" public/brand/portrait-shirt-mask.png public/brand/schnoeselmob.png "$f" "public/img/custom/${p}3"
+            [ -f "public/img/custom/${p}4-banner.jpg" ] || python3 scripts/player-images.py "public/brand/$p-kit.png" public/brand/schnoeselmob.png "$f" "public/img/custom/${p}4"
           done
 
       - name: Save data cache
