@@ -43,6 +43,8 @@ export type Article = {
   listedAt?: string;
   /** Our own post (content/posts/), not LigaInsider's: no comments there, no link to the original. */
   own?: boolean;
+  /** Own posts: the banner's own size, so it's shown whole instead of cropped to 16:9. */
+  bannerSize?: { width: number; height: number };
   /** Own posts: pinned on top of the news until then. */
   pinnedUntil?: string;
   fetchedAt: string;
