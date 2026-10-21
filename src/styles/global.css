@@ -77,6 +77,7 @@ html {
 /* Article body comes from the sanitiser: only p, h3, b, strong, i, em, br, a. */
 .prose-body p { margin: 0 0 1em; }
 .prose-body h3 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.6em 0 0.6em; }
+.prose-body img { display: block; width: 100%; height: auto; border-radius: 14px; margin: 0.2em 0 1.2em; }
 .prose-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
 /* Comments (rendered client-side by Comments.astro). */

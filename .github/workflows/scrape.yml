@@ -68,12 +68,18 @@ jobs:
       - name: Own post banners
         run: |
           f=public/img/custom/schnoeselmob-banner.jpg
+          players="nguyen" # cut-outs in public/brand/, shown on that banner
+          missing=$([ -f "$f" ] || echo y; for p in $players; do [ -f "public/img/custom/$p-banner.jpg" ] || echo y; done)
+          [ -z "$missing" ] && exit 0
+          python3 -m pip install --quiet --user --break-system-packages pillow
+          mkdir -p public/img/custom
           if [ ! -f "$f" ]; then
-            python3 -m pip install --quiet --user --break-system-packages pillow
-            mkdir -p public/img/custom
             curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/bvb.jpg" "https://cdn.ligainsider.com/ligainsider//newsarticle/tr:w-1200,q-80,fo-top,l-text,i-%C2%A9Getty%20Images%2FLigaInsider,fs-22,co-e3e3e3,rt-270,lx-5,ly-10,l-end/borussia-dortmund-artikelbild-2025-v2.jpg?updatedAt=1758910190729"
             python3 scripts/club-banner.py "$RUNNER_TEMP/bvb.jpg" public/brand/schnoeselmob.png "$f" 0.2 1.48 602 338
           fi
+          for p in $players; do
+            [ -f "public/img/custom/$p-banner.jpg" ] || python3 scripts/player-images.py "public/brand/$p.png" "$f" "public/img/custom/$p"
+          done
 
       - name: Save data cache
         if: steps.scrape.outputs.save_cache == 'true'
