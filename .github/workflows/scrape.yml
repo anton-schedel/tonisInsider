@@ -68,9 +68,10 @@ jobs:
       - name: Own post banners
         run: |
           f=public/img/custom/schnoeselmob-banner.jpg
-          # Our players in our shirt: their head (public/brand/<name>-head.png) on a LigaInsider player photo.
-          players="nguyen:oliver-batista-meier-paderborn-2026-2027.jpg?updatedAt=1791471899979:Pau%20Barrena%2FBundesliga%20via%20Getty%20Images"
-          missing=$([ -f "$f" ] || echo y; for p in $players; do [ -f "public/img/custom/${p%%:*}2-banner.jpg" ] || echo y; done)
+          # Our players in our kit: their head (public/brand/<name>-head.png) on a LigaInsider player portrait.
+          players="nguyen"
+          portrait="https://cdn.ligainsider.de/images/player/team/large/Santiago-Castaneda-paderborn-2627.jpg"
+          missing=$([ -f "$f" ] || echo y; for p in $players; do [ -f "public/img/custom/${p}3-banner.jpg" ] || echo y; done)
           [ -z "$missing" ] && exit 0
           python3 -m pip install --quiet --user --break-system-packages pillow numpy
           mkdir -p public/img/custom
@@ -78,11 +79,9 @@ jobs:
             curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/bvb.jpg" "https://cdn.ligainsider.com/ligainsider//newsarticle/tr:w-1200,q-80,fo-top,l-text,i-%C2%A9Getty%20Images%2FLigaInsider,fs-22,co-e3e3e3,rt-270,lx-5,ly-10,l-end/borussia-dortmund-artikelbild-2025-v2.jpg?updatedAt=1758910190729"
             python3 scripts/club-banner.py "$RUNNER_TEMP/bvb.jpg" public/brand/schnoeselmob.png "$f" 0.2 1.48 602 338
           fi
+          curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/portrait.jpg" "$portrait"
           for p in $players; do
-            name=${p%%:*}; rest=${p#*:}; photo=${rest%%:*}; credit=${rest#*:}
-            [ -f "public/img/custom/${name}2-banner.jpg" ] && continue
-            curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/$name.jpg" "https://cdn.ligainsider.com/ligainsider//newsarticle/tr:w-1200,q-80,fo-top,l-text,i-%C2%A9$credit,fs-22,co-e3e3e3,rt-270,lx-5,ly-10,l-end/$photo"
-            python3 scripts/player-photo.py "public/brand/$name-head.png" "$RUNNER_TEMP/$name.jpg" public/brand/schnoeselmob.png "public/img/custom/${name}2"
+            [ -f "public/img/custom/${p}3-banner.jpg" ] || python3 scripts/player-portrait.py "public/brand/$p-head.png" "$RUNNER_TEMP/portrait.jpg" public/brand/portrait-shirt-mask.png public/brand/schnoeselmob.png "$f" "public/img/custom/${p}3"
           done
 
       - name: Save data cache
