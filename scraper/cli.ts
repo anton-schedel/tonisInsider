@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createFetcher } from "./fetch.ts";
 import { Store } from "./store.ts";
@@ -10,6 +10,18 @@ const ROOT = process.cwd();
 const store = new Store(join(ROOT, "store"));
 const publicDir = join(ROOT, "public");
 
+/** Ids of our own posts (content/posts/) whose time has come: a post scheduled for later is built only then. */
+function ownPostsOut(now: Date): number[] {
+  const dir = join(ROOT, "content", "posts");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as { id: number; publishedAt: string })
+    .filter((p) => Date.parse(p.publishedAt) <= now.getTime())
+    .map((p) => p.id)
+    .sort((a, b) => a - b);
+}
+
 /** Writes key=value for later GitHub Actions steps (no-op locally). */
 function output(key: string, value: string | number | boolean): void {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
@@ -18,19 +30,28 @@ function output(key: string, value: string | number | boolean): void {
 const command = process.argv[2];
 
 if (command === "scrape") {
+  const now = new Date();
   const result = await run({
-    store, fetcher: createFetcher(), publicDir, now: new Date(), codeVersion: process.env.GITHUB_SHA,
+    store, fetcher: createFetcher(), publicDir, now, codeVersion: process.env.GITHUB_SHA,
     oddsApiKey: process.env.ODDS_API_KEY || undefined,
   });
   console.log(`changed=${result.changed} new=${result.newArticles} lineups=${result.lineupsUpdated}`);
   // Only problems that last fail the run (GitHub emails); one-off glitches are just logged.
-  const state = store.state();
+  let state = store.state();
+  // A scheduled own post is due: rebuild, so it appears (within one run, i.e. ~5 minutes).
+  const out = ownPostsOut(now);
+  const postsChanged = JSON.stringify(out) !== JSON.stringify(state.ownPostsOut ?? []);
+  if (postsChanged) {
+    state = { ...state, ownPostsOut: out };
+    store.putState(state);
+    result.changed = true;
+  }
   const { report, streaks } = lastingProblems(result.problems, state.problemStreaks ?? {});
   const streaksChanged = JSON.stringify(streaks) !== JSON.stringify(state.problemStreaks ?? {});
   if (streaksChanged) store.putState({ ...state, problemStreaks: streaks });
   for (const p of result.problems) console.warn(`${report.includes(p) ? "PROBLEM" : "glitch (reported if it lasts 3 runs)"}: ${p}`);
   output("changed", result.changed);
-  output("save_cache", result.changed || result.stateChanged || streaksChanged);
+  output("save_cache", result.changed || result.stateChanged || streaksChanged || postsChanged);
   output("problems", report.length);
 } else if (command === "restore") {
   if (store.articles().length > 0) {

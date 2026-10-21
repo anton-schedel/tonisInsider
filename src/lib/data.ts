@@ -24,7 +24,8 @@ function load() {
   if (!cache) {
     const statePath = join(STORE, "state.json");
     cache = {
-      articles: [...readDir<Article>("articles"), ...readJsonFiles<Article>(POSTS)].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
+      // Own posts scheduled for later stay out until then (the scraper rebuilds the site when one is due).
+      articles: [...readDir<Article>("articles"), ...readJsonFiles<Article>(POSTS).filter((a) => Date.parse(a.publishedAt) <= Date.now())].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
       lineups: readDir<Lineup>("lineups").sort((a, b) => a.club.name.localeCompare(b.club.name, "de")),
       state: existsSync(statePath) ? (JSON.parse(readFileSync(statePath, "utf8")) as State) : {},
     };

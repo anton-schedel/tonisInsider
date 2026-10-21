@@ -97,4 +97,6 @@ export type State = {
   scorers?: Record<string, ScorerMatch>;
   /** Problems of the last runs: key → runs in a row (see problems.ts). */
   problemStreaks?: Record<string, number>;
+  /** Our own posts (content/posts/) that are out, i.e. whose publishedAt has passed; a new one triggers a rebuild. */
+  ownPostsOut?: number[];
 };

@@ -13,9 +13,10 @@ export const GET: APIRoute = async ({ params }) => {
   const id = Number(params.id);
   const db = env.COMMENTS;
   if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
+  // Comments dated in the future (prepared ones) appear only when their time comes.
   const { results } = await db
-    .prepare("SELECT id, parent_id, name, body, created_at FROM comments WHERE post_id = ? ORDER BY created_at, id")
-    .bind(id)
+    .prepare("SELECT id, parent_id, name, body, created_at FROM comments WHERE post_id = ? AND created_at <= ? ORDER BY created_at, id")
+    .bind(id, new Date().toISOString())
     .all<Row>();
   return json({ total: results.length, comments: toThreads(results) });
 };
