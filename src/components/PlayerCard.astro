@@ -74,6 +74,7 @@
   async function fillScout(dialog: HTMLDialogElement, id: number | undefined) {
     const btn = dialog.querySelector<HTMLButtonElement>("[data-scout-toggle]")!;
     btn.hidden = !id;
+    delete dialog.dataset.scoutBusy;
     dialog.dataset.player = id ? String(id) : "";
     if (!id) return;
     setStar(dialog, false);
@@ -302,12 +303,15 @@
     if (dialog.open) {
       const star = target.closest<HTMLButtonElement>("[data-scout-toggle]");
       if (star) {
+        // One tap counts: a second one while the card goes would undo it.
+        if (dialog.dataset.scoutBusy) return;
+        dialog.dataset.scoutBusy = "1";
         const id = Number(dialog.dataset.player);
         const on = star.getAttribute("aria-pressed") !== "true";
         setStar(dialog, on);
         setScouted(id, on).catch(() => setStar(dialog, !on));
-        // The star changes for a moment, then the card goes (adding also clears the Scouting page's search).
-        setTimeout(() => closeCard(dialog), 260);
+        // The star changes for a blink, then the card goes (adding also clears the Scouting page's search).
+        setTimeout(() => closeCard(dialog), 140);
         if (on) document.dispatchEvent(new CustomEvent("scout:added", { detail: id }));
         return;
       }

@@ -2,10 +2,17 @@
  * The scout list in the browser: saved with the Kickbase or LigaInsider account (/api/scout/), else in this
  * browser only. A list started without a login moves into the account at the next login.
  */
-export type ScoutState = { ids: number[]; seenAt?: string; account: boolean };
+export type ScoutState = {
+  ids: number[];
+  /** When each player was put on the list: news before that isn't new. */
+  added?: Record<string, string>;
+  seenAt?: string;
+  account: boolean;
+};
 
 const LOCAL = "scoutList";
 const LOCAL_SEEN = "scoutSeen";
+const LOCAL_ADDED = "scoutAdded";
 /** This tab's copy, so moving between pages doesn't ask the server each time. */
 const SESSION = "scoutState";
 /** The last known list, shown at once on the next visit while the account's list loads. */
@@ -19,7 +26,12 @@ const write = (store: Storage, key: string, value: unknown) => {
   try { value === undefined ? store.removeItem(key) : store.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
 };
 
-const local = (): ScoutState => ({ ids: read<number[]>(localStorage, LOCAL) ?? [], seenAt: read<string>(localStorage, LOCAL_SEEN), account: false });
+const local = (): ScoutState => ({
+  ids: read<number[]>(localStorage, LOCAL) ?? [],
+  added: read<Record<string, string>>(localStorage, LOCAL_ADDED) ?? {},
+  seenAt: read<string>(localStorage, LOCAL_SEEN),
+  account: false,
+});
 const remember = (s: ScoutState) => {
   write(sessionStorage, SESSION, { at: Date.now(), state: s });
   write(localStorage, LAST, s);
@@ -34,8 +46,8 @@ async function call(body?: object): Promise<ScoutState | undefined> {
       : undefined);
     if (res.status === 401) return undefined;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { ids: number[]; seenAt?: string };
-    return { ids: data.ids, seenAt: data.seenAt, account: true };
+    const data = (await res.json()) as { ids: number[]; added?: Record<string, string>; seenAt?: string };
+    return { ids: data.ids, added: data.added, seenAt: data.seenAt, account: true };
   } catch {
     return undefined;
   }
@@ -61,6 +73,7 @@ export async function loadScout(fresh = false): Promise<ScoutState> {
     const merged = await call({ add: before });
     if (merged) {
       write(localStorage, LOCAL, undefined);
+      write(localStorage, LOCAL_ADDED, undefined);
       return remember(merged);
     }
   }
@@ -75,7 +88,11 @@ export async function setScouted(id: number, on: boolean): Promise<ScoutState> {
     throw new Error("Konnte nicht gespeichert werden.");
   }
   const ids = on ? [id, ...now.ids.filter((x) => x !== id)] : now.ids.filter((x) => x !== id);
+  const added = { ...now.added };
+  if (on) added[id] = new Date().toISOString();
+  else delete added[id];
   write(localStorage, LOCAL, ids);
+  write(localStorage, LOCAL_ADDED, added);
   if (on && !now.seenAt) write(localStorage, LOCAL_SEEN, new Date().toISOString());
   return remember(local());
 }
@@ -103,6 +120,6 @@ export function playerNewsTimes(): Promise<Record<string, string>> {
 export async function unseen(state: ScoutState, known?: Record<string, string>): Promise<number[]> {
   if (!state.ids.length) return [];
   const times = known ?? (await playerNewsTimes());
-  const since = Date.parse(state.seenAt ?? "") || 0;
-  return state.ids.filter((id) => times[id] && Date.parse(times[id]) > since);
+  const seen = Date.parse(state.seenAt ?? "") || 0;
+  return state.ids.filter((id) => times[id] && Date.parse(times[id]) > Math.max(seen, Date.parse(state.added?.[id] ?? "") || 0));
 }

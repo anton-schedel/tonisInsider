@@ -231,9 +231,11 @@ let index = 0;
   {/* While a match runs: the points every 30 s (only while the page is visible). */}
   {league && <div hidden data-kb-live-league={league.id} data-kb-running={running ? "1" : ""}></div>}
 
-  <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>
-    <button type="submit" class="press w-full rounded-xl bg-surface py-3 text-sm font-semibold" style="color:var(--red-fg)">Abmelden</button>
-  </form>
+  {!signedOut && (
+    <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>
+      <button type="submit" class="press w-full rounded-xl bg-surface py-3 text-sm font-semibold" style="color:var(--red-fg)">Abmelden</button>
+    </form>
+  )}
   <PlayerCard />
 </Base>
 

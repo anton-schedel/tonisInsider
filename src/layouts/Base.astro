@@ -321,14 +321,9 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           const theme = choice.getAttribute("data-theme-set");
           if (theme !== "light" && theme !== "dark") return;
           try { localStorage.setItem("theme", theme); } catch {}
-          // Every colour glides to the new theme together (and the thumb slides), like the comment/poll switch;
-          // no snapshot cross-fade, which flashes bright halfway.
-          const root = document.documentElement;
-          root.classList.add("theme-anim");
+          // The colours fade by themselves (registered tokens in global.css); the thumb glides with them.
           apply(document);
           markTheme();
-          clearTimeout(window.__themeAnim);
-          window.__themeAnim = setTimeout(() => root.classList.remove("theme-anim"), 320);
         });
         // Login/logout forms load a new page: show at once that the tap registered, and block double sends.
         document.addEventListener("submit", (e) => {

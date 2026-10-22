@@ -10,11 +10,15 @@ const players = allPlayers();
   <label class="search-field mt-1">
     <svg viewBox="0 0 24 24" class="size-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
     <input type="search" data-search placeholder="Spieler oder Verein suchen" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Spieler suchen" />
+    <button type="button" class="search-clear press" data-search-clear aria-label="Suche leeren" hidden>
+      <svg viewBox="0 0 24 24" class="size-[11px]" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
   </label>
 
   <section data-results hidden class="mt-3">
     <ul class="divide-y divide-hairline" data-results-list></ul>
     <p class="py-6 text-center text-sm text-muted" data-results-empty hidden>Kein Spieler gefunden.</p>
+    <p class="py-4 text-center text-xs text-muted" data-results-more hidden></p>
   </section>
 
   <section data-scoutlist class="mt-7">
@@ -96,7 +100,7 @@ const players = allPlayers();
         pill.style.cssText = `background:var(--${type.tone}-bg);color:var(--${type.tone}-fg)`;
         line.append(pill);
       }
-      line.append(h("span", "truncate", latest.title), h("span", "shrink-0", `· ${when(latest.at, new Date())}`));
+      line.append(h("span", "min-w-0 truncate", latest.title), h("span", "ml-auto shrink-0 pl-1 tabular-nums", when(latest.at, new Date())));
       text.append(line);
     } else {
       text.append(h("span", "block truncate text-xs text-muted", [p.club, p.card.status].filter(Boolean).join(" · ")));
@@ -106,13 +110,27 @@ const players = allPlayers();
     return li;
   }
 
-  function search(index: Indexed[], query: string): Indexed[] {
-    const words = fold(query).split(/\s+/).filter(Boolean);
-    if (!words.length) return [];
-    // Every word must start a word of the name or club; a match on the surname ranks first.
-    const hits = index.filter((p) => words.every((w) => p.key.includes(` ${w}`)));
-    const surname = (p: Indexed) => fold(p.name.split(" ").pop() ?? "").startsWith(words[0]) ? 0 : 1;
-    return hits.sort((a, b) => surname(a) - surname(b) || a.rank - b.rank || a.name.localeCompare(b.name, "de")).slice(0, LIMIT);
+  /** Nicknames the clubs go by, so "bvb" or "gladbach" finds them. */
+  const NICKNAMES: Record<string, string> = {
+    "Borussia Dortmund": "bvb", "Hamburger SV": "hsv", "FC Bayern München": "fcb", "Borussia Mönchengladbach": "gladbach bmg fohlen",
+    "Eintracht Frankfurt": "sge", "SV Werder Bremen": "svw werder", "FC Schalke 04": "s04", "Bayer 04 Leverkusen": "b04 bayer",
+    "1. FC Union Berlin": "fcu eisern", "1. FC Köln": "effzeh koeln", "TSG Hoffenheim": "tsg", "RB Leipzig": "rbl", "SC Freiburg": "scf",
+  };
+  /** Lower case, no accents, hyphens and dots as spaces: "Simpson-Pusey" and "1. FC Köln" match as written. */
+  const normal = (s: string) => fold(s).replace(/[-.']/g, " ");
+  /** "mueller", "koeln": the German spellings without umlauts find the names with them. */
+  const plain = (w: string) => w.replace(/ae/g, "a").replace(/oe/g, "o").replace(/ue/g, "u");
+
+  function search(index: Indexed[], query: string): { hits: Indexed[]; more: number } {
+    const words = normal(query).split(/\s+/).filter(Boolean);
+    if (!words.length) return { hits: [], more: 0 };
+    // Every word must start a word of the name or club (longer ones may sit inside one: "gladbach").
+    const has = (key: string, w: string) => key.includes(` ${w}`) || (w.length >= 4 && key.includes(w));
+    const hits = index.filter((p) => words.every((w) => has(p.key, w) || has(p.key, plain(w))));
+    // A surname match first, then starters, then the name.
+    const surname = (p: Indexed) => (normal(p.name).split(" ").pop() ?? "").startsWith(words[0]) ? 0 : 1;
+    hits.sort((a, b) => surname(a) - surname(b) || a.rank - b.rank || a.name.localeCompare(b.name, "de"));
+    return { hits: hits.slice(0, LIMIT), more: Math.max(0, hits.length - LIMIT) };
   }
 
   function renderList(byId: Map<number, Indexed>, state: ScoutState, fresh: Set<number>) {
@@ -134,22 +152,37 @@ const players = allPlayers();
     const data = document.querySelector<HTMLScriptElement>("[data-players]");
     if (!data) return;
     const index: Indexed[] = (JSON.parse(data.textContent ?? "[]") as PlayerEntry[])
-      .map((p) => ({ ...p, key: ` ${fold(`${p.name} ${p.club}`).replace(/[-.]/g, " ")}` }));
+      .map((p) => ({ ...p, key: ` ${normal(`${p.name} ${p.club} ${NICKNAMES[p.club] ?? ""}`)}` }));
     const byId = new Map(index.map((p) => [p.id, p]));
 
     const input = document.querySelector<HTMLInputElement>("[data-search]")!;
     const results = document.querySelector<HTMLElement>("[data-results]")!;
     const scoutList = document.querySelector<HTMLElement>("[data-scoutlist]")!;
+    const clear = document.querySelector<HTMLButtonElement>("[data-search-clear]")!;
     const show = () => {
       const q = input.value.trim();
+      // Kept for this tab: back from a player's club, the search is still there.
+      try { sessionStorage.setItem("scoutQuery", input.value); } catch { /* private mode */ }
+      clear.hidden = !input.value;
       results.hidden = !q;
       scoutList.hidden = !!q;
       if (!q) return;
-      const hits = search(index, q);
+      const { hits, more } = search(index, q);
       document.querySelector<HTMLElement>("[data-results-list]")!.replaceChildren(...hits.map((p) => row(p)));
       document.querySelector<HTMLElement>("[data-results-empty]")!.hidden = hits.length > 0;
+      const moreNote = document.querySelector<HTMLElement>("[data-results-more]")!;
+      moreNote.hidden = !more;
+      moreNote.textContent = `Und ${more} weitere: schreib etwas mehr vom Namen.`;
     };
+    try { input.value = sessionStorage.getItem("scoutQuery") ?? ""; } catch { /* private mode */ }
     input.addEventListener("input", show);
+    // Enter (the keyboard's search key) only closes the keyboard: the results are already there.
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+    clear.addEventListener("click", () => {
+      input.value = "";
+      show();
+      input.focus();
+    });
     show();
     // A player picked from the results: back to the list, where he now is.
     document.addEventListener("scout:added", () => {

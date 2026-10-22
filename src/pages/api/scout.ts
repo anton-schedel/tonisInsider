@@ -8,16 +8,24 @@ export const prerender = false;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
+/** The list, newest first, with when each player was added (his older news isn't new). */
+const answer = (rows: { player_id: number; added_at: string }[], seenAt?: string) => ({
+  account: true,
+  ids: rows.map((r) => r.player_id),
+  added: Object.fromEntries(rows.map((r) => [r.player_id, r.added_at])),
+  seenAt,
+});
+
 /** GET /api/scout/: this account's scout list ({ids, seenAt}); 401 without a login (the browser keeps it then). */
 export const GET: APIRoute = async ({ cookies }) => {
   const owner = await scoutOwner(cookies, env.CREDENTIALS_KEY);
   const db = env.COMMENTS;
   if (!owner || !db) return json({ account: false }, 401);
   const [{ results }, seen] = await Promise.all([
-    db.prepare("SELECT player_id FROM scout WHERE owner = ? ORDER BY added_at DESC").bind(owner).all<{ player_id: number }>(),
+    db.prepare("SELECT player_id, added_at FROM scout WHERE owner = ? ORDER BY added_at DESC").bind(owner).all<{ player_id: number; added_at: string }>(),
     db.prepare("SELECT seen_at FROM scout_seen WHERE owner = ?").bind(owner).first<{ seen_at: string }>(),
   ]);
-  return json({ account: true, ids: results.map((r) => r.player_id), seenAt: seen?.seen_at });
+  return json(answer(results, seen?.seen_at));
 };
 
 /** POST /api/scout/ {add?: ids, remove?: ids, seen?: true}: changes the list; answers like GET. */
@@ -44,8 +52,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   ];
   if (statements.length) await db.batch(statements);
   const [{ results }, seen] = await Promise.all([
-    db.prepare("SELECT player_id FROM scout WHERE owner = ? ORDER BY added_at DESC").bind(owner).all<{ player_id: number }>(),
+    db.prepare("SELECT player_id, added_at FROM scout WHERE owner = ? ORDER BY added_at DESC").bind(owner).all<{ player_id: number; added_at: string }>(),
     db.prepare("SELECT seen_at FROM scout_seen WHERE owner = ?").bind(owner).first<{ seen_at: string }>(),
   ]);
-  return json({ account: true, ids: results.map((r) => r.player_id), seenAt: seen?.seen_at });
+  return json(answer(results, seen?.seen_at));
 };

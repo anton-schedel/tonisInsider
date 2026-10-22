@@ -47,6 +47,32 @@
   color-scheme: dark;
 }
 
+/* Light ↔ dark: the colour tokens are registered as colours, so switching the theme fades the values themselves
+   (one fade for the whole page, every element in step). A first load has nothing to fade from. */
+@property --bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --surface { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --surface-raised { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --hairline { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tabbar { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --glass-rim { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --glass-rim-low { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --glass-edge { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --glass-sheen { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --glass-lens { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --glass-lens-rim { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --red-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --red-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --yellow-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --yellow-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --yellow-dot { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --green-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --green-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --green-dot { syntax: "<color>"; inherits: true; initial-value: transparent; }
+:root { transition: --bg 280ms ease, --surface 280ms ease, --surface-raised 280ms ease, --fg 280ms ease, --muted 280ms ease, --hairline 280ms ease, --tabbar 280ms ease, --glass-rim 280ms ease, --glass-rim-low 280ms ease, --glass-edge 280ms ease, --glass-sheen 280ms ease, --glass-lens 280ms ease, --glass-lens-rim 280ms ease, --red-bg 280ms ease, --red-fg 280ms ease, --yellow-bg 280ms ease, --yellow-fg 280ms ease, --yellow-dot 280ms ease, --green-bg 280ms ease, --green-fg 280ms ease, --green-dot 280ms ease; }
+@media (prefers-reduced-motion: reduce) { :root { transition: none; } }
+
 /* The logo's navy text needs its light version on dark backgrounds. */
 .brand-dark { display: none; }
 @media (prefers-color-scheme: dark) {
@@ -317,13 +343,6 @@ nav.no-tab .tab-pill { opacity: 0; }
 .seg > button { position: relative; z-index: 1; color: var(--muted); transition: color 180ms ease; }
 .seg > button[aria-pressed="true"] { color: var(--fg); }
 
-/* Light ↔ dark: for a moment every colour transitions, all with the same timing, so the page changes as one. */
-html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after {
-  transition: background-color 260ms ease, color 260ms ease, border-color 260ms ease, fill 260ms ease,
-    stroke 260ms ease, box-shadow 260ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1) !important;
-}
-@media (prefers-reduced-motion: reduce) { html.theme-anim * { transition: none !important; } }
-
 /* The search field on the Scouting page. */
 .search-field {
   display: flex; align-items: center; gap: 8px; padding: 0 14px; height: 44px;
@@ -331,7 +350,12 @@ html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *
 }
 .search-field:focus-within { box-shadow: 0 0 0 2px var(--accent); }
 .search-field input { flex: 1; min-width: 0; background: none; outline: none; font-size: 16px; }
-.search-field input::-webkit-search-cancel-button { opacity: 0.5; }
+.search-field input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.search-clear {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 20px; height: 20px; border-radius: 999px; background: var(--muted); color: var(--surface);
+}
+.search-clear[hidden] { display: none; }
 /* Scout list: news since the last look. */
 .scout-new {
   flex-shrink: 0; border-radius: 999px; padding: 1px 7px; font-size: 10.5px; font-weight: 700;
