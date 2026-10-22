@@ -18,6 +18,8 @@
   --red-bg: #ffebe9; --red-fg: #d70015;
   --yellow-bg: #fff4d6; --yellow-fg: #a05a00; --yellow-dot: #ffcc00;
   --green-bg: #e3f7e8; --green-fg: #248a3d; --green-dot: #30d158;
+  /* TuS Schnöselmob's gold (its crest), only on the coach's page. */
+  --gold: #9c7a2b;
   color-scheme: light;
 }
 
@@ -30,6 +32,7 @@
   --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
   --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
   --green-bg: rgba(48, 209, 88, 0.16); --green-fg: #30d158; --green-dot: #30d158;
+  --gold: #d4b05c;
   color-scheme: dark;
 }
 

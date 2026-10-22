@@ -1,0 +1,219 @@
+---
+import Base from "../layouts/Base.astro";
+import { env } from "cloudflare:workers";
+import { coachSignedIn } from "../lib/coachApi.ts";
+import { listPosts } from "../lib/coachDb.ts";
+import { CLUB } from "../lib/coachPosts.ts";
+import { NEWS_TYPE } from "../lib/newsTypes.ts";
+import type { CoachPost } from "../lib/coachPosts.ts";
+
+export const prerender = false;
+
+// The coach's page: never cached (it shows their drafts and plans).
+Astro.response.headers.set("Cache-Control", "private, no-store");
+
+const signedIn = await coachSignedIn(Astro.cookies);
+let posts: CoachPost[] = [];
+if (signedIn && env.COMMENTS) posts = await listPosts(env.COMMENTS);
+const badges = Object.entries(NEWS_TYPE).flatMap(([id, t]) => (t ? [{ id, label: t.label }] : []));
+const field = "coach-field";
+---
+<Base title="Trainerbank" hideHeading>
+  {/* The club's crest, large and faint behind the page. */}
+  <img src={CLUB.crest} alt="" aria-hidden="true" class="coach-watermark" />
+
+  <div class="relative" data-coach data-signed-in={signedIn ? "" : undefined}>
+    <header class="pt-2 pb-6">
+      <div class="flex items-center gap-3">
+        <img src={CLUB.crest} alt="" class="size-11" />
+        <span class="text-[15px] font-semibold text-muted">{CLUB.name}</span>
+      </div>
+      <h1 class="mt-3 text-[34px] leading-[1.05] font-bold tracking-[-0.035em]">Trainerbank</h1>
+      <p class="mt-2 max-w-[34ch] text-[15px] leading-snug text-muted">Aufstellungen, Ergebnisse und Spielernews für die News auf TonInsider.</p>
+    </header>
+
+    {/* Sign in */}
+    <form data-view="login" hidden={signedIn} class="flex max-w-sm flex-col gap-2.5" novalidate>
+      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class={field} />
+      <p class="min-h-5 text-[14px] text-[var(--red-fg)]" data-error aria-live="polite"></p>
+      <button type="submit" class="press coach-primary">Anmelden</button>
+    </form>
+
+    {/* The coach's posts */}
+    <section data-view="list" hidden={!signedIn}>
+      <button type="button" class="press coach-primary w-full" data-new>Neuer Beitrag</button>
+      <h2 class="mt-8 mb-1 text-[20px] font-bold tracking-[-0.02em]">Deine Beiträge</h2>
+      <ul class="divide-y divide-hairline" data-posts></ul>
+      <p class="py-6 text-[15px] text-muted" data-empty hidden>Noch nichts geschrieben. Die erste Aufstellung ist ein guter Anfang.</p>
+      <button type="button" class="press mt-6 text-[14px] text-muted underline underline-offset-2" data-logout>Abmelden</button>
+    </section>
+
+    {/* Writing or changing a post */}
+    <form data-view="edit" hidden class="flex flex-col" novalidate>
+      <div class="mb-5 flex items-center justify-between">
+        <button type="button" class="press -ml-1 flex items-center gap-1 text-[16px] font-medium" data-back>
+          <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          Beiträge
+        </button>
+        <button type="button" class="press text-[15px] font-medium text-[var(--red-fg)]" data-delete hidden>Löschen</button>
+      </div>
+
+      <div class="seg mb-6" style="--n:3" data-type-seg role="radiogroup" aria-label="Art">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <button type="button" data-type="lineup" role="radio">Aufstellung</button>
+        <button type="button" data-type="result" role="radio">Ergebnis</button>
+        <button type="button" data-type="player" role="radio">Spielernews</button>
+      </div>
+
+      {/* Lineup: rows from the goalkeeper forward, names separated by commas. */}
+      <fieldset data-for="lineup" class="coach-sheet">
+        <legend class="sr-only">Aufstellung</legend>
+        {["Tor", "Abwehr", "Mittelfeld", "Sturm"].map((label, i) => (
+          <label class="coach-line">
+            <span>{label}</span>
+            <input name={`line${i}`} autocomplete="off" autocapitalize="words" placeholder={["Coach", "Gerl, Dallwig, Chatfield", "Torres, Ellenberger", "Loibl"][i]} />
+          </label>
+        ))}
+        <label class="coach-line is-bench">
+          <span>Bank</span>
+          <input name="bench" autocomplete="off" autocapitalize="words" placeholder="Enciu, Schedel, Leonhard" />
+        </label>
+      </fieldset>
+      <p data-for="lineup" class="mt-2 mb-6 text-[13px] text-muted">Namen mit Komma trennen. Eine leere Reihe fällt weg.</p>
+
+      {/* Result */}
+      <div data-for="result" class="mb-6 flex flex-col gap-2.5" hidden>
+        <input name="opponent" placeholder="Gegner, z. B. FC Förderbedarf" autocomplete="off" class={field} />
+        <div class="flex items-center gap-3">
+          <label class="coach-score"><span>Wir</span><input name="ours" type="number" inputmode="numeric" min="0" max="99" value="0" /></label>
+          <span class="text-[22px] font-bold text-muted">:</span>
+          <label class="coach-score"><span>Gegner</span><input name="theirs" type="number" inputmode="numeric" min="0" max="99" value="0" /></label>
+        </div>
+        <div class="seg" style="--n:2" data-home-seg>
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button type="button" data-home="1">Heimspiel</button>
+          <button type="button" data-home="0">Auswärts</button>
+        </div>
+      </div>
+
+      {/* Player news */}
+      <div data-for="player" class="mb-6 flex flex-col gap-2.5" hidden>
+        <input name="playerName" placeholder="Spieler, z. B. Kevin Nguyen" autocomplete="off" autocapitalize="words" class={field} />
+        <div class="flex flex-wrap gap-2" data-badges>
+          {badges.map((b) => <button type="button" class="press coach-chip" data-badge={b.id}>{b.label}</button>)}
+          <button type="button" class="press coach-chip" data-badge="sonstiges">Ohne</button>
+        </div>
+        <label class="press coach-photo">
+          <input type="file" accept="image/*" class="sr-only" data-photo />
+          <img alt="" data-photo-preview hidden />
+          <span data-photo-label>Foto hinzufügen</span>
+        </label>
+      </div>
+
+      <input name="headline" placeholder="Überschrift" autocomplete="off" class={`${field} text-[17px] font-semibold`} />
+      <textarea name="text" rows="4" placeholder="Text (optional)" class={`${field} mt-2.5 resize-y leading-snug`}></textarea>
+
+      <h3 class="mt-7 mb-2 text-[15px] font-semibold">Wann</h3>
+      <div class="seg" style="--n:2" data-when-seg>
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <button type="button" data-when="now">Jetzt</button>
+        <button type="button" data-when="later">Geplant</button>
+      </div>
+      <input name="at" type="datetime-local" class={`${field} mt-2.5`} data-at hidden />
+      <label class="mt-3 flex items-center justify-between gap-3 text-[15px]">
+        <span>Oben anheften</span>
+        <select name="pin" class="coach-select">
+          <option value="0">Nicht</option>
+          <option value="1">1 Stunde</option>
+          <option value="2">2 Stunden</option>
+          <option value="3">3 Stunden</option>
+          <option value="6">6 Stunden</option>
+          <option value="12">12 Stunden</option>
+          <option value="24">1 Tag</option>
+        </select>
+      </label>
+
+      <h3 class="mt-7 mb-2 text-[15px] font-semibold">Kommentare</h3>
+      <label class="flex items-center justify-between gap-3 text-[15px]">
+        <span>Bot-Kommentare<span class="block text-[13px] text-muted">Etwa 30 Kommentare in den ersten Minuten.</span></span>
+        <input type="checkbox" name="bots" class="coach-switch" checked />
+      </label>
+      <textarea name="context" rows="2" placeholder="Was die Bots wissen sollen, z. B. „Zwei Stammspieler waren krank.“" class={`${field} mt-2.5 resize-y leading-snug`} data-context></textarea>
+
+      <h3 class="mt-7 mb-1 text-[15px] font-semibold">So sieht es in den News aus</h3>
+      <div class="coach-preview" data-preview aria-live="polite"></div>
+
+      <div class="coach-savebar">
+        <p class="min-h-5 text-[14px]" data-status aria-live="polite"></p>
+        <button type="submit" class="press coach-primary w-full" data-save>Speichern</button>
+      </div>
+    </form>
+  </div>
+
+  <script type="application/json" data-coach-posts set:html={JSON.stringify(posts).replace(/</g, "\\u003c")} />
+</Base>
+
+<style>
+  .coach-watermark {
+    position: fixed; z-index: 0; pointer-events: none; user-select: none;
+    width: min(150vw, 640px); right: max(-38vw, -230px); top: 40px;
+    opacity: 0.06;
+  }
+  :global(:root[data-theme="dark"]) .coach-watermark { opacity: 0.09; }
+  :global(.coach-field) {
+    width: 100%; border-radius: 14px; background: var(--color-surface); padding: 12px 16px; font-size: 16px; outline: none;
+  }
+  :global(.coach-field:focus), .coach-line input:focus, .coach-score input:focus { box-shadow: 0 0 0 2px var(--gold); }
+  :global(.coach-primary) {
+    border-radius: 14px; background: var(--gold); color: #fff; padding: 13px 18px; font-size: 16px; font-weight: 600;
+  }
+  :global(:root[data-theme="dark"] .coach-primary) { color: #15130d; }
+  :global(.coach-primary:disabled) { opacity: 0.55; }
+
+  /* The lineup as a team sheet: one row per line of the team, the bench set apart. */
+  .coach-sheet { border-radius: 16px; background: var(--color-surface); overflow: hidden; }
+  .coach-line { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 50px; }
+  .coach-line + .coach-line { border-top: 1px solid var(--color-hairline); }
+  .coach-line.is-bench { border-top-width: 6px; border-top-color: var(--color-bg); }
+  .coach-line span { width: 84px; flex-shrink: 0; font-size: 14px; font-weight: 600; color: var(--color-muted); }
+  .coach-line input { min-width: 0; flex: 1; background: transparent; padding: 13px 0; font-size: 16px; outline: none; border-radius: 6px; }
+
+  .coach-score { display: flex; flex: 1; flex-direction: column; align-items: center; gap: 4px; border-radius: 14px; background: var(--color-surface); padding: 10px; }
+  .coach-score span { font-size: 13px; color: var(--color-muted); }
+  .coach-score input { width: 100%; background: transparent; text-align: center; font-size: 34px; font-weight: 700; letter-spacing: -0.03em; outline: none; border-radius: 8px; }
+
+  :global(.coach-chip) { border-radius: 999px; background: var(--color-surface); padding: 7px 13px; font-size: 14px; font-weight: 600; }
+  :global(.coach-chip.is-on) { background: var(--color-fg); color: var(--color-bg); }
+  .coach-photo { display: flex; align-items: center; gap: 12px; border-radius: 14px; background: var(--color-surface); padding: 10px 14px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .coach-photo img { width: 44px; height: 44px; border-radius: 999px; object-fit: cover; }
+  .coach-photo:focus-within { box-shadow: 0 0 0 2px var(--gold); }
+
+  .coach-select { border-radius: 10px; background: var(--color-surface); padding: 7px 10px; font-size: 15px; }
+  .coach-switch {
+    appearance: none; position: relative; flex-shrink: 0; width: 51px; height: 31px; border-radius: 999px;
+    background: var(--color-hairline); transition: background 200ms ease; cursor: pointer;
+  }
+  .coach-switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 999px; background: #fff;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.18); transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .coach-switch:checked { background: var(--gold); }
+  .coach-switch:checked::after { transform: translateX(20px); }
+  .coach-switch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  [data-coach] .seg > button { padding: 8px 0; font-size: 14px; font-weight: 600; border-radius: 8px; }
+  .coach-preview { border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline); pointer-events: none; }
+  /* Save stays in reach above the tab bar while the form scrolls. */
+  .coach-savebar {
+    position: sticky; bottom: calc(max(10px, env(safe-area-inset-bottom)) + 76px); z-index: 5; margin-top: 20px;
+    padding: 10px 0 0; background: linear-gradient(to top, var(--color-bg) 70%, transparent);
+  }
+  [data-status].is-error { color: var(--red-fg); }
+  [data-status].is-ok { color: var(--gold); }
+  @media (prefers-reduced-motion: reduce) { .coach-switch, .coach-switch::after { transition: none; } }
+</style>
+
+<script>
+  import { initCoach } from "../lib/coachClient.ts";
+  document.addEventListener("astro:page-load", () => initCoach());
+</script>
