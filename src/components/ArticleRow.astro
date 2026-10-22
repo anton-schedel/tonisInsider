@@ -22,8 +22,8 @@ const { article: a, index = 0, withDay = false, pinnedUntil, showAfter } = Astro
 const comments = commentCount(a.id);
 // Confirmed lineups show the XI right here, no need to open them.
 const lineup = confirmedLineup(a);
-// A post with neither player nor club: ours carries our name and logo, LigaInsider's theirs (initials only).
-const by = a.own ? { name: NAME, logo: LOGO } : { name: "LigaInsider", logo: undefined };
+// A post with neither player nor club carries our name and logo.
+const by = { name: NAME, logo: LOGO };
 ---
 {/* Club, time and comments: the same line under every kind of post. */}
 {(() => {
