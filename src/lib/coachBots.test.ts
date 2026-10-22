@@ -21,8 +21,16 @@ describe("botPrompt", () => {
     expect(user).toContain("Bank: Enciu, Schedel");
     expect(user).toContain("28.10.: 2:2 gegen SV Beispiel");
     expect(user).toContain("1:7"); // earlier results
-    expect(user).toContain("Nguyen ist wieder dabei.");
+    expect(user).toContain("- Nguyen ist wieder dabei");
     expect(system).toMatch(/JSON/);
+  });
+  it("splits the coach's context into topics that only a few comments pick up", () => {
+    const { user } = botPrompt({ ...lineup, data: { ...lineup.data, bots: { on: true, context: "Nguyen ist zurück. Gegner ist Tabellenführer\nPlatz ist nass" } } }, []);
+    expect(user).toContain("- Nguyen ist zurück");
+    expect(user).toContain("- Gegner ist Tabellenführer");
+    expect(user).toContain("- Platz ist nass");
+    expect(user).toMatch(/Jedes Thema greifen nur 3 bis 5 Kommentare auf/);
+    expect(user).toMatch(/höchstens 5 Kommentare/);
   });
   it("labels a two-row lineup without a midfield", () => {
     const { user } = botPrompt({ ...lineup, data: { ...lineup.data, lineup: { lines: [["Coach"], ["Gerl"]], bench: [] } } }, []);

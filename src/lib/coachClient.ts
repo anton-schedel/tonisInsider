@@ -329,7 +329,7 @@ export function initCoach() {
       if (editing) await api(`/api/coach/bots/${post.id}/`, { method: "POST" });
       return;
     }
-    say(`${saved} Bot-Kommentare werden geschrieben … (etwa eine Minute)`, "ok");
+    say(`${saved} Bot-Kommentare werden geschrieben … (meist eine Minute, wenn Morpheus viel zu tun hat auch ein paar)`, "ok");
     const r = await api<{ bots?: number }>(`/api/coach/bots/${post.id}/`, { method: "POST" });
     if (r.status === 401) return signedOut();
     if (r.ok) return say(`${saved} ${r.data.bots} Bot-Kommentare geplant.`, "ok");

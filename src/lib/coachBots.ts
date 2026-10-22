@@ -54,13 +54,17 @@ export function botPrompt(post: CoachPost, recent: string[]): { system: string; 
     `Antworte nur mit einem JSON-Array mit ${BOT_COUNT} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
   ].join(" ");
 
+  // Each thing the coach wants them to know is one topic; only a few comments take each up, else all 30 sound alike.
+  const topics = (d.bots?.context ?? "").split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.trim().replace(/[.]$/, "")).filter(Boolean);
   const user = [
     "Beitrag:",
     ...about,
     "",
-    "Letzte Ergebnisse (neueste zuerst):",
+    "Letzte Ergebnisse (neueste zuerst; höchstens 5 Kommentare erwähnen sie, die anderen reden über diesen Beitrag):",
     ...[...recent, ...SEASON].map((r) => `- ${r}`),
-    ...(d.bots?.context ? ["", `Das sollen die Kommentatoren außerdem wissen: ${d.bots.context}`] : []),
+    ...(topics.length
+      ? ["", "Was einige Kommentatoren wissen (Jedes Thema greifen nur 3 bis 5 Kommentare auf, verteilt über die Liste; die meisten Kommentare reden über den Beitrag selbst):", ...topics.map((t) => `- ${t}`)]
+      : []),
   ].join("\n");
   return { system, user };
 }
@@ -119,7 +123,7 @@ export function botRows(publishedAt: string, bots: BotComment[]): BotRow[] {
 export type ModelConfig = { url: string; key: string; model: string };
 
 /** One chat completion; the answer's text. */
-export async function askModel(cfg: ModelConfig, prompt: { system: string; user: string }, fetcher: typeof fetch = fetch, timeoutMs = 120_000): Promise<string> {
+export async function askModel(cfg: ModelConfig, prompt: { system: string; user: string }, fetcher: typeof fetch = fetch, timeoutMs = 300_000): Promise<string> {
   const res = await fetcher(`${cfg.url.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: { authorization: `Bearer ${cfg.key}`, "content-type": "application/json" },

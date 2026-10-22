@@ -10,7 +10,7 @@ export const prerender = false;
 
 /**
  * POST /api/coach/bots/<id>/: (re)writes the post's bot comments that aren't out yet, or deletes them when the
- * post has bots off. Called by the coach page after a save; the model takes about a minute.
+ * post has bots off. Called by the coach page after a save; the model takes about a minute (up to 5 when it's busy).
  */
 export const POST: APIRoute = async ({ request, cookies, params }) => {
   if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);

@@ -112,7 +112,7 @@ All but `login` require a valid `coach` cookie, else 401.
   (0–18 minutes, so they trickle in). The comments API already hides comments dated in the future.
 - Edit: if the content changed and the switch is on, its bot comments that aren't out yet are replaced; those
   already out stay. Switch off: bot comments not out yet are deleted. Delete post: all its bot comments go.
-- The model call has a 120 s timeout (30 comments take about a minute); the page shows "Bot-Kommentare werden geschrieben …" meanwhile. If it fails or returns nothing usable, the post is saved anyway and the
+- The model call has a 300 s timeout (30 comments take about a minute, longer when Morpheus is busy with other jobs on the same key); the page shows "Bot-Kommentare werden geschrieben …" meanwhile. If it fails or returns nothing usable, the post is saved anyway and the
   page says "Bot-Kommentare konnten nicht erstellt werden" with "Nochmal versuchen".
 - Morpheus is an Open WebUI instance: `POST https://morpheus.cit.tum.de/api/chat/completions` (OpenAI format), model `cyankiwi/Qwen3.8-Flash-Next-AWQ-INT4`. `MORPHEUS_API_KEY` is a Worker secret, `MORPHEUS_BASE_URL` and `MORPHEUS_MODEL` Worker vars. The key never
   reaches the browser.
