@@ -103,7 +103,7 @@ All but `login` require a valid `coach` cookie, else 401.
 
 - The editor has a switch "Bot-Kommentare" (default on) and a field "Was die Bots wissen sollen" for context
   of the week (e.g. "Zwei wichtige Spieler haben gefehlt").
-- On save with the switch on, the Worker asks the model for about 30 comments (a JSON list of
+- After a save with the switch on, the page calls `POST /api/coach/bots/:id`, and the Worker asks the model for about 30 comments (a JSON list of
   `{ name, text, minute, replyTo? }`): German, short, the tone of football forum regulars, about this post. The
   prompt contains the post (type, headline, lineup or score or player), the recent results of TuS Schnöselmob
   (from the result posts, newest first), the context field, and rules (no insults, no real people other than
@@ -112,9 +112,9 @@ All but `login` require a valid `coach` cookie, else 401.
   (0–18 minutes, so they trickle in). The comments API already hides comments dated in the future.
 - Edit: if the content changed and the switch is on, its bot comments that aren't out yet are replaced; those
   already out stay. Switch off: bot comments not out yet are deleted. Delete post: all its bot comments go.
-- The model call has a 25 s timeout. If it fails or returns nothing usable, the post is saved anyway and the
+- The model call has a 120 s timeout (30 comments take about a minute); the page shows "Bot-Kommentare werden geschrieben …" meanwhile. If it fails or returns nothing usable, the post is saved anyway and the
   page says "Bot-Kommentare konnten nicht erstellt werden" with "Nochmal versuchen".
-- `MORPHEUS_API_KEY` is a Worker secret, `MORPHEUS_BASE_URL` and `MORPHEUS_MODEL` Worker vars. The key never
+- Morpheus is an Open WebUI instance: `POST https://morpheus.cit.tum.de/api/chat/completions` (OpenAI format), model `cyankiwi/Qwen3.8-Flash-Next-AWQ-INT4`. `MORPHEUS_API_KEY` is a Worker secret, `MORPHEUS_BASE_URL` and `MORPHEUS_MODEL` Worker vars. The key never
   reaches the browser.
 
 ## Errors
