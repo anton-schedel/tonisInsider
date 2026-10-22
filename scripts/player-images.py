@@ -29,6 +29,6 @@ av.convert("RGB").resize((240, 240), Image.LANCZOS).save(f"{out}-avatar.jpg", qu
 # Banner: down to the chest (crest included), in front of our crest in the stadium.
 stadium = Image.open(banner_p).convert("RGBA").resize((1200, 675))
 upper = person.crop((0, 20, 1024, 860))
-k = 675 / upper.height * 1.0
+k = 675 / upper.height
 upper = upper.resize((int(upper.width * k), int(upper.height * k)), Image.LANCZOS)
 shadowed(stadium, upper, 600 - upper.width // 2, 675 - upper.height + 2).convert("RGB").save(f"{out}-banner.jpg", quality=88)

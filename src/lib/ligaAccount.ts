@@ -35,6 +35,15 @@ export async function currentLiga(cookies: CookieJar, key: string | undefined, f
   return renew(cookies, key, fetchFn);
 }
 
+/** A fetch that sends the viewer's LigaInsider session, so vote state and "already voted" are theirs. */
+export function withCookie(base: typeof fetch, cookie: string): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    headers.set("cookie", cookie);
+    return base(input, { ...init, headers });
+  }) as typeof fetch;
+}
+
 /**
  * Runs `run` with a LigaInsider session. A dead session is renewed once from the stored
  * password; a wrong password clears the login.

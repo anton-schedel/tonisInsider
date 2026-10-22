@@ -61,7 +61,7 @@
 <script>
   import type { CardData, CardNews } from "../lib/card.ts";
   import { actionTier, setTier, TIERS, type PlayerPoints, type PointsLine } from "../lib/livePoints.ts";
-  import { ago, initials, kickoffDay } from "../lib/format.ts";
+  import { initials, when } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
   import { loadScout, setScouted } from "../lib/scoutClient.ts";
 
@@ -81,9 +81,6 @@
     const state = await loadScout();
     if (dialog.dataset.player === String(id)) setStar(dialog, state.ids.includes(id));
   }
-
-  /** "vor 3 Std." within a day, else the day ("Mi. 07.10."). */
-  const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
 
   function newsRow(n: CardNews, now: Date): HTMLElement {
     const row = document.createElement("a");
@@ -324,9 +321,10 @@
     const trigger = target.closest<HTMLElement>("[data-card]");
     if (!trigger) return;
     try {
-      fill(dialog, JSON.parse(trigger.dataset.card!) as CardData);
+      const card = JSON.parse(trigger.dataset.card!) as CardData;
+      fill(dialog, card);
       fillPoints(dialog, trigger);
-      void fillScout(dialog, (JSON.parse(trigger.dataset.card!) as CardData).id);
+      void fillScout(dialog, card.id);
     } catch {
       return;
     }

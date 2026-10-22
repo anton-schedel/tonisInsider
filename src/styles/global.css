@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Colours follow iOS system colours. Light is the default; dark via system setting or data-theme="dark". */
+/* Colours follow iOS system colours. Light is the default; dark with data-theme="dark" (the switch in Einstellungen). */
 :root {
   --bg: #ffffff;
   --surface: #f2f2f7;
@@ -19,20 +19,6 @@
   --yellow-bg: #fff4d6; --yellow-fg: #a05a00; --yellow-dot: #ffcc00;
   --green-bg: #e3f7e8; --green-fg: #248a3d; --green-dot: #30d158;
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #000000; --surface: #1c1c1e; --surface-raised: #2c2c2e; --fg: #f5f5f7; --muted: #8e8e93;
-    --hairline: #2c2c2e; --tabbar: rgba(38, 38, 42, 0.5);
-    --glass-rim: rgba(255, 255, 255, 0.24); --glass-rim-low: rgba(255, 255, 255, 0.07);
-    --glass-edge: rgba(255, 255, 255, 0.09); --glass-sheen: rgba(255, 255, 255, 0.07);
-    --glass-lens: rgba(255, 255, 255, 0.1); --glass-lens-rim: rgba(255, 255, 255, 0.2);
-    --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
-    --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
-    --green-bg: rgba(48, 209, 88, 0.16); --green-fg: #30d158; --green-dot: #30d158;
-    color-scheme: dark;
-  }
 }
 
 :root[data-theme="dark"] {
@@ -75,10 +61,6 @@
 
 /* The logo's navy text needs its light version on dark backgrounds. */
 .brand-dark { display: none; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .brand-light { display: none; }
-  :root:not([data-theme="light"]) .brand-dark { display: inline; }
-}
 :root[data-theme="dark"] .brand-light { display: none; }
 :root[data-theme="dark"] .brand-dark { display: inline; }
 
@@ -362,8 +344,8 @@ nav.no-tab .tab-pill { opacity: 0; }
 .scout-add {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 32px; height: 32px; border-radius: 999px; background: var(--surface); color: var(--fg);
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
-.scout-add { transition: background-color 180ms ease, color 180ms ease, transform 180ms ease; }
 .scout-add.is-done { background: var(--fg); color: var(--bg); transform: scale(1.06); }
 .scout-add:disabled:not(.is-done) { opacity: 0.4; }
 /* The card's star: filled and in colour once the player is on the scout list. */
@@ -480,7 +462,6 @@ html:not([data-navigated]) .enter {
 .pts-mid { --pts: #9cdd49; --pts-ink: #4f8a12; }
 .pts-high { --pts: #1fc46f; --pts-ink: #0b8a4c; }
 .pts-gold { --pts: #ffd23f; --pts-ink: #a87800; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) [class*="pts-"] { --pts-ink: var(--pts); } }
 :root[data-theme="dark"] [class*="pts-"] { --pts-ink: var(--pts); }
 
 /* The chip: dark with white digits until there are points ("0" live, "–" didn't play), then Kickbase's colour. */
@@ -503,7 +484,6 @@ html:not([data-navigated]) .enter {
 @media (prefers-reduced-motion: reduce) { .kb-points.is-live .kb-points-dot { animation: none; } }
 .fut-rating[class*="pts-"], .fut-points-row b[class*="pts-"] { color: var(--pts-ink); }
 
-/* Switching light/dark (Base.astro): every colour changes in the same frame. */
 @media (prefers-reduced-motion: reduce) { .seg-thumb, .seg > button { transition: none; } }
 
 /* Tap feedback, the same two kinds everywhere:

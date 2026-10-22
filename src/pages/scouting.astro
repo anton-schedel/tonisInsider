@@ -43,7 +43,7 @@ const players = allPlayers();
 <script>
   import type { PlayerEntry } from "../lib/players.ts";
   import { cachedScout, loadScout, markSeen, setScouted, unseen, type ScoutState } from "../lib/scoutClient.ts";
-  import { ago, fold, initials, kickoffDay } from "../lib/format.ts";
+  import { fold, initials, when } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
   const LIMIT = 40;
@@ -80,8 +80,6 @@ const players = allPlayers();
     }
     return box;
   }
-
-  const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
 
   const STAR = '<svg viewBox="0 0 24 24" class="size-[17px]" fill="currentColor" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>';
   const TICK = '<svg viewBox="0 0 24 24" class="size-[16px]" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>';
@@ -237,14 +235,13 @@ const players = allPlayers();
     const times = Object.fromEntries(index.flatMap((p) => (p.card.news?.[0] ? [[p.id, p.card.news[0].at]] : [])));
     const shown = cachedScout();
     const fresh = new Set(await unseen(shown, times));
-    void renderList(byId, shown, fresh);
+    renderList(byId, shown, fresh);
     const state = await loadScout(true);
     for (const id of await unseen(state, times)) fresh.add(id);
-    void renderList(byId, state, fresh);
+    renderList(byId, state, fresh);
     if (fresh.size) await markSeen();
     // The + on a suggestion: it turns into a tick, the suggestions fade away and he slides into the list.
     let holding = false;
-    const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
     document.querySelector("[data-scout-suggest]")?.addEventListener("click", async (e) => {
       const add = (e.target as Element).closest<HTMLButtonElement>("[data-scout-add]");
       if (!add || add.disabled || holding) return;
@@ -265,9 +262,9 @@ const players = allPlayers();
       renderList(byId, state, fresh);
       empty.getAnimations().forEach((a) => a.cancel());
       const li = document.querySelector<HTMLElement>(`[data-scout-list] [data-player="${id}"]`);
-      if (li && !reduced) li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: ease });
+      if (li && !reduced) li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
     });
-    // Scouting or unscouting in the card updates the list right away (the "Neu" marks stay for this visit).
+    // Scouting or unscouting in the card updates the list right away (the dots for new news stay for this visit).
     window.addEventListener("scout:change", (e) => { if (!holding) renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh); });
   });
 </script>

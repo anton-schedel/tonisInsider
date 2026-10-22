@@ -36,5 +36,8 @@ export function ago(iso: string, now: Date): string {
   return fullDate(iso);
 }
 
+/** "vor 3 Std." within a day, else the day ("Mi. 07.10."): when a news item came (player card, scout list). */
+export const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
+
 /** Lower case without accents, so "vidovic" finds Vidović and "muller" Müller (the player search). */
 export const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase();

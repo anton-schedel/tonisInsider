@@ -81,26 +81,26 @@ export async function loadScout(fresh = false): Promise<ScoutState> {
 }
 
 export async function setScouted(id: number, on: boolean): Promise<ScoutState> {
-  const now = await loadScout();
-  if (now.account) {
+  const state = await loadScout();
+  if (state.account) {
     const next = await call(on ? { add: [id] } : { remove: [id] });
     if (next) return remember(next);
     throw new Error("Konnte nicht gespeichert werden.");
   }
-  const ids = on ? [id, ...now.ids.filter((x) => x !== id)] : now.ids.filter((x) => x !== id);
-  const added = { ...now.added };
+  const ids = on ? [id, ...state.ids.filter((x) => x !== id)] : state.ids.filter((x) => x !== id);
+  const added = { ...state.added };
   if (on) added[id] = new Date().toISOString();
   else delete added[id];
   write(localStorage, LOCAL, ids);
   write(localStorage, LOCAL_ADDED, added);
-  if (on && !now.seenAt) write(localStorage, LOCAL_SEEN, new Date().toISOString());
+  if (on && !state.seenAt) write(localStorage, LOCAL_SEEN, new Date().toISOString());
   return remember(local());
 }
 
 /** The list was looked at: news until now is no longer new. */
 export async function markSeen(): Promise<void> {
-  const now = await loadScout();
-  if (now.account) {
+  const state = await loadScout();
+  if (state.account) {
     const next = await call({ seen: true });
     if (next) remember(next);
     return;

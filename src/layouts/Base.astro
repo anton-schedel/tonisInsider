@@ -41,8 +41,8 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
     <!-- Also for Worker-rendered pages (where _headers doesn't apply): never leak our URL as Referer. -->
     <meta name="referrer" content="same-origin" />
     <meta name="build" content={BUILD_ID} />
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <!-- Set to the chosen theme by the script below. -->
+    <meta name="theme-color" content="#ffffff" />
     <title>{title && title !== "News" ? `${title} – TonInsider` : "TonInsider"}</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
@@ -85,9 +85,8 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           doc.documentElement.dataset.theme = t;
           doc.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", t === "dark" ? "#000000" : "#ffffff"));
         };
-        const shown = stored;
         const markTheme = (doc = document) => {
-          const t = shown();
+          const t = stored();
           doc.querySelectorAll("[data-theme-set]").forEach((btn) => {
             btn.setAttribute("aria-pressed", String(btn.getAttribute("data-theme-set") === t));
           });
@@ -421,9 +420,11 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
     <script>
       import { navigate } from "astro:transitions/client";
       import { startLive } from "../lib/liveClient.ts";
+      import { loadScout, unseen, type ScoutState } from "../lib/scoutClient.ts";
+      import { updateAction } from "../lib/freshness.ts";
+      import type { Version } from "../../scraper/snapshot.ts";
 
       startLive();
-      import { loadScout, unseen, type ScoutState } from "../lib/scoutClient.ts";
 
       // The Scouting tab's badge: how many scouted players have news since the list was last opened.
       const scoutBadge = async (state?: ScoutState) => {
@@ -435,8 +436,6 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       };
       document.addEventListener("astro:page-load", () => void scoutBadge());
       window.addEventListener("scout:change", (e) => void scoutBadge((e as CustomEvent<ScoutState>).detail));
-      import { updateAction } from "../lib/freshness.ts";
-      import type { Version } from "../../scraper/snapshot.ts";
 
       // Notice updates while the site is open: every minute while visible, and when coming back to it.
       const notice = () => document.querySelector<HTMLButtonElement>("[data-news-notice]");

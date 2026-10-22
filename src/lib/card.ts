@@ -1,4 +1,4 @@
-import type { Article, Lineup, NewsType } from "../../scraper/types.ts";
+import type { Article, Lineup, LineupPlayer, NewsType } from "../../scraper/types.ts";
 import type { PlayerInsight } from "./scorers.ts";
 import { kickoffDay, time } from "./format.ts";
 import type { StartStatus } from "./match.ts";
@@ -27,6 +27,14 @@ export type CardData = PlayerInsight & {
   news?: CardNews[];
 };
 export type CardNews = { id: number; title: string; type: NewsType; at: string };
+
+/** A predicted starter's line on the card: confirmed, doubtful, or in the XI (with his alternative, if any). */
+export function startStatus(p: LineupPlayer, confirmed: boolean): { status: string; tone: CardData["tone"] } {
+  if (confirmed) return { status: "S11", tone: "green" };
+  if (p.status === "doubtful") return { status: `Fraglich${p.statusLabel ? ` · ${p.statusLabel}` : ""}`, tone: "yellow" };
+  if (p.alternative) return { status: `Startelf · Alt. ${p.alternative.name}`, tone: "green" };
+  return { status: "Startelf", tone: "green" };
+}
 
 /** News this recent marks the player with a newspaper icon (NewsBadge.astro); older stays in the card only. */
 export const FRESH_NEWS_MS = 3 * 86_400_000;

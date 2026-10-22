@@ -1,18 +1,9 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { currentLiga } from "../../../lib/ligaAccount.ts";
+import { currentLiga, withCookie } from "../../../lib/ligaAccount.ts";
 import { commentsResponse, type EdgeCache } from "../../../lib/comments.ts";
 
 export const prerender = false;
-
-/** Sends the viewer's LigaInsider session so vote state and "already voted" are theirs. */
-function withCookie(base: typeof fetch, cookie: string): typeof fetch {
-  return (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const headers = new Headers(init?.headers);
-    headers.set("cookie", cookie);
-    return base(input, { ...init, headers });
-  }) as typeof fetch;
-}
 
 export const GET: APIRoute = async ({ params, cookies }) => {
   // Personal reads skip the shared copy but still keep/serve the fallback (stored without the viewer's votes).

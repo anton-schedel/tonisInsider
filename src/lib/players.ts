@@ -1,7 +1,6 @@
-import type { Lineup } from "../../scraper/types.ts";
 import { articles, lineups, odds, scorers } from "./data.ts";
 import { confirmedClubs } from "./lineupNews.ts";
-import { matchLine, newsByPlayer, rowPosition, type CardData } from "./card.ts";
+import { matchLine, newsByPlayer, rowPosition, startStatus, type CardData } from "./card.ts";
 import { matchInsights } from "./scorers.ts";
 import { chancesFor } from "./odds.ts";
 import { toFixtures } from "./fixtures.ts";
@@ -54,18 +53,10 @@ export function allPlayers(): PlayerEntry[] {
     const rows = lineup.lines.length;
     lineup.lines.forEach((line, i) => line.forEach((p) => {
       const pos = rowPosition(i, rows);
-      add(p, 0, { pos, ...mainStatus(p, confirmed.has(lineup.club.id)) });
+      add(p, 0, { pos, ...startStatus(p, confirmed.has(lineup.club.id)) });
       if (p.alternative) add(p.alternative, 1, { pos, status: `Alternative zu ${p.name}`, tone: "yellow" });
     }));
     for (const p of lineup.squad ?? []) add(p, 2, { status: "Nicht in der Startelf", tone: "grey" });
   }
   return [...out.values()];
 }
-
-function mainStatus(p: Lineup["lines"][number][number], confirmed: boolean): Partial<CardData> {
-  if (confirmed) return { status: "S11", tone: "green" };
-  if (p.status === "doubtful") return { status: `Fraglich${p.statusLabel ? ` · ${p.statusLabel}` : ""}`, tone: "yellow" };
-  if (p.alternative) return { status: `Startelf · Alt. ${p.alternative.name}`, tone: "green" };
-  return { status: "Startelf", tone: "green" };
-}
-
