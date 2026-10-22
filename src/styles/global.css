@@ -523,3 +523,15 @@ html:not([data-navigated]) .enter {
   .img-fade { transition: none; }
   .skeleton { animation: none; }
 }
+
+/* The feed's day heading: a slim grey band that fades out to the right; stuck to the top, the posts scrolling
+   under its faded part are blurred. */
+.day-band {
+  display: flex; align-items: center; gap: 6px; height: 32px;
+  margin-inline: -16px; padding-inline: 16px;
+  font-size: 14px; font-weight: 600; line-height: 1;
+  background: linear-gradient(90deg, var(--color-surface) 35%, color-mix(in srgb, var(--color-surface) 0%, transparent));
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+}
+@media (min-width: 640px) { .day-band { margin-inline: -12px; padding-inline: 12px; border-radius: 10px; } }

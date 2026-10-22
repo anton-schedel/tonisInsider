@@ -23,8 +23,8 @@ let index = 0;
 ---
 {pinned.length > 0 && (
   <section data-pinned>
-    <h2 class="flex items-center gap-1.5 -mx-4 bg-surface px-4 py-[7px] text-[15px] font-semibold sm:-mx-3 sm:rounded-lg sm:px-3">
-      <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" /></svg>
+    <h2 class="day-band">
+      <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" /></svg>
       Angeheftet
     </h2>
     {/* The rows' script lands after the last row, so divide-y would give that row a line too. */}
@@ -36,9 +36,8 @@ let index = 0;
 {allGroups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section>
-    {/* Each day opens with a slim grey band (like a section header in an iOS list), so the date is clearly
-        set apart from the posts around it; it stays at the top while its posts scroll by. */}
-    <h2 class="sticky top-0 z-10 -mx-4 bg-surface px-4 py-[7px] text-[15px] font-semibold sm:-mx-3 sm:rounded-lg sm:px-3" data-day={g.first}>
+    {/* Each day opens with a slim band (global.css .day-band) that stays at the top while its posts scroll by. */}
+    <h2 class="day-band sticky top-0 z-10" data-day={g.first}>
       {(() => {
         const [rel, date] = dayLabel(g.first, now).split(" · ");
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
