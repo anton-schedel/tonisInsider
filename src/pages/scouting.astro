@@ -35,9 +35,8 @@ const players = allPlayers();
 
 <script>
   import type { PlayerEntry } from "../lib/players.ts";
-  import { fold } from "../lib/players.ts";
   import { loadScout, markSeen, unseen, type ScoutState } from "../lib/scoutClient.ts";
-  import { ago, initials, kickoffDay } from "../lib/format.ts";
+  import { ago, fold, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
   const LIMIT = 40;

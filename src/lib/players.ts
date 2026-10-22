@@ -69,5 +69,3 @@ function mainStatus(p: Lineup["lines"][number][number], confirmed: boolean): Par
   return { status: "Startelf", tone: "green" };
 }
 
-/** Lower case without accents, so "vidovic" finds Vidović and "muller" Müller. */
-export const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss").toLowerCase();

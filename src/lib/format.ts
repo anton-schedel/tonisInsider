@@ -35,3 +35,6 @@ export function ago(iso: string, now: Date): string {
   if (min < 24 * 60) return `vor ${Math.floor(min / 60)} Std.`;
   return fullDate(iso);
 }
+
+/** Lower case without accents, so "vidovic" finds Vidović and "muller" Müller (the player search). */
+export const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase();
