@@ -38,9 +38,9 @@ jobs:
 
       - run: npm ci
 
-      - name: Typecheck (code changes only)
+      - name: Typecheck and tests (code changes only; a failure stops the deploy)
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
-        run: npm run typecheck
+        run: npm run typecheck && npx vitest run
 
       - name: Restore data cache
         uses: actions/cache/restore@v4

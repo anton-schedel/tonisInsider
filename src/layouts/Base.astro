@@ -313,7 +313,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           // The whole page changes colour at once (no element fades on its own from the old theme), shown as
           // one soft cross-fade with the thumb gliding across; without View Transitions it just switches.
           const root = document.documentElement;
-          const swap = () => {
+          const switchTheme = () => {
             root.classList.add("theme-switching");
             apply(document);
             markTheme();
@@ -321,9 +321,9 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           const done = () => root.classList.remove("theme-switching", "theme-fade");
           if (document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
             root.classList.add("theme-fade");
-            document.startViewTransition(swap).finished.finally(done);
+            document.startViewTransition(switchTheme).finished.finally(done);
           } else {
-            swap();
+            switchTheme();
             requestAnimationFrame(() => requestAnimationFrame(done));
           }
         });
