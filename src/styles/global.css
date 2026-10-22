@@ -310,10 +310,12 @@ nav.no-tab .tab-pill { opacity: 0; }
 .seg > button { position: relative; z-index: 1; color: var(--muted); transition: color 180ms ease; }
 .seg > button[aria-pressed="true"] { color: var(--fg); }
 
-/* Light ↔ dark: the page cross-fades (View Transition) while the theme thumb glides to its side. */
-html.theme-fade::view-transition-old(root),
-html.theme-fade::view-transition-new(root) { animation-duration: 280ms; animation-timing-function: ease; }
-html.theme-fade::view-transition-group(theme-thumb) { animation-duration: 280ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+/* Light ↔ dark: for a moment every colour transitions, all with the same timing, so the page changes as one. */
+html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after {
+  transition: background-color 260ms ease, color 260ms ease, border-color 260ms ease, fill 260ms ease,
+    stroke 260ms ease, box-shadow 260ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+@media (prefers-reduced-motion: reduce) { html.theme-anim * { transition: none !important; } }
 
 /* The search field on the Scouting page. */
 .search-field {
@@ -466,7 +468,6 @@ html:not([data-navigated]) .enter {
 .fut-rating[class*="pts-"], .fut-points-row b[class*="pts-"] { color: var(--pts-ink); }
 
 /* Switching light/dark (Base.astro): every colour changes in the same frame. */
-.theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { .seg-thumb, .seg > button { transition: none; } }
 
 /* Tap feedback, the same two kinds everywhere:

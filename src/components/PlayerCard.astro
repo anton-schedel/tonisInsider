@@ -306,11 +306,9 @@
         const on = star.getAttribute("aria-pressed") !== "true";
         setStar(dialog, on);
         setScouted(id, on).catch(() => setStar(dialog, !on));
-        // Added: the filled star shows for a moment, then the card goes (the Scouting page clears its search).
-        if (on) {
-          setTimeout(() => closeCard(dialog), 260);
-          document.dispatchEvent(new CustomEvent("scout:added", { detail: id }));
-        }
+        // The star changes for a moment, then the card goes (adding also clears the Scouting page's search).
+        setTimeout(() => closeCard(dialog), 260);
+        if (on) document.dispatchEvent(new CustomEvent("scout:added", { detail: id }));
         return;
       }
       // Close button, or a tap on the dimmed backdrop (the dialog element itself, outside the body).

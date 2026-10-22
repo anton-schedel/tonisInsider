@@ -8,6 +8,8 @@ const LOCAL = "scoutList";
 const LOCAL_SEEN = "scoutSeen";
 /** This tab's copy, so moving between pages doesn't ask the server each time. */
 const SESSION = "scoutState";
+/** The last known list, shown at once on the next visit while the account's list loads. */
+const LAST = "scoutLast";
 const SESSION_MS = 60_000;
 
 const read = <T>(store: Storage, key: string): T | undefined => {
@@ -20,6 +22,7 @@ const write = (store: Storage, key: string, value: unknown) => {
 const local = (): ScoutState => ({ ids: read<number[]>(localStorage, LOCAL) ?? [], seenAt: read<string>(localStorage, LOCAL_SEEN), account: false });
 const remember = (s: ScoutState) => {
   write(sessionStorage, SESSION, { at: Date.now(), state: s });
+  write(localStorage, LAST, s);
   window.dispatchEvent(new CustomEvent("scout:change", { detail: s }));
   return s;
 };
@@ -39,6 +42,12 @@ async function call(body?: object): Promise<ScoutState | undefined> {
 }
 
 const loggedIn = () => /(?:^|; )(?:kbin|liin)=1/.test(document.cookie);
+
+/** Right away, without asking the server: this tab's copy, else the last known list. */
+export function cachedScout(): ScoutState {
+  const last = read<{ state: ScoutState }>(sessionStorage, SESSION)?.state ?? read<ScoutState>(localStorage, LAST);
+  return last && last.account === loggedIn() ? last : local();
+}
 
 export async function loadScout(fresh = false): Promise<ScoutState> {
   const cached = read<{ at: number; state: ScoutState }>(sessionStorage, SESSION);
@@ -90,10 +99,10 @@ export function playerNewsTimes(): Promise<Record<string, string>> {
   return newsTimes;
 }
 
-/** Scouted players with news since the list was last looked at. */
-export async function unseen(state: ScoutState): Promise<number[]> {
+/** Scouted players with news since the list was last looked at (times: player id → newest news, if known). */
+export async function unseen(state: ScoutState, known?: Record<string, string>): Promise<number[]> {
   if (!state.ids.length) return [];
-  const times = await playerNewsTimes();
+  const times = known ?? (await playerNewsTimes());
   const since = Date.parse(state.seenAt ?? "") || 0;
   return state.ids.filter((id) => times[id] && Date.parse(times[id]) > since);
 }

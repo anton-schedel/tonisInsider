@@ -97,8 +97,19 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         // Settings: account rows and the theme choice come from cookies and this browser, so they're filled in
         // before the page is shown: on the incoming page during a navigation (astro:before-swap), and by an
         // inline call at the end of the settings page on a fresh load.
-        window.__fillSettings = (doc) => {
+        window.__fillSettings = (doc, url = location) => {
           if (!doc.querySelector("[data-theme-set]")) return;
+          // After a failed login (?error=…), and where LigaInsider's login returns to (?next=, same site only).
+          const params = new URL(url.href).searchParams;
+          const errorBox = doc.querySelector("#login-error");
+          if (errorBox) {
+            const text = JSON.parse(errorBox.getAttribute("data-errors") || "{}")[params.get("error") || ""] || "";
+            errorBox.textContent = text;
+            errorBox.classList.toggle("hidden", !text);
+          }
+          const next = params.get("next") || "";
+          const liNext = doc.querySelector("[data-li-next]");
+          if (liNext && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") && !next.includes("://")) liNext.value = next;
           const signedIn = (name) => new RegExp("(?:^|; )" + name + "=1").test(document.cookie);
           doc.querySelector("[data-kb-form]")?.classList.toggle("hidden", signedIn("kbin"));
           doc.querySelector("[data-kb-in]")?.classList.toggle("hidden", !signedIn("kbin"));
@@ -286,7 +297,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           const from = String(Math.min(0.7, old ? Number(getComputedStyle(old).opacity) : 0));
           e.newDocument.querySelector(".page-in")?.style.setProperty("--from", from);
           apply(e.newDocument);
-          window.__fillSettings(e.newDocument);
+          window.__fillSettings(e.newDocument, e.to);
           window.__applyLive?.(e.newDocument);
           e.newDocument.documentElement.dataset.navigated = "";
         });
@@ -310,22 +321,14 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           const theme = choice.getAttribute("data-theme-set");
           if (theme !== "light" && theme !== "dark") return;
           try { localStorage.setItem("theme", theme); } catch {}
-          // The whole page changes colour at once (no element fades on its own from the old theme), shown as
-          // one soft cross-fade with the thumb gliding across; without View Transitions it just switches.
+          // Every colour glides to the new theme together (and the thumb slides), like the comment/poll switch;
+          // no snapshot cross-fade, which flashes bright halfway.
           const root = document.documentElement;
-          const switchTheme = () => {
-            root.classList.add("theme-switching");
-            apply(document);
-            markTheme();
-          };
-          const done = () => root.classList.remove("theme-switching", "theme-fade");
-          if (document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-            root.classList.add("theme-fade");
-            document.startViewTransition(switchTheme).finished.finally(done);
-          } else {
-            switchTheme();
-            requestAnimationFrame(() => requestAnimationFrame(done));
-          }
+          root.classList.add("theme-anim");
+          apply(document);
+          markTheme();
+          clearTimeout(window.__themeAnim);
+          window.__themeAnim = setTimeout(() => root.classList.remove("theme-anim"), 320);
         });
         // Login/logout forms load a new page: show at once that the tap registered, and block double sends.
         document.addEventListener("submit", (e) => {

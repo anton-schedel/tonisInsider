@@ -35,7 +35,7 @@ const players = allPlayers();
 
 <script>
   import type { PlayerEntry } from "../lib/players.ts";
-  import { loadScout, markSeen, unseen, type ScoutState } from "../lib/scoutClient.ts";
+  import { cachedScout, loadScout, markSeen, unseen, type ScoutState } from "../lib/scoutClient.ts";
   import { ago, fold, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
@@ -115,7 +115,7 @@ const players = allPlayers();
     return hits.sort((a, b) => surname(a) - surname(b) || a.rank - b.rank || a.name.localeCompare(b.name, "de")).slice(0, LIMIT);
   }
 
-  async function renderList(byId: Map<number, Indexed>, state: ScoutState, fresh: Set<number>) {
+  function renderList(byId: Map<number, Indexed>, state: ScoutState, fresh: Set<number>) {
     const list = document.querySelector<HTMLElement>("[data-scout-list]");
     if (!list) return;
     const players = state.ids.flatMap((id) => byId.get(id) ?? []);
@@ -159,9 +159,15 @@ const players = allPlayers();
       show();
     });
 
+    // The list at once from the last known state, then as the account has it now. News times come from the
+    // index on this page (no extra download).
+    const times = Object.fromEntries(index.flatMap((p) => (p.card.news?.[0] ? [[p.id, p.card.news[0].at]] : [])));
+    const shown = cachedScout();
+    const fresh = new Set(await unseen(shown, times));
+    void renderList(byId, shown, fresh);
     const state = await loadScout(true);
-    const fresh = new Set(await unseen(state));
-    await renderList(byId, state, fresh);
+    for (const id of await unseen(state, times)) fresh.add(id);
+    void renderList(byId, state, fresh);
     if (fresh.size) await markSeen();
     // Scouting or unscouting in the card updates the list right away (the "Neu" marks stay for this visit).
     window.addEventListener("scout:change", (e) => void renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh));
