@@ -1,0 +1,101 @@
+import { describe, expect, it } from "vitest";
+import { askModel, botPrompt, botRows, parseBots, type BotComment } from "./coachBots.ts";
+import type { CoachPost } from "./coachPosts.ts";
+
+const lineup: CoachPost = {
+  id: 900_001_000, type: "lineup", publishedAt: "2026-10-28T18:00:00.000Z", updatedAt: "2026-10-28T12:00:00.000Z",
+  data: {
+    headline: "Aufstellung des TuS Schnöselmob",
+    lineup: { lines: [["Coach"], ["Gerl", "Dallwig", "Chatfield"], ["Torres", "Ellenberger"], ["Loibl"]], bench: ["Enciu", "Schedel"] },
+    bots: { on: true, context: "Nguyen ist wieder dabei." },
+  },
+};
+
+describe("botPrompt", () => {
+  it("names the positions, the results and the coach's context", () => {
+    const { system, user } = botPrompt(lineup, ["28.10.: 2:2 gegen SV Beispiel"]);
+    expect(user).toContain("Tor: Coach");
+    expect(user).toContain("Abwehr: Gerl, Dallwig, Chatfield");
+    expect(user).toContain("Mittelfeld: Torres, Ellenberger");
+    expect(user).toContain("Sturm: Loibl");
+    expect(user).toContain("Bank: Enciu, Schedel");
+    expect(user).toContain("28.10.: 2:2 gegen SV Beispiel");
+    expect(user).toContain("1:7"); // earlier results
+    expect(user).toContain("Nguyen ist wieder dabei.");
+    expect(system).toMatch(/JSON/);
+  });
+  it("labels a two-row lineup without a midfield", () => {
+    const { user } = botPrompt({ ...lineup, data: { ...lineup.data, lineup: { lines: [["Coach"], ["Gerl"]], bench: [] } } }, []);
+    expect(user).toContain("Tor: Coach");
+    expect(user).toContain("Feld: Gerl");
+  });
+});
+
+describe("parseBots", () => {
+  const list = [{ name: "Schnösel4Life", text: "Endlich wieder Loibl vorne!", minute: 2 }, { name: "Kabinenfunk", text: "Genau", minute: 4, replyTo: 0 }];
+  it("reads a clean JSON list", () => {
+    expect(parseBots(JSON.stringify(list))).toEqual(list);
+  });
+  it("finds the list inside code fences or prose", () => {
+    expect(parseBots("Hier sind die Kommentare:\n```json\n" + JSON.stringify(list) + "\n```\nViel Spaß!")).toEqual(list);
+  });
+  it("drops what it can't use and clamps the minute", () => {
+    const out = parseBots(JSON.stringify([
+      { name: "", text: "ohne Namen", minute: 1 },
+      { name: "A", text: "  ", minute: 1 },
+      { name: "Zu lang", text: "x".repeat(400), minute: 1 },
+      { name: "Spät", text: "nach dem Spiel", minute: 95 },
+      { name: "Früh", text: "vorher", minute: -3, replyTo: 7 },
+    ]));
+    expect(out).toEqual([
+      { name: "Spät", text: "nach dem Spiel", minute: 18 },
+      { name: "Früh", text: "vorher", minute: 0 },
+    ]);
+  });
+  it("gives nothing for junk", () => {
+    expect(parseBots("Tut mir leid, das kann ich nicht.")).toEqual([]);
+    expect(parseBots("[{oops")).toEqual([]);
+  });
+  it("hangs a reply to a reply under the first comment (threads are one level deep)", () => {
+    const out = parseBots(JSON.stringify([{ name: "A", text: "a", minute: 1 }, { name: "B", text: "b", minute: 2, replyTo: 0 }, { name: "C", text: "c", minute: 3, replyTo: 1 }]));
+    expect(out[2]).toEqual({ name: "C", text: "c", minute: 3, replyTo: 0 });
+  });
+  it("keeps replies only to earlier comments of the list", () => {
+    const out = parseBots(JSON.stringify([{ name: "A", text: "a", minute: 1, replyTo: 1 }, { name: "B", text: "b", minute: 2, replyTo: 0 }]));
+    expect(out).toEqual([{ name: "A", text: "a", minute: 1 }, { name: "B", text: "b", minute: 2, replyTo: 0 }]);
+  });
+});
+
+describe("botRows", () => {
+  it("dates them after the post and replies after their parent", () => {
+    const bots: BotComment[] = [{ name: "A", text: "a", minute: 5 }, { name: "B", text: "b", minute: 1, replyTo: 0 }, { name: "C", text: "c", minute: 0 }];
+    const rows = botRows("2026-10-28T18:00:00.000Z", bots);
+    const at = (n: string) => Date.parse(rows.find((r) => r.name === n)!.createdAt);
+    const start = Date.parse("2026-10-28T18:00:00.000Z");
+    expect(at("C")).toBeGreaterThanOrEqual(start);
+    expect(at("A")).toBeGreaterThanOrEqual(start + 5 * 60_000);
+    expect(at("B")).toBeGreaterThan(at("A"));
+    expect(rows.find((r) => r.name === "B")!.replyTo).toBe(0);
+    expect(rows.every((r) => Date.parse(r.createdAt) < start + 20 * 60_000)).toBe(true);
+  });
+});
+
+describe("askModel", () => {
+  it("sends an OpenAI-style chat request and returns the answer", async () => {
+    let sent: { url: string; body: { model: string; messages: { role: string }[] }; auth: string | null } | undefined;
+    const fetcher = (async (url: string, init: RequestInit) => {
+      sent = { url, body: JSON.parse(String(init.body)), auth: new Headers(init.headers).get("authorization") };
+      return Response.json({ choices: [{ message: { content: "[]" } }] });
+    }) as typeof fetch;
+    const answer = await askModel({ url: "https://llm.example/api", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher);
+    expect(answer).toBe("[]");
+    expect(sent?.url).toBe("https://llm.example/api/chat/completions");
+    expect(sent?.auth).toBe("Bearer k");
+    expect(sent?.body.model).toBe("m");
+    expect(sent?.body.messages.map((m) => m.role)).toEqual(["system", "user"]);
+  });
+  it("fails on an error status", async () => {
+    const fetcher = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
+    await expect(askModel({ url: "https://x", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
+  });
+});
