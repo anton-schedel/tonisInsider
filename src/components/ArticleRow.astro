@@ -27,6 +27,8 @@ const comments = commentCount(a.id);
 const lineup = confirmedLineup(a);
 // A post with neither player nor club carries our name and logo.
 const by = { name: NAME, logo: LOGO };
+// Our own player news without a photo shows the club's crest, not the player's initials.
+const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
 ---
 {/* Club, time and comments: the same line under every kind of post. */}
 {(() => {
@@ -62,12 +64,12 @@ const by = { name: NAME, logo: LOGO };
   ) : (
     <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-4 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
       <span class="relative shrink-0">
-        {a.player
-          ? <Avatar src={a.player.photo} name={a.player.name} size={64} />
+        {face
+          ? <Avatar src={face.photo} name={face.name} size={64} />
           : a.club
             ? <Crest src={a.club.crest} name={a.club.name} size={64} />
             : <Avatar src={by.logo} name={by.name} size={64} />}
-        {a.player && a.club?.crest && (
+        {face && a.club?.crest && (
           <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[26px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
         )}
       </span>
