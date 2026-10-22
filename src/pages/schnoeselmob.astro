@@ -188,7 +188,13 @@ const field = "coach-field";
   .coach-photo img { width: 44px; height: 44px; border-radius: 999px; object-fit: cover; }
   .coach-photo:focus-within { box-shadow: 0 0 0 2px var(--gold); }
 
-  .coach-select { border-radius: 10px; background: var(--color-surface); padding: 7px 10px; font-size: 15px; }
+  /* Our own chevron: browsers on laptops draw theirs flush against the edge. */
+  .coach-select {
+    appearance: none; -webkit-appearance: none; border-radius: 10px; padding: 7px 32px 7px 12px; font-size: 15px; cursor: pointer;
+    background: var(--color-surface) no-repeat right 11px center / 12px 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  }
+  .coach-select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .coach-switch {
     appearance: none; position: relative; flex-shrink: 0; width: 51px; height: 31px; border-radius: 999px;
     background: var(--color-hairline); transition: background 200ms ease; cursor: pointer;
