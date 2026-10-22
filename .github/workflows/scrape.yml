@@ -38,9 +38,10 @@ jobs:
 
       - run: npm ci
 
-      - name: Typecheck and tests (code changes only; a failure stops the deploy)
+      # The other tests read LigaInsider pages kept out of this repo (scraper/__fixtures__/), so they run locally.
+      - name: Typecheck, inline scripts (code changes only; a failure stops the deploy)
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
-        run: npm run typecheck && npx vitest run
+        run: npm run typecheck && npx vitest run src/layouts/inlineScripts.test.ts
 
       - name: Restore data cache
         uses: actions/cache/restore@v4
