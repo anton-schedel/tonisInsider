@@ -288,7 +288,8 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           // must come from the same build as the page, or switches and the tab bar stop working.
           const build = (doc) => doc.querySelector('meta[name="build"]')?.getAttribute("content");
           if (build(e.newDocument) !== build(document)) {
-            e.swap = () => location.assign(e.to.href);
+            // replace: the router has already added this page to the history, the full load mustn't add it twice.
+            e.swap = () => location.replace(e.to.href);
             return;
           }
           // The new page fades in from where the old one's dimming got to (at most 0.7, so even an instant

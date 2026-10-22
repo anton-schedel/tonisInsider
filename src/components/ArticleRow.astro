@@ -23,25 +23,9 @@ const comments = commentCount(a.id);
 // Confirmed lineups show the XI right here, no need to open them.
 const lineup = confirmedLineup(a);
 ---
-<a href={`/artikel/${a.id}/`} class="press-row enter flex items-start gap-3.5 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
-  <span class="relative">
-    {a.player
-      ? <Avatar src={a.player.photo} name={a.player.name} size={52} />
-      : a.club
-        ? <Crest src={a.club.crest} name={a.club.name} size={52} />
-        : <Avatar src={LOGO} name={NAME} size={52} />}
-    {a.player && a.club?.crest && (
-      <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[22px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
-    )}
-  </span>
-  <span class="min-w-0 flex-1">
-    <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
-    {lineup && (
-      <span class="mb-1.5 block text-[14px] leading-snug">
-        {lineup.xi}
-        {lineup.bench && <span class="mt-1 block text-[13px] text-muted">Bank: {lineup.bench}</span>}
-      </span>
-    )}
+{/* Club, time and comments: the same line under every kind of post. */}
+{(() => {
+  const meta = (
     <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
       {/* The name shortens on narrow rows; the time always stays visible. */}
@@ -53,8 +37,40 @@ const lineup = confirmedLineup(a);
         <span data-n>{comments ?? 0}</span>
       </span>
     </span>
-  </span>
-</a>
+  );
+  return lineup ? (
+    // A confirmed lineup: the club's crest large beside the headline, the XI across the full width below
+    // (it's long; beside the crest it ran to five narrow lines).
+    <a href={`/artikel/${a.id}/`} class="press-row enter block py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
+      <span class="flex items-center gap-3.5">
+        {a.club ? <Crest src={a.club.crest} name={a.club.name} size={60} /> : <Avatar src={LOGO} name={NAME} size={60} />}
+        <span class="min-w-0 flex-1">
+          <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+          {meta}
+        </span>
+      </span>
+      <span class="mt-2.5 block text-[14.5px] leading-snug">{lineup.xi}</span>
+      {lineup.bench && <span class="mt-1 block text-[13px] leading-snug text-muted">Bank: {lineup.bench}</span>}
+    </a>
+  ) : (
+    <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-3.5 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
+      <span class="relative shrink-0">
+        {a.player
+          ? <Avatar src={a.player.photo} name={a.player.name} size={52} />
+          : a.club
+            ? <Crest src={a.club.crest} name={a.club.name} size={52} />
+            : <Avatar src={LOGO} name={NAME} size={52} />}
+        {a.player && a.club?.crest && (
+          <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[22px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
+        )}
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+        {meta}
+      </span>
+    </a>
+  );
+})()}
 
 <script>
   // Refresh the counts of LigaInsider's newest articles live (the built page has the counts of the last scrape).

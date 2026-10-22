@@ -234,7 +234,7 @@ html:has(.player-card[open]) { overflow: hidden; }
   display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 40px; font-weight: 700;
 }
-.fut-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.fut-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
 /* The photo sits in its own rounded frame, like the picture window of a trading card. */
 .fut-photo { border-radius: 18px; overflow: hidden; background: var(--surface); }
 /* One row of equal columns, value over label, however many stats there are. */
@@ -363,7 +363,9 @@ nav.no-tab .tab-pill { opacity: 0; }
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 32px; height: 32px; border-radius: 999px; background: var(--surface); color: var(--fg);
 }
-.scout-add:disabled { opacity: 0.4; }
+.scout-add { transition: background-color 180ms ease, color 180ms ease, transform 180ms ease; }
+.scout-add.is-done { background: var(--fg); color: var(--bg); transform: scale(1.06); }
+.scout-add:disabled:not(.is-done) { opacity: 0.4; }
 /* The card's star: filled and in colour once the player is on the scout list. */
 .scout-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .scout-toggle[hidden] { display: none; }

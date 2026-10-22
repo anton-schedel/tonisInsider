@@ -73,12 +73,12 @@ const NEWS_SHOWN = 5;
     {news.length === 0 && <p class="py-4 text-sm text-muted">Keine weiteren News aus den letzten 7 Tagen. Die zu den Spielern oben stehen in ihrer Karte.</p>}
     {/* The newest few; the rest on tap, so the discussion below isn't far down. */}
     <div class="divide-y divide-hairline">
-      {news.slice(0, NEWS_SHOWN).map((a, i) => <ArticleRow article={a} index={i} />)}
+      {news.slice(0, NEWS_SHOWN).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
     </div>
     {news.length > NEWS_SHOWN && (
       <div data-more-news>
         <div class="divide-y divide-hairline border-t border-hairline" hidden data-more-news-list>
-          {news.slice(NEWS_SHOWN).map((a, i) => <ArticleRow article={a} index={i} />)}
+          {news.slice(NEWS_SHOWN).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
         </div>
         <button type="button" class="press mt-2 w-full rounded-xl bg-surface py-3 text-[15px] font-semibold"
           onclick="this.previousElementSibling.hidden = false; this.remove()">Alle {news.length} News zeigen</button>

@@ -84,6 +84,7 @@ const players = allPlayers();
   const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
 
   const STAR = '<svg viewBox="0 0 24 24" class="size-[17px]" fill="currentColor" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>';
+  const TICK = '<svg viewBox="0 0 24 24" class="size-[16px]" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>';
   const PLUS = '<svg viewBox="0 0 24 24" class="size-[16px]" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>';
 
   /**
@@ -93,6 +94,7 @@ const players = allPlayers();
    */
   function row(p: PlayerEntry, opts: { news?: boolean; fresh?: boolean; trail?: "star" | "add" } = {}) {
     const li = h("li", "flex items-center gap-2");
+    li.dataset.player = String(p.id);
     const btn = h("button", "press-row flex min-w-0 flex-1 items-center gap-3 py-3 text-left") as HTMLButtonElement;
     btn.type = "button";
     btn.dataset.card = JSON.stringify(p.card);
@@ -240,14 +242,32 @@ const players = allPlayers();
     for (const id of await unseen(state, times)) fresh.add(id);
     void renderList(byId, state, fresh);
     if (fresh.size) await markSeen();
-    // The + on a suggestion: on the list at once, no card in between.
-    document.querySelector("[data-scout-suggest]")?.addEventListener("click", (e) => {
+    // The + on a suggestion: it turns into a tick, the suggestions fade away and he slides into the list.
+    let holding = false;
+    const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
+    document.querySelector("[data-scout-suggest]")?.addEventListener("click", async (e) => {
       const add = (e.target as Element).closest<HTMLButtonElement>("[data-scout-add]");
-      if (!add || add.disabled) return;
+      if (!add || add.disabled || holding) return;
+      holding = true;
       add.disabled = true;
-      void setScouted(Number(add.dataset.scoutAdd), true);
+      add.classList.add("is-done");
+      add.innerHTML = TICK;
+      const id = Number(add.dataset.scoutAdd);
+      const saving = setScouted(id, true);
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const empty = document.querySelector<HTMLElement>("[data-scout-empty]")!;
+      if (!reduced) {
+        await new Promise((r) => setTimeout(r, 260));
+        await empty.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" }).finished;
+      }
+      const state = await saving.catch(() => cachedScout());
+      holding = false;
+      renderList(byId, state, fresh);
+      empty.getAnimations().forEach((a) => a.cancel());
+      const li = document.querySelector<HTMLElement>(`[data-scout-list] [data-player="${id}"]`);
+      if (li && !reduced) li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: ease });
     });
     // Scouting or unscouting in the card updates the list right away (the "Neu" marks stay for this visit).
-    window.addEventListener("scout:change", (e) => void renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh));
+    window.addEventListener("scout:change", (e) => { if (!holding) renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh); });
   });
 </script>

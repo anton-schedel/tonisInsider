@@ -65,7 +65,7 @@ export function allPlayers(): PlayerEntry[] {
 function mainStatus(p: Lineup["lines"][number][number], confirmed: boolean): Partial<CardData> {
   if (confirmed) return { status: "S11", tone: "green" };
   if (p.status === "doubtful") return { status: `Fraglich${p.statusLabel ? ` · ${p.statusLabel}` : ""}`, tone: "yellow" };
-  if (p.alternative) return { status: `Startelf · Alt. ${p.alternative.name}`, tone: "yellow" };
+  if (p.alternative) return { status: `Startelf · Alt. ${p.alternative.name}`, tone: "green" };
   return { status: "Startelf", tone: "green" };
 }
 

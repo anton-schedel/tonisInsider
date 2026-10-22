@@ -32,7 +32,7 @@ const mainStatus = (p: LineupPlayer, pos: string) =>
     : p.status === "doubtful"
     ? card(p, pos, `Fraglich${p.statusLabel ? ` · ${p.statusLabel}` : ""}`, "yellow")
     : p.alternative
-      ? card(p, pos, `Startelf · Alt. ${p.alternative.name}`, "yellow")
+      ? card(p, pos, `Startelf · Alt. ${p.alternative.name}`, "green")
       : card(p, pos, "Startelf", "green");
 ---
 <PitchField>
