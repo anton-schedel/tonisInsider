@@ -18,7 +18,10 @@ interface Props {
   /** The same post in the feed: hidden until its pin runs out. */
   showAfter?: string;
 }
-const { article: a, index = 0, withDay = false, pinnedUntil, showAfter } = Astro.props;
+const { article: a, index = 0, withDay = false, pinnedUntil } = Astro.props;
+// A scheduled post (the coach's) is built ahead and shown from its minute on (NewsFeed's __unpin).
+const showAfter = [Astro.props.showAfter, Date.parse(a.publishedAt) > Date.now() ? a.publishedAt : undefined]
+  .filter((t): t is string => !!t).sort().at(-1);
 const comments = commentCount(a.id);
 // Confirmed lineups show the XI right here, no need to open them.
 const lineup = confirmedLineup(a);

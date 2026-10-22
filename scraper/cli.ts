@@ -5,6 +5,7 @@ import { Store } from "./store.ts";
 import { run } from "./run.ts";
 import { lastingProblems } from "./problems.ts";
 import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
+import { pullCoachPosts } from "./coach.ts";
 
 const ROOT = process.cwd();
 const store = new Store(join(ROOT, "store"));
@@ -45,6 +46,15 @@ if (command === "scrape") {
     state = { ...state, ownPostsOut: out };
     store.putState(state);
     result.changed = true;
+  }
+  // The coach's posts (/schnoeselmob/): a new, edited or deleted one rebuilds the site.
+  if (process.env.COACH_EXPORT_URL && process.env.COACH_EXPORT_TOKEN) {
+    const coach = await pullCoachPosts({
+      site: process.env.COACH_EXPORT_URL, token: process.env.COACH_EXPORT_TOKEN,
+      file: join(ROOT, "store", "coach-posts.json"), imgDir: join(publicDir, "img", "custom", "coach"),
+    });
+    if (coach.changed) result.changed = true;
+    if (coach.problem) result.problems.push(coach.problem);
   }
   const { report, streaks } = lastingProblems(result.problems, state.problemStreaks ?? {});
   const streaksChanged = JSON.stringify(streaks) !== JSON.stringify(state.problemStreaks ?? {});

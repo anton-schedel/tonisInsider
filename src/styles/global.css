@@ -536,5 +536,5 @@ html:not([data-navigated]) .enter {
 }
 /* Today's band only under pinned posts, so they don't read as today's. */
 .day-band[data-today] { display: none; }
-[data-pinned] ~ section > .day-band[data-today] { display: flex; }
+[data-pinned]:not([hidden]) ~ section > .day-band[data-today] { display: flex; }
 @media (min-width: 640px) { .day-band { margin-inline: -12px; padding-inline: 12px; border-radius: 10px; } }

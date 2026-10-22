@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Article, Lineup, State } from "../../scraper/types.ts";
 import { dayKey } from "./format.ts";
+import { toArticle, type CoachPost } from "./coachPosts.ts";
 
 const STORE = join(process.cwd(), "store");
 /** Our own posts (e.g. our uni league club's lineup), written by hand: one Article JSON per file. */
@@ -9,6 +10,13 @@ const POSTS = join(process.cwd(), "content", "posts");
 
 function readDir<T>(dir: string): T[] {
   return readJsonFiles<T>(join(STORE, dir));
+}
+
+/** The coach's posts (/schnoeselmob/, fetched by the scrape run). Scheduled ones are built ahead: the page
+ * shows them from their minute on (ArticleRow's data-show-after). */
+function coachPosts(): Article[] {
+  const path = join(STORE, "coach-posts.json");
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as CoachPost[]).map(toArticle) : [];
 }
 
 function readJsonFiles<T>(path: string): T[] {
@@ -25,7 +33,7 @@ function load() {
     const statePath = join(STORE, "state.json");
     cache = {
       // Own posts scheduled for later stay out until then (the scraper rebuilds the site when one is due).
-      articles: [...readDir<Article>("articles"), ...readJsonFiles<Article>(POSTS).filter((a) => Date.parse(a.publishedAt) <= Date.now())].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
+      articles: [...readDir<Article>("articles"), ...readJsonFiles<Article>(POSTS).filter((a) => Date.parse(a.publishedAt) <= Date.now()), ...coachPosts()].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
       lineups: readDir<Lineup>("lineups").sort((a, b) => a.club.name.localeCompare(b.club.name, "de")),
       state: existsSync(statePath) ? (JSON.parse(readFileSync(statePath, "utf8")) as State) : {},
     };
