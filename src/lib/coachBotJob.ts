@@ -64,8 +64,9 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   }
   if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 
-  // A post that's already out gets its new comments from now on, not in the past.
-  const rows = botRows(post.publishedAt > now ? post.publishedAt : now, bots);
+  // A post that's already out gets its new comments from now on (after the model's minutes), not in the past.
+  const written = new Date().toISOString();
+  const rows = botRows(post.publishedAt > written ? post.publishedAt : written, bots);
   if (!more) await clear();
   const ids: number[] = [];
   for (const r of rows) {

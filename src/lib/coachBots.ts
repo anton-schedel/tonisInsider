@@ -45,6 +45,7 @@ export type PromptOptions = { count?: number; topics?: string[]; existing?: stri
 
 export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions = {}): { system: string; user: string } {
   const count = opts.count ?? BOT_COUNT;
+  const compare = Math.max(1, Math.round(count / 10));
   const d = post.data;
   const about: string[] = [`Überschrift: ${d.headline}`];
   if (post.type === "lineup" && d.lineup) {
@@ -67,7 +68,8 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Sie reagieren auf genau diesen Beitrag und die Lage der Mannschaft: Sorgen, Hoffnung, Fragen, Tipps, Sprüche.",
     "Regeln: keine Beleidigungen, nichts Verletzendes über Spieler, keine echten Personen außer den genannten Spielern,",
     "verschiedene Namen (Forums-Spitznamen), unterschiedlich lang (meist 1 bis 2 Sätze), etwa ein Drittel antwortet auf einen früheren Kommentar.",
-    "2 bis 3 Kommentare vergleichen einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“).",
+    // About one in ten, counted per batch so the batches together don't overdo it.
+    `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“), die anderen nicht.`,
     `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
   ].join(" ");
 

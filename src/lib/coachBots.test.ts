@@ -125,7 +125,7 @@ describe("botPrompt options", () => {
   it("asks for the batch's number of comments, a few comparisons with known pros, and knows what's already there", () => {
     const { system, user } = botPrompt(lineup, [], { count: 10, topics: ["Platz ist nass"], existing: ["Kabinenfunk: Ohne Nguyen wird's schwer"] });
     expect(system).toContain("JSON-Array mit 10 Objekten");
-    expect(system).toMatch(/vergleichen .*bekannten Profi/);
+    expect(system).toMatch(/Genau 1 Kommentar vergleicht .*bekannten Profi/);
     expect(user).toContain("- Platz ist nass");
     expect(user).not.toContain("Nguyen ist wieder dabei"); // only this batch's topics
     expect(user).toContain("Kabinenfunk: Ohne Nguyen wird's schwer");
@@ -152,5 +152,12 @@ describe("askModel streaming", () => {
     }) as typeof fetch;
     expect(await askModel({ url: "https://x/api", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
     expect(body.stream).toBe(true);
+  });
+});
+
+describe("comparisons", () => {
+  it("about one in ten compares a player with a pro, so the batches don't add up to too many", () => {
+    expect(botPrompt(lineup, [], { count: 30 }).system).toMatch(/Genau 3 Kommentare vergleichen/);
+    expect(botPrompt(lineup, [], { count: 8 }).system).toMatch(/Genau 1 Kommentar vergleicht/);
   });
 });
