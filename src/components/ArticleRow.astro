@@ -42,26 +42,26 @@ const lineup = confirmedLineup(a);
     // A confirmed lineup: the club's crest large beside the headline, the XI across the full width below
     // (it's long; beside the crest it ran to five narrow lines).
     <a href={`/artikel/${a.id}/`} class="press-row enter block py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
-      <span class="flex items-center gap-3.5">
-        {a.club ? <Crest src={a.club.crest} name={a.club.name} size={60} /> : <Avatar src={LOGO} name={NAME} size={60} />}
+      <span class="flex items-center gap-4">
+        {a.club ? <Crest src={a.club.crest} name={a.club.name} size={80} /> : <Avatar src={LOGO} name={NAME} size={80} />}
         <span class="min-w-0 flex-1">
-          <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+          <span class="mb-1 block text-[18px] leading-snug font-semibold tracking-[-0.018em]">{a.headline}</span>
           {meta}
         </span>
       </span>
-      <span class="mt-2.5 block text-[14.5px] leading-snug">{lineup.xi}</span>
+      <span class="mt-3 block text-[15px] leading-snug">{lineup.xi}</span>
       {lineup.bench && <span class="mt-1 block text-[13px] leading-snug text-muted">Bank: {lineup.bench}</span>}
     </a>
   ) : (
-    <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-3.5 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
+    <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-4 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
       <span class="relative shrink-0">
         {a.player
-          ? <Avatar src={a.player.photo} name={a.player.name} size={52} />
+          ? <Avatar src={a.player.photo} name={a.player.name} size={64} />
           : a.club
-            ? <Crest src={a.club.crest} name={a.club.name} size={52} />
-            : <Avatar src={LOGO} name={NAME} size={52} />}
+            ? <Crest src={a.club.crest} name={a.club.name} size={64} />
+            : <Avatar src={LOGO} name={NAME} size={64} />}
         {a.player && a.club?.crest && (
-          <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[22px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
+          <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[26px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
         )}
       </span>
       <span class="min-w-0 flex-1">
