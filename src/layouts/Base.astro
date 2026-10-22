@@ -186,6 +186,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
             a.classList.toggle("text-accent", a.dataset.tab === tab);
             a.classList.toggle("text-muted", a.dataset.tab !== tab);
             a.classList.toggle("is-active", a.dataset.tab === tab);
+            if (a.dataset.tab === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
           });
         };
         // The pill slides from the moment of the tap. It runs as a Web Animation, not a CSS transition: the
@@ -408,7 +409,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       <div class="relative grid grid-cols-5 gap-1 p-1.5">
         <span class="tab-pill" aria-hidden="true"></span>
         {tabs.map((t) => (
-          <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["tab-item press flex flex-col items-center gap-0.5 rounded-[24px] px-0.5 py-1.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent is-active" : "text-muted"]}>
+          <a href={t.href} data-tab={t.id} aria-current={tab === t.id ? "page" : undefined} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["tab-item press flex flex-col items-center gap-0.5 rounded-[24px] px-0.5 py-1.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent is-active" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
             {/* Scouted players with news since the list was last opened. */}
             {t.id === "scouting" && <span class="tab-badge" data-scout-badge hidden></span>}

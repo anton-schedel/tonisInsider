@@ -430,6 +430,8 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     section.querySelector<HTMLButtonElement>("[data-li-add]")!.addEventListener("click", () => {
       if (options.children.length >= 6) return;
       options.append(optionInput());
+      // Six answers at most: the button goes once they're there.
+      (section.querySelector("[data-li-add]") as HTMLElement).hidden = options.children.length >= 6;
     });
 
     const form = section.querySelector<HTMLFormElement>("[data-li-form]")!;

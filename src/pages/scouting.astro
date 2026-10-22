@@ -160,6 +160,9 @@ const players = allPlayers();
     return { hits: hits.slice(0, LIMIT), more: Math.max(0, hits.length - LIMIT) };
   }
 
+  /** Once a suggestion was added on this visit, the suggestions stay so more of them can be added. */
+  let keepSuggest = false;
+
   function renderList(byId: Map<number, Indexed>, state: ScoutState, fresh: Set<number>) {
     const list = document.querySelector<HTMLElement>("[data-scout-list]");
     if (!list) return;
@@ -168,7 +171,9 @@ const players = allPlayers();
     const latest = (p: PlayerEntry) => Date.parse(p.card.news?.[0]?.at ?? "") || 0;
     players.sort((a, b) => Number(fresh.has(b.id)) - Number(fresh.has(a.id)) || latest(b) - latest(a));
     list.replaceChildren(...players.map((p) => row(p, { news: true, fresh: fresh.has(p.id) })));
-    document.querySelector<HTMLElement>("[data-scout-empty]")!.hidden = players.length > 0;
+    const empty = document.querySelector<HTMLElement>("[data-scout-empty]")!;
+    empty.hidden = players.length > 0 && !keepSuggest;
+    empty.querySelector("p")!.hidden = players.length > 0;
     if (!players.length) {
       // The players with the newest news (one per club, so it isn't one club's press day).
       const clubs = new Set<string>();
@@ -188,6 +193,7 @@ const players = allPlayers();
   document.addEventListener("astro:page-load", async () => {
     const data = document.querySelector<HTMLScriptElement>("[data-players]");
     if (!data) return;
+    keepSuggest = false;
     const index: Indexed[] = (JSON.parse(data.textContent ?? "[]") as PlayerEntry[])
       .map((p) => ({ ...p, key: ` ${normal(`${p.name} ${p.club} ${NICKNAMES[p.club] ?? ""}`)}` }));
     const byId = new Map(index.map((p) => [p.id, p]));
@@ -240,31 +246,30 @@ const players = allPlayers();
     for (const id of await unseen(state, times)) fresh.add(id);
     renderList(byId, state, fresh);
     if (fresh.size) await markSeen();
-    // The + on a suggestion: it turns into a tick, the suggestions fade away and he slides into the list.
-    let holding = false;
-    document.querySelector("[data-scout-suggest]")?.addEventListener("click", async (e) => {
+    // The + on a suggestion: it turns into a tick and he slides into the list; the suggestions stay for more.
+    // Taps are saved one after the other, so quick taps on several players all count.
+    let saving: Promise<unknown> = Promise.resolve();
+    document.querySelector("[data-scout-suggest]")?.addEventListener("click", (e) => {
       const add = (e.target as Element).closest<HTMLButtonElement>("[data-scout-add]");
-      if (!add || add.disabled || holding) return;
-      holding = true;
+      if (!add || add.disabled) return;
+      keepSuggest = true;
       add.disabled = true;
       add.classList.add("is-done");
       add.innerHTML = TICK;
       const id = Number(add.dataset.scoutAdd);
-      const saving = setScouted(id, true);
-      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const empty = document.querySelector<HTMLElement>("[data-scout-empty]")!;
-      if (!reduced) {
-        await new Promise((r) => setTimeout(r, 260));
-        await empty.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" }).finished;
-      }
-      const state = await saving.catch(() => cachedScout());
-      holding = false;
-      renderList(byId, state, fresh);
-      empty.getAnimations().forEach((a) => a.cancel());
-      const li = document.querySelector<HTMLElement>(`[data-scout-list] [data-player="${id}"]`);
-      if (li && !reduced) li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      saving = saving.then(() => setScouted(id, true)).then(() => {
+        const li = document.querySelector<HTMLElement>(`[data-scout-list] [data-player="${id}"]`);
+        if (li && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+        }
+      }).catch(() => {});
     });
-    // Scouting or unscouting in the card updates the list right away (the dots for new news stay for this visit).
-    window.addEventListener("scout:change", (e) => { if (!holding) renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh); });
+    // Scouting or unscouting in the card updates the list and the stars in the results right away
+    // (the dots for new news stay for this visit).
+    window.addEventListener("scout:change", (e) => {
+      if (!input.isConnected) return;
+      renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh);
+      if (input.value) show();
+    });
   });
 </script>

@@ -40,4 +40,7 @@ export function ago(iso: string, now: Date): string {
 export const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
 
 /** Lower case without accents, so "vidovic" finds Vidović and "muller" Müller (the player search). */
-export const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase();
+// NFD doesn't split ø, æ, ł, đ and co., so they're mapped by hand ("moller" finds Møller, "duric" Đurić).
+const LETTERS: Record<string, string> = { ø: "o", æ: "ae", œ: "oe", ł: "l", đ: "d", ð: "d", þ: "th", ß: "ss", ı: "i" };
+export const fold = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[øæœłđðþßı]/g, (c) => LETTERS[c]);

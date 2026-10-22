@@ -36,6 +36,8 @@ const win = chances && (fixture?.home === lineup ? chances.home : chances.away);
 const confirmed = confirmedClubs(articles(), [lineup]).has(lineup.club.id);
 const playerNews = newsByPlayer(articles());
 const NEWS_SHOWN = 5;
+// A button for a single hidden row isn't worth it: then all of them.
+const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
 ---
 <Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
   {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chances} />}
@@ -71,14 +73,14 @@ const NEWS_SHOWN = 5;
       {news.length > 0 && <span class="text-[15px] font-semibold text-muted tabular-nums">{news.length}</span>}
     </div>
     {news.length === 0 && <p class="py-4 text-sm text-muted">Keine weiteren News aus den letzten 7 Tagen. Die zu den Spielern oben stehen in ihrer Karte.</p>}
-    {/* The newest few; the rest on tap, so the discussion below isn't far down. */}
+    {/* The newest few; the rest on tap, so the discussion below isn't far down (all of them when only one more). */}
     <div class="divide-y divide-hairline">
-      {news.slice(0, NEWS_SHOWN).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
+      {news.slice(0, shown).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
     </div>
-    {news.length > NEWS_SHOWN && (
+    {news.length > shown && (
       <div data-more-news>
         <div class="divide-y divide-hairline border-t border-hairline" hidden data-more-news-list>
-          {news.slice(NEWS_SHOWN).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
+          {news.slice(shown).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
         </div>
         <button type="button" class="press mt-2 w-full rounded-xl bg-surface py-3 text-[15px] font-semibold"
           onclick="this.previousElementSibling.hidden = false; this.remove()">Alle {news.length} News zeigen</button>

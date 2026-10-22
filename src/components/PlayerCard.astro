@@ -8,7 +8,7 @@
 <dialog class="player-card" data-player-card aria-label="Spieler">
   {/* Takes the focus on opening (else the browser focuses the first news link and outlines it). */}
   <div class="player-card-body" tabindex="-1" autofocus>
-    <div class="mx-auto mb-5 h-1 w-9 rounded-full bg-hairline" aria-hidden="true"></div>
+    <div class="mx-auto mb-5 h-1 w-9 rounded-full bg-muted opacity-40" aria-hidden="true"></div>
 
     <div class="fut">
       <div class="fut-top">
@@ -23,7 +23,7 @@
             <div class="fut-meta">
               <img data-f="crest" alt="" class="fut-crest" hidden />
               <span data-f="pos" class="fut-pos"></span>
-              <span data-f="status" class="rounded-full px-[7px] py-[1px] text-[11.5px] font-semibold" hidden></span>
+              <span data-f="status" class="max-w-full truncate rounded-full px-[7px] py-[1px] text-[11.5px] font-semibold whitespace-nowrap" hidden></span>
             </div>
           </div>
         </div>
