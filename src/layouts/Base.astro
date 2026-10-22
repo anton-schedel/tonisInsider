@@ -43,7 +43,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
     <meta name="build" content={BUILD_ID} />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <title>TonInsider</title>
+    <title>{title && title !== "News" ? `${title} – TonInsider` : "TonInsider"}</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
     <PostHog />

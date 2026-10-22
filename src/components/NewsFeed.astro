@@ -99,8 +99,9 @@ let index = 0;
     // Rows from the partial page shouldn't play the first-load entrance again.
     for (const el of doc.querySelectorAll(".enter")) el.classList.remove("enter");
     labelDays(doc);
-    marker.replaceWith(...[...doc.querySelectorAll("section")].map((s) => document.importNode(s, true)));
-    window.__unpin?.();
+    const target = marker.ownerDocument;
+    marker.replaceWith(...[...doc.querySelectorAll("section")].map((s) => target.importNode(s, true)));
+    if (target === document) window.__unpin?.();
   }
 
   /** Fetches the older days (the partial page) and appends their sections where the "more" marker is. */
@@ -120,8 +121,10 @@ let index = 0;
     }
   }
 
-  document.addEventListener("astro:after-swap", () => {
-    const marker = document.querySelector<HTMLElement>("[data-feed-more]");
+  // Into the incoming page before it's shown: the router restores the scroll position right after the swap,
+  // and without the older days the page would be too short to get back down there.
+  document.addEventListener("astro:before-swap", (e) => {
+    const marker = e.newDocument.querySelector<HTMLElement>("[data-feed-more]");
     if (marker && olderHtml) appendOlder(marker, olderHtml);
   });
 
