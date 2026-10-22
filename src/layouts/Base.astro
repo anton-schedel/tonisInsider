@@ -15,8 +15,10 @@ interface Props {
   hideHeading?: boolean;
   /** Our logo with text on the right of the page title. */
   logo?: boolean;
+  /** Without the tab bar (the coach's page, which isn't part of the app's tabs). */
+  tabbar?: boolean;
 }
-const { title, tab, back, hideHeading = false, logo = false } = Astro.props;
+const { title, tab, back, hideHeading = false, logo = false, tabbar = true } = Astro.props;
 const updated = lastUpdate();
 // Lets open pages notice updates (see the freshness script below and /data/version.json).
 const newest = newestOut(articles(), new Date());
@@ -401,7 +403,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         <p class="mt-1">Inhalte von <a class="underline" href="https://www.ligainsider.de/" target="_blank" rel="noopener noreferrer">ligainsider.de</a></p>
       </footer>
     </div>
-    <nav style={`--tab:${Math.max(0, tabs.findIndex((t) => t.id === tab))}`} class:list={["tabbar fixed inset-x-3 bottom-[max(10px,env(safe-area-inset-bottom))] z-50 mx-auto max-w-[480px] rounded-[30px]", !tab && "no-tab"]} transition:persist={tabbarId}>
+    {tabbar && <nav style={`--tab:${Math.max(0, tabs.findIndex((t) => t.id === tab))}`} class:list={["tabbar fixed inset-x-3 bottom-[max(10px,env(safe-area-inset-bottom))] z-50 mx-auto max-w-[480px] rounded-[30px]", !tab && "no-tab"]} transition:persist={tabbarId}>
       <div class="nav-progress" data-nav-progress aria-hidden="true"></div>
       <button type="button" class="news-notice press" data-news-notice hidden>
         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -418,7 +420,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           </a>
         ))}
       </div>
-    </nav>
+    </nav>}
     <script>
       import { navigate } from "astro:transitions/client";
       import { startLive } from "../lib/liveClient.ts";
