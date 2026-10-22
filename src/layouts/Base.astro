@@ -4,6 +4,7 @@ import { ClientRouter } from "astro:transitions";
 import { articles, lastUpdate, lineups } from "../lib/data.ts";
 import { fullDate } from "../lib/format.ts";
 import PostHog from "../components/posthog.astro";
+import { BUILD_ID } from "../lib/build.ts";
 
 interface Props {
   title: string;
@@ -39,6 +40,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
     <meta name="robots" content="noindex, nofollow" />
     <!-- Also for Worker-rendered pages (where _headers doesn't apply): never leak our URL as Referer. -->
     <meta name="referrer" content="same-origin" />
+    <meta name="build" content={BUILD_ID} />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <title>TonInsider</title>
@@ -71,26 +73,19 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         const stored = () => {
           try {
             const t = localStorage.getItem("theme");
-            return t === "light" || t === "dark" ? t : "auto";
+            // Without a choice: light.
+            return t === "dark" ? "dark" : "light";
           } catch {
-            return "auto";
+            return "light";
           }
         };
-        // A forced theme also colours the browser/status bar; "auto" keeps the system-based meta tags.
+        // The theme also colours the browser/status bar.
         const apply = (doc) => {
           const t = stored();
-          if (t === "auto") delete doc.documentElement.dataset.theme;
-          else doc.documentElement.dataset.theme = t;
-          doc.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
-            const own = m.getAttribute("media")?.includes("dark") ? "#000000" : "#ffffff";
-            m.setAttribute("content", t === "auto" ? own : t === "dark" ? "#000000" : "#ffffff");
-          });
+          doc.documentElement.dataset.theme = t;
+          doc.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", t === "dark" ? "#000000" : "#ffffff"));
         };
-        // Until one is chosen the site follows the system, and that one is shown as selected.
-        const shown = () => {
-          const t = stored();
-          return t !== "auto" ? t : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        };
+        const shown = stored;
         const markTheme = (doc = document) => {
           const t = shown();
           doc.querySelectorAll("[data-theme-set]").forEach((btn) => {
@@ -278,6 +273,13 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         }, true);
         document.addEventListener("astro:before-swap", (e) => {
+          // A page from a newer deploy loads in full: the scripts that run once per visit (this one, the tab bar)
+          // must come from the same build as the page, or switches and the tab bar stop working.
+          const build = (doc) => doc.querySelector('meta[name="build"]')?.getAttribute("content");
+          if (build(e.newDocument) !== build(document)) {
+            e.swap = () => location.assign(e.to.href);
+            return;
+          }
           // The new page fades in from where the old one's dimming got to (at most 0.7, so even an instant
           // switch, e.g. back from the cache, is a soft fade rather than a cut).
           const old = page();
