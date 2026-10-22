@@ -285,6 +285,13 @@ nav.tabbar::before {
   will-change: transform;
 }
 nav.no-tab .tab-pill { opacity: 0; }
+/* Typing on a phone: the tab bar steps aside (iOS would otherwise float it above the keyboard while scrolling). */
+@media (pointer: coarse) {
+  nav.tabbar { transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease; }
+  body:has(input:focus:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"]), textarea:focus, select:focus) nav.tabbar {
+    transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none;
+  }
+}
 .tab-item { position: relative; }
 /* A count on a tab, like an app icon's badge. */
 .tab-badge {
