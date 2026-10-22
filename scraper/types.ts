@@ -105,4 +105,6 @@ export type State = {
   problemStreaks?: Record<string, number>;
   /** Our own posts (content/posts/) that are out, i.e. whose publishedAt has passed; a new one triggers a rebuild. */
   ownPostsOut?: number[];
+  /** The coach's posts the build includes (due within the lead time); one entering means a rebuild. */
+  coachDue?: number[];
 };

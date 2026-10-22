@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Article, Lineup, State } from "../../scraper/types.ts";
 import { dayKey } from "./format.ts";
-import { toArticle, type CoachPost } from "./coachPosts.ts";
+import { dueCoach, toArticle, type CoachPost } from "./coachPosts.ts";
 
 const STORE = join(process.cwd(), "store");
 /** Our own posts (e.g. our uni league club's lineup), written by hand: one Article JSON per file. */
@@ -12,11 +12,11 @@ function readDir<T>(dir: string): T[] {
   return readJsonFiles<T>(join(STORE, dir));
 }
 
-/** The coach's posts (/schnoeselmob/, fetched by the scrape run). Scheduled ones are built ahead: the page
- * shows them from their minute on (ArticleRow's data-show-after). */
+/** The coach's posts (/schnoeselmob/, fetched by the scrape run). One due soon is built in already: the page
+ * shows it from its minute on (ArticleRow's data-show-after). */
 function coachPosts(): Article[] {
   const path = join(STORE, "coach-posts.json");
-  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as CoachPost[]).map(toArticle) : [];
+  return existsSync(path) ? dueCoach(JSON.parse(readFileSync(path, "utf8")) as CoachPost[], new Date()).map(toArticle) : [];
 }
 
 function readJsonFiles<T>(path: string): T[] {

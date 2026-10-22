@@ -35,3 +35,12 @@ describe("updateAction", () => {
     expect(updateAction(page, {}, ctx)).toBe("none");
   });
 });
+
+describe("newestOut", () => {
+  it("is the newest article that is already out", async () => {
+    const { newestOut } = await import("./freshness.ts");
+    const now = new Date("2026-10-24T12:00:00.000Z");
+    expect(newestOut([{ id: 9, publishedAt: "2026-10-24T12:05:00.000Z" }, { id: 7, publishedAt: "2026-10-24T11:00:00.000Z" }], now)).toBe(7);
+    expect(newestOut([], now)).toBeUndefined();
+  });
+});

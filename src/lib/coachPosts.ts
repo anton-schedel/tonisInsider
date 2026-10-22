@@ -34,6 +34,14 @@ export const COACH_ID_MIN = 900_001_000;
 
 export const CLUB = { id: 0, slug: "tus-schnoeselmob", name: "TuS Schnöselmob", crest: "/brand/schnoeselmob.png" };
 const BANNER = "/img/custom/schnoeselmob-banner.jpg";
+/**
+ * A scheduled post is built this long before its time (the scrape runs every 5 minutes) and shown from its minute
+ * on. Not earlier: a post days ahead would sit in the page (and its day in the feed) before it's out.
+ */
+export const COACH_LEAD_MS = 15 * 60_000;
+export const dueCoach = <T extends { publishedAt: string }>(posts: T[], now: Date) =>
+  posts.filter((p) => Date.parse(p.publishedAt) <= now.getTime() + COACH_LEAD_MS);
+
 export const imagePath = (id: string) => `/img/custom/coach/${id}.jpg`;
 
 export const escapeHtml = (s: string) =>

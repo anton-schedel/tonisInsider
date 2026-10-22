@@ -92,6 +92,16 @@ export function parseBots(answer: string): BotComment[] {
   return out;
 }
 
+/**
+ * After a save: a post that isn't out yet gets fresh bot comments (its old ones not out yet are replaced). One
+ * that is out keeps the ones it has, else every edit would add another 30; it only gets some if it has none.
+ */
+export function shouldWriteBots(post: CoachPost, now: Date, existing: number): "write" | "keep" | "clear" {
+  if (!post.data.bots?.on) return "clear";
+  if (Date.parse(post.publishedAt) <= now.getTime() && existing > 0) return "keep";
+  return "write";
+}
+
 export type BotRow = { name: string; body: string; createdAt: string; replyTo?: number };
 
 /** When each comment appears: its minute after the post plus a few seconds, replies after their parent. */

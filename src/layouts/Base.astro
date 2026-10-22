@@ -5,6 +5,7 @@ import { articles, lastUpdate, lineups } from "../lib/data.ts";
 import { fullDate } from "../lib/format.ts";
 import PostHog from "../components/posthog.astro";
 import { BUILD_ID } from "../lib/build.ts";
+import { newestOut } from "../lib/freshness.ts";
 
 interface Props {
   title: string;
@@ -18,7 +19,7 @@ interface Props {
 const { title, tab, back, hideHeading = false, logo = false } = Astro.props;
 const updated = lastUpdate();
 // Lets open pages notice updates (see the freshness script below and /data/version.json).
-const newest = articles()[0]?.id;
+const newest = newestOut(articles(), new Date());
 // The matchday's kickoff times: live scores are only fetched while one of its matches runs.
 const kickoffs = [...new Set(lineups().flatMap((l) => (l.kickoff ? [l.kickoff] : [])))].sort();
 const tabs = [

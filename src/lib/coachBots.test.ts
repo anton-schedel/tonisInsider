@@ -99,3 +99,16 @@ describe("askModel", () => {
     await expect(askModel({ url: "https://x", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
   });
 });
+
+describe("shouldWriteBots", () => {
+  it("writes them for a post that isn't out yet, never adds more to one that is", async () => {
+    const { shouldWriteBots } = await import("./coachBots.ts");
+    const now = new Date("2026-10-28T17:00:00.000Z");
+    expect(shouldWriteBots(lineup, now, 0)).toBe("write");
+    expect(shouldWriteBots(lineup, now, 30)).toBe("write");
+    const out = { ...lineup, publishedAt: "2026-10-28T16:00:00.000Z" };
+    expect(shouldWriteBots(out, now, 30)).toBe("keep");
+    expect(shouldWriteBots(out, now, 0)).toBe("write");
+    expect(shouldWriteBots({ ...lineup, data: { ...lineup.data, bots: { on: false } } }, now, 30)).toBe("clear");
+  });
+});

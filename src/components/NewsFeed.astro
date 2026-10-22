@@ -67,8 +67,10 @@ let index = 0;
     for (const el of document.querySelectorAll("[data-show-after]")) if (Date.parse(el.dataset.showAfter) <= now) el.hidden = false;
     const section = document.querySelector("[data-pinned]");
     if (section && !section.querySelector("a")) section.remove();
-    // Pinned posts that aren't out yet (scheduled ones) keep the section hidden until they are.
+    // Pinned posts that aren't out yet (scheduled ones) keep the section hidden until they are; so does a day
+    // whose only post isn't out yet (one scheduled just after midnight).
     else if (section) section.hidden = !section.querySelector("a:not([hidden])");
+    for (const day of document.querySelectorAll("section:has(> [data-day])")) day.hidden = !day.querySelector("a:not([hidden])");
     // Again at the next pin end or scheduled post, so they change while the page stays open.
     const next = [...document.querySelectorAll("[data-pinned-until],[data-show-after]")]
       .flatMap((el) => [el.dataset.pinnedUntil, el.dataset.showAfter])

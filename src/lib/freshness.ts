@@ -1,5 +1,9 @@
 import type { Version } from "../../scraper/snapshot.ts";
 
+/** The newest article that is out (a scheduled own post may already be built in). */
+export const newestOut = (articles: { id: number; publishedAt: string }[], now: Date) =>
+  articles.find((a) => Date.parse(a.publishedAt) <= now.getTime())?.id;
+
 export type UpdateContext = {
   /** The page just became visible again after a while in the background. */
   resumed: boolean;

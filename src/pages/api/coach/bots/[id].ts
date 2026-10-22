@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { isSameOrigin } from "../../../../lib/session.ts";
 import { getPost, listPosts } from "../../../../lib/coachDb.ts";
-import { askModel, botPrompt, botRows, parseBots } from "../../../../lib/coachBots.ts";
+import { askModel, botPrompt, botRows, parseBots, shouldWriteBots } from "../../../../lib/coachBots.ts";
 import { coachSignedIn, json, NOT_SIGNED_IN } from "../../../../lib/coachApi.ts";
 import { kickoffDay } from "../../../../lib/format.ts";
 
@@ -22,10 +22,13 @@ export const POST: APIRoute = async ({ request, cookies, params }) => {
 
   const now = new Date().toISOString();
   const clear = () => db.prepare("DELETE FROM comments WHERE post_id = ? AND sender = 'bot' AND created_at > ?").bind(post.id, now).run();
-  if (!post.data.bots?.on) {
+  const existing = await db.prepare("SELECT COUNT(*) AS n FROM comments WHERE post_id = ? AND sender = 'bot'").bind(post.id).first<{ n: number }>();
+  const todo = shouldWriteBots(post, new Date(), existing?.n ?? 0);
+  if (todo === "clear") {
     await clear();
     return json({ bots: 0 });
   }
+  if (todo === "keep") return json({ bots: existing?.n ?? 0, kept: true });
   if (!env.MORPHEUS_API_KEY || !env.MORPHEUS_BASE_URL || !env.MORPHEUS_MODEL) return json({ error: "Bot-Kommentare sind noch nicht eingerichtet." }, 503);
 
   // The coach's earlier results, newest first.

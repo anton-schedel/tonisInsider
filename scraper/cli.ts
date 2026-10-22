@@ -5,7 +5,7 @@ import { Store } from "./store.ts";
 import { run } from "./run.ts";
 import { lastingProblems } from "./problems.ts";
 import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
-import { pullCoachPosts } from "./coach.ts";
+import { coachDueIds, pullCoachPosts } from "./coach.ts";
 
 const ROOT = process.cwd();
 const store = new Store(join(ROOT, "store"));
@@ -53,8 +53,16 @@ if (command === "scrape") {
       site: process.env.COACH_EXPORT_URL, token: process.env.COACH_EXPORT_TOKEN,
       file: join(ROOT, "store", "coach-posts.json"), imgDir: join(publicDir, "img", "custom", "coach"),
     });
-    if (coach.changed) result.changed = true;
     if (coach.problem) result.problems.push(coach.problem);
+    const file = join(ROOT, "store", "coach-posts.json");
+    const due = existsSync(file) ? coachDueIds(JSON.parse(readFileSync(file, "utf8")), now) : [];
+    const dueChanged = JSON.stringify(due) !== JSON.stringify(state.coachDue ?? []);
+    if (coach.changed || dueChanged) {
+      // Also a change for open pages (version.json's "updated").
+      state = { ...state, coachDue: due, lastChangeAt: now.toISOString() };
+      store.putState(state);
+      result.changed = true;
+    }
   }
   const { report, streaks } = lastingProblems(result.problems, state.problemStreaks ?? {});
   const streaksChanged = JSON.stringify(streaks) !== JSON.stringify(state.problemStreaks ?? {});

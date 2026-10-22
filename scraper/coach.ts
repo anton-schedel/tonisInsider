@@ -1,5 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { COACH_LEAD_MS } from "../src/lib/coachPosts.ts";
+
+/** Posts the build includes now (due within the lead time): a new one entering means a rebuild. */
+export const coachDueIds = (posts: { id: number; publishedAt: string }[], now: Date) =>
+  posts.filter((p) => Date.parse(p.publishedAt) <= now.getTime() + COACH_LEAD_MS).map((p) => p.id).sort((a, b) => a - b);
 
 /**
  * The coach's posts (/schnoeselmob/, stored in D1): fetched from the site's export each run into
@@ -24,9 +29,13 @@ export async function pullCoachPosts(o: { site: string; token: string; file: str
   for (const id of new Set(posts.flatMap((p) => (p.image && /^[0-9a-f]{16}$/.test(p.image.id) ? [p.image.id] : [])))) {
     const path = join(o.imgDir, `${id}.jpg`);
     if (existsSync(path)) continue;
-    const res = await fetcher(`${site}/api/coach/images/${id}/`, { headers });
-    if (!res.ok) return { changed: false, problem: `coach photo ${id}: HTTP ${res.status}` };
-    writeFileSync(path, new Uint8Array(await res.arrayBuffer()));
+    try {
+      const res = await fetcher(`${site}/api/coach/images/${id}/`, { headers });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      writeFileSync(path, new Uint8Array(await res.arrayBuffer()));
+    } catch (err) {
+      return { changed: false, problem: `coach photo ${id}: ${(err as Error).message}` };
+    }
   }
 
   const next = JSON.stringify(posts, null, 1);

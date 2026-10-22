@@ -103,3 +103,12 @@ describe("helpers", () => {
     expect(escapeHtml(`<a href="x">&'`)).toBe("&lt;a href=&quot;x&quot;&gt;&amp;&#39;");
   });
 });
+
+describe("dueCoach", () => {
+  it("builds a scheduled post only shortly before its time", async () => {
+    const { dueCoach, COACH_LEAD_MS } = await import("./coachPosts.ts");
+    const at = (ms: number) => post({ type: "result", data: { headline: "x" }, publishedAt: new Date(NOW.getTime() + ms).toISOString() });
+    expect(dueCoach([at(-86_400_000), at(COACH_LEAD_MS - 1000), at(COACH_LEAD_MS + 60_000), at(2 * 86_400_000)], NOW).map((p) => p.publishedAt))
+      .toEqual([at(-86_400_000).publishedAt, at(COACH_LEAD_MS - 1000).publishedAt]);
+  });
+});
