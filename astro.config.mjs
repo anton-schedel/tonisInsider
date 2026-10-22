@@ -3,6 +3,9 @@ import { defineConfig } from "astro/config";
 import tailwindcss from "@tailwindcss/vite";
 import cloudflare from "@astrojs/cloudflare";
 
+// One id per build, the same in prerendered pages and in pages the Worker renders (lib/build.ts).
+const BUILD_ID = Date.now().toString(36);
+
 export default defineConfig({
   output: "static",
   // Only /mein-team/ and /api/* run on the Worker. No Astro sessions (our session is the Kickbase
@@ -14,5 +17,5 @@ export default defineConfig({
   build: { format: "directory" },
   // Load pages in the background as links scroll into view, so taps feel instant.
   prefetch: { prefetchAll: true, defaultStrategy: "viewport" },
-  vite: { plugins: [tailwindcss()] },
+  vite: { plugins: [tailwindcss()], define: { __BUILD_ID__: JSON.stringify(BUILD_ID) } },
 });

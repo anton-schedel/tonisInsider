@@ -1,2 +1,4 @@
-/** One id per build (the module runs once while building): pages from different deploys can tell they differ. */
-export const BUILD_ID = Date.now().toString(36);
+declare const __BUILD_ID__: string;
+
+/** One id per build (set in astro.config.mjs): pages from different deploys can tell they differ. */
+export const BUILD_ID = __BUILD_ID__;
