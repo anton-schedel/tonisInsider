@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchComments, fetchMoreComments, hedged, MORE_URL, parseComments, withoutViewer, type EdgeCache } from "./comments.ts";
+import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchComments, fetchMoreComments, hedged, MORE_URL, parseComments, parseThreadKey, TEAM_MORE_URL, threadKey, withoutViewer, type EdgeCache } from "./comments.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../../scraper/__fixtures__/${name}`, import.meta.url), "utf8");
 
@@ -84,6 +84,30 @@ describe("fetchComments", () => {
 
   it("caches for two minutes", () => {
     expect(COMMENTS_TTL_SECONDS).toBe(120);
+  });
+});
+
+describe("threads", () => {
+  it("keys articles by id and lineup pages by match and team", () => {
+    const team = { tmid: 185708, optauuid: "5ju4n8wsoc85fnut62uav3i8k", teamid: 14 };
+    expect(threadKey(418776)).toBe("418776");
+    expect(threadKey(team)).toBe("t185708-5ju4n8wsoc85fnut62uav3i8k-14");
+    expect(parseThreadKey("418776")).toBe(418776);
+    expect(parseThreadKey("t185708-5ju4n8wsoc85fnut62uav3i8k-14")).toEqual(team);
+    for (const bad of ["t1-x-1", "t1-ABCDEFGHIJ-1", "t1-abcdefghij-1/..", "", "1234567890"]) expect(parseThreadKey(bad)).toBeUndefined();
+    expect(commentsUrl(team)).toBe("https://www.ligainsider.de/apiesi/desktop/teamcomments/?showallcomments=false&tmid=185708&optauuid=5ju4n8wsoc85fnut62uav3i8k&teamid=14");
+  });
+
+  it("loads more of a lineup page's comments from the team endpoint", async () => {
+    const calls: { url: string; body: string }[] = [];
+    const fn = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: String(init?.body) });
+      return new Response("<ul></ul>");
+    }) as unknown as typeof fetch;
+    await fetchMoreComments(fn, { tmid: 185708, optauuid: "5ju4n8wsoc85fnut62uav3i8k", teamid: 14 }, { offset: 15, goffset: 15, moffset: 0, cursor: 7887429 });
+    expect(calls[0].url).toBe(TEAM_MORE_URL);
+    expect(new URLSearchParams(calls[0].body).get("tmid")).toBe("185708");
+    expect(new URLSearchParams(calls[0].body).get("gtdid")).toBe("185708");
   });
 });
 

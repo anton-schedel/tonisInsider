@@ -1,4 +1,4 @@
-import { commentsUrl } from "./comments.ts";
+import { commentsUrl, type Thread } from "./comments.ts";
 
 const ORIGIN = "https://www.ligainsider.de";
 /**
@@ -109,8 +109,8 @@ export async function login(fetchFn: Fetch, username: string, password: string):
  */
 const TOKEN_TIMEOUT_MS = 25_000;
 
-async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number, referer: string): Promise<string> {
-  const res = await request(fetchFn, commentsUrl(articleId), {
+async function csrfToken(fetchFn: Fetch, session: LiSession, thread: Thread, referer: string): Promise<string> {
+  const res = await request(fetchFn, commentsUrl(thread), {
     cookie: session.cookie,
     headers: {
       accept: "text/html, */*; q=0.01",
@@ -126,9 +126,9 @@ async function csrfToken(fetchFn: Fetch, session: LiSession, articleId: number, 
   return token;
 }
 
-async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fields: Record<string, string>, referer = `${ORIGIN}/`): Promise<{ commentId?: string }> {
+async function graph(fetchFn: Fetch, session: LiSession, thread: Thread, fields: Record<string, string>, referer = `${ORIGIN}/`): Promise<{ commentId?: string }> {
   const page = pageReferer(referer);
-  const token = await csrfToken(fetchFn, session, articleId, page);
+  const token = await csrfToken(fetchFn, session, thread, page);
   const send = () => request(fetchFn, `${ORIGIN}/comment/graph/`, {
     method: "POST",
     redirect: "manual",
@@ -164,16 +164,20 @@ async function graph(fetchFn: Fetch, session: LiSession, articleId: number, fiel
   return { commentId: data.commentID };
 }
 
-export function createComment(fetchFn: Fetch, session: LiSession, articleId: number, body: string, referer?: string) {
-  return graph(fetchFn, session, articleId, { action: "create", newsID: String(articleId), body }, referer);
+/** What a new top-level comment hangs on: the article, or (lineup pages) the match and the team. */
+const parentFields = (t: Thread): Record<string, string> =>
+  typeof t === "number" ? { newsID: String(t) } : { optaGameUUID: t.optauuid, teamID: String(t.teamid) };
+
+export function createComment(fetchFn: Fetch, session: LiSession, thread: Thread, body: string, referer?: string) {
+  return graph(fetchFn, session, thread, { action: "create", ...parentFields(thread), body }, referer);
 }
 
-export function reply(fetchFn: Fetch, session: LiSession, articleId: number, commentId: number, body: string, referer?: string) {
-  return graph(fetchFn, session, articleId, { action: "create", commentID: String(commentId), body }, referer);
+export function reply(fetchFn: Fetch, session: LiSession, thread: Thread, commentId: number, body: string, referer?: string) {
+  return graph(fetchFn, session, thread, { action: "create", commentID: String(commentId), body }, referer);
 }
 
-export function upvote(fetchFn: Fetch, session: LiSession, articleId: number, commentId: number, currentVote: number, referer?: string) {
-  return graph(fetchFn, session, articleId, {
+export function upvote(fetchFn: Fetch, session: LiSession, thread: Thread, commentId: number, currentVote: number, referer?: string) {
+  return graph(fetchFn, session, thread, {
     action: "vote",
     commentID: String(commentId),
     direction: "up",
@@ -181,8 +185,8 @@ export function upvote(fetchFn: Fetch, session: LiSession, articleId: number, co
   }, referer);
 }
 
-export function votePoll(fetchFn: Fetch, session: LiSession, articleId: number, votingId: number, optionId: number, referer?: string) {
-  return graph(fetchFn, session, articleId, { action: "poll_vote", votingID: String(votingId), optionID: String(optionId) }, referer);
+export function votePoll(fetchFn: Fetch, session: LiSession, thread: Thread, votingId: number, optionId: number, referer?: string) {
+  return graph(fetchFn, session, thread, { action: "poll_vote", votingID: String(votingId), optionID: String(optionId) }, referer);
 }
 
 export type LiAction =
@@ -234,21 +238,21 @@ export function parseAction(raw: unknown): LiAction | undefined {
   return undefined;
 }
 
-export function runAction(fetchFn: Fetch, session: LiSession, articleId: number, action: LiAction, referer?: string) {
+export function runAction(fetchFn: Fetch, session: LiSession, thread: Thread, action: LiAction, referer?: string) {
   switch (action.kind) {
-    case "comment": return createComment(fetchFn, session, articleId, action.body, referer);
-    case "reply": return reply(fetchFn, session, articleId, action.commentId, action.body, referer);
-    case "vote": return upvote(fetchFn, session, articleId, action.commentId, action.currentVote, referer);
-    case "pollvote": return votePoll(fetchFn, session, articleId, action.votingId, action.optionId, referer);
-    case "poll": return createPoll(fetchFn, session, articleId, action.question, action.options, referer);
+    case "comment": return createComment(fetchFn, session, thread, action.body, referer);
+    case "reply": return reply(fetchFn, session, thread, action.commentId, action.body, referer);
+    case "vote": return upvote(fetchFn, session, thread, action.commentId, action.currentVote, referer);
+    case "pollvote": return votePoll(fetchFn, session, thread, action.votingId, action.optionId, referer);
+    case "poll": return createPoll(fetchFn, session, thread, action.question, action.options, referer);
   }
 }
 
 /** A single-choice poll. Labels are sent as plain text, which LigaInsider accepts. */
-export function createPoll(fetchFn: Fetch, session: LiSession, articleId: number, question: string, options: string[], referer?: string) {
-  return graph(fetchFn, session, articleId, {
+export function createPoll(fetchFn: Fetch, session: LiSession, thread: Thread, question: string, options: string[], referer?: string) {
+  return graph(fetchFn, session, thread, {
     action: "create",
-    newsID: String(articleId),
+    ...parentFields(thread),
     body: question,
     poll: JSON.stringify({
       question,

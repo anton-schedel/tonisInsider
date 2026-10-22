@@ -58,6 +58,12 @@ export function parseClubPage(html: string, club: ClubRef, now: Date): Lineup {
   const matchdayText = cleanText($("select.day_select option[selected]").first().text());
   const matchday = Number(matchdayText.replace(/\D/g, "")) || undefined;
 
+  // The comments under the lineup load from teamcomments/?tmid=…&optauuid=…&teamid=… (an ESI include).
+  const esi = html.match(/teamcomments\/\?[^"' ]*/)?.[0].replace(/&amp;/g, "&") ?? "";
+  const q = new URLSearchParams(esi.slice(esi.indexOf("?") + 1));
+  const tmid = Number(q.get("tmid")), teamid = Number(q.get("teamid")), optauuid = q.get("optauuid") ?? "";
+  const comments = tmid > 0 && teamid > 0 && /^[a-z0-9]{8,40}$/.test(optauuid) ? { tmid, optauuid, teamid } : undefined;
+
   return {
     club: { id: club.id, slug: club.slug, name: cleanText($("h2[itemprop=name]").first().text()) || club.name },
     opponent: opponentName ? { name: opponentName, home } : undefined,
@@ -65,6 +71,7 @@ export function parseClubPage(html: string, club: ClubRef, now: Date): Lineup {
     kickoff: parseGermanDateTime(matchText, now),
     formation: lines.slice(1).map((l) => l.length).join("-"),
     lines,
+    comments,
     updatedAt: now.toISOString(),
   };
 }

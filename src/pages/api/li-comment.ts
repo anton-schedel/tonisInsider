@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { callLiga } from "../../lib/ligaAccount.ts";
 import { LigaInsiderAuthError, LigaInsiderRejectedError, pageReferer, parseAction, runAction } from "../../lib/ligainsider.ts";
 import { isSameOrigin } from "../../lib/session.ts";
+import { parseThreadKey, type Thread } from "../../lib/comments.ts";
 
 export const prerender = false;
 
@@ -16,12 +17,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
   let raw: unknown;
   try { raw = await request.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
-  const articleId = articleIdOf(raw);
+  const thread = threadOf(raw);
   const action = parseAction(raw);
-  if (!articleId || !action) return json({ error: "Ungültige Anfrage." }, 400);
+  if (thread === undefined || !action) return json({ error: "Ungültige Anfrage." }, 400);
   try {
     const referer = pageReferer(typeof (raw as { page?: unknown }).page === "string" ? (raw as { page: string }).page : undefined);
-    const result = await callLiga(cookies, env.CREDENTIALS_KEY, fetch, (session) => runAction(fetch, session, articleId, action, referer));
+    const result = await callLiga(cookies, env.CREDENTIALS_KEY, fetch, (session) => runAction(fetch, session, thread, action, referer));
     return json({ ok: true, commentId: result.commentId });
   } catch (err) {
     // Only the kind of failure, never cookies or the comment text: shows up in the Worker logs.
@@ -32,8 +33,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   }
 };
 
-function articleIdOf(raw: unknown): number | undefined {
+/** The thread key ("418776", or "t…" for a lineup page); older pages send articleId. */
+function threadOf(raw: unknown): Thread | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const n = Number((raw as { articleId?: unknown }).articleId);
+  const { thread, articleId } = raw as { thread?: unknown; articleId?: unknown };
+  if (typeof thread === "string") return parseThreadKey(thread);
+  const n = Number(articleId);
   return Number.isInteger(n) && n > 0 && n < 1_000_000_000 ? n : undefined;
 }

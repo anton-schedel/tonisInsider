@@ -4,6 +4,7 @@ import Pitch from "../../components/Pitch.astro";
 import FixtureCard from "../../components/FixtureCard.astro";
 import ArticleRow from "../../components/ArticleRow.astro";
 import PlayerCard from "../../components/PlayerCard.astro";
+import Comments from "../../components/Comments.astro";
 import { articles, clubArticles, lineups, odds, scorers } from "../../lib/data.ts";
 import { confirmedClubs } from "../../lib/lineupNews.ts";
 import { newsByPlayer } from "../../lib/card.ts";
@@ -70,6 +71,8 @@ const playerNews = newsByPlayer(articles());
       {news.map((a, i) => <ArticleRow article={a} index={i} />)}
     </div>
   </section>
+  {/* LigaInsider's discussion under this lineup (for the coming match), live like under the articles. */}
+  {lineup.comments && <Comments thread={lineup.comments} url={`https://www.ligainsider.de/${lineup.club.slug}/${lineup.club.id}/`} />}
   <PlayerCard />
 </Base>
 

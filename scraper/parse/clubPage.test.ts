@@ -29,6 +29,11 @@ describe("parseClubPage", () => {
     expect(l.kickoff).toBe("2026-10-09T18:30:00.000Z");
   });
 
+  it("reads where the lineup's comments hang (match and team ids)", () => {
+    const l = parseClubPage(fx("club-bvb.html"), BVB, NOW);
+    expect(l.comments).toEqual({ tmid: 185672, optauuid: "5efxhjkd45txyaef1hw8wwowk", teamid: 14 });
+  });
+
   it("marks doubtful players with label and alternative", () => {
     const l = parseClubPage(fx("club-bvb.html"), BVB, NOW);
     const schlotterbeck = l.lines[1][2];

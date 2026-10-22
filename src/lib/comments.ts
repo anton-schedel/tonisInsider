@@ -46,8 +46,24 @@ export type MoreCursor = { offset: number; goffset: number; moffset: number; cur
  */
 export type Comments = { total: number; comments: Comment[]; more?: MoreCursor };
 
-export const commentsUrl = (articleId: number) =>
-  `https://www.ligainsider.de/apiesi/desktop/newscomments/?newsid=${articleId}`;
+/** A club's lineup page for one match (LigaInsider's "teammeeting"): its comments are about that lineup. */
+export type TeamThread = { tmid: number; optauuid: string; teamid: number };
+/** Where comments hang: a news article (its id) or a club's lineup page. */
+export type Thread = number | TeamThread;
+
+/** "418776" for an article, "t185708-5ju4n8wsoc85fnut62uav3i8k-14" for a lineup page. */
+export const threadKey = (t: Thread) => (typeof t === "number" ? String(t) : `t${t.tmid}-${t.optauuid}-${t.teamid}`);
+
+export function parseThreadKey(key: string): Thread | undefined {
+  if (/^\d{1,9}$/.test(key)) return Number(key);
+  const m = key.match(/^t(\d{1,9})-([a-z0-9]{8,40})-(\d{1,6})$/);
+  return m ? { tmid: Number(m[1]), optauuid: m[2], teamid: Number(m[3]) } : undefined;
+}
+
+export const commentsUrl = (t: Thread) =>
+  typeof t === "number"
+    ? `https://www.ligainsider.de/apiesi/desktop/newscomments/?newsid=${t}`
+    : `https://www.ligainsider.de/apiesi/desktop/teamcomments/?showallcomments=false&tmid=${t.tmid}&optauuid=${t.optauuid}&teamid=${t.teamid}`;
 
 /**
  * Runs `run`, and a second copy in parallel if the first is slow (or fails early); the first success wins.
@@ -91,9 +107,9 @@ export function hedged<T>(
   });
 }
 
-export async function fetchComments(fetchFn: typeof fetch, articleId: number): Promise<Comments> {
+export async function fetchComments(fetchFn: typeof fetch, thread: Thread): Promise<Comments> {
   return hedged(async (signal) => {
-    const res = await fetchFn(commentsUrl(articleId), { headers: HEADERS, signal });
+    const res = await fetchFn(commentsUrl(thread), { headers: HEADERS, signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return parseComments(await res.text());
   });
@@ -179,20 +195,22 @@ export function parseComments(html: string): Comments {
 }
 
 export const MORE_URL = "https://www.ligainsider.de/comments/news/loadmore/";
+export const TEAM_MORE_URL = "https://www.ligainsider.de/comments/loadmore/";
 
 /** The next batch after `from`, newest first like the first page (what LigaInsider's own list loads on scroll). */
-export async function fetchMoreComments(fetchFn: typeof fetch, articleId: number, from: MoreCursor): Promise<Comments> {
+export async function fetchMoreComments(fetchFn: typeof fetch, thread: Thread, from: MoreCursor): Promise<Comments> {
+  const tmid = String(typeof thread === "number" ? thread : thread.tmid);
   const body = new URLSearchParams({
     offset: String(from.offset),
     moffset: String(from.moffset),
     goffset: String(from.goffset),
     commentsbefore: String(from.cursor),
-    tmid: String(articleId),
-    gtdid: "",
+    tmid,
+    gtdid: typeof thread === "number" ? "" : tmid,
     sort: "newest",
   });
   return hedged(async (signal) => {
-    const res = await fetchFn(MORE_URL, {
+    const res = await fetchFn(typeof thread === "number" ? MORE_URL : TEAM_MORE_URL, {
       method: "POST",
       headers: { ...HEADERS, "content-type": "application/x-www-form-urlencoded; charset=UTF-8" },
       body,
@@ -251,23 +269,25 @@ async function cachedJson<T>(
   return res;
 }
 
-/** GET /api/comments/<id>/: LigaInsider's comments on one article. */
+/** GET /api/comments/<thread key>/: LigaInsider's comments on one article or lineup page. */
 export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?: EdgeCache, opts?: CommentsOpts): Promise<Response> {
-  if (!/^\d{1,9}$/.test(id)) return new Response("Not found", { status: 404 });
-  return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, Number(id)), cache, {
+  const thread = parseThreadKey(id);
+  if (thread === undefined) return new Response("Not found", { status: 404 });
+  return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, thread), cache, {
     personal: opts?.personal,
     shareable: withoutViewer,
   });
 }
 
-/** GET /api/comments/<id>/more/?offset=…&goffset=…&moffset=…&cursor=…: the next batch of comments. */
+/** GET /api/comments/<thread key>/more/?offset=…&goffset=…&moffset=…&cursor=…: the next batch of comments. */
 export async function moreCommentsResponse(
   id: string, params: URLSearchParams, fetchFn: typeof fetch, cache?: EdgeCache, opts?: CommentsOpts,
 ): Promise<Response> {
   const from = cursorFrom(params);
-  if (!/^\d{1,9}$/.test(id) || !from) return new Response("Not found", { status: 404 });
+  const thread = parseThreadKey(id);
+  if (thread === undefined || !from) return new Response("Not found", { status: 404 });
   const key = `https://comments.cache/${id}/more/${from.offset}-${from.goffset}-${from.moffset}-${from.cursor}`;
-  return cachedJson(key, () => fetchMoreComments(fetchFn, Number(id), from), cache, {
+  return cachedJson(key, () => fetchMoreComments(fetchFn, thread, from), cache, {
     personal: opts?.personal,
     shareable: withoutViewer,
   });

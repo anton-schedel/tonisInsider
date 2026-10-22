@@ -190,6 +190,19 @@ describe("ligainsider writes", () => {
     });
   });
 
+  it("posts on a lineup page with the match and team instead of a news id", async () => {
+    const posts: URLSearchParams[] = [];
+    const fn = (async (url: string, init?: RequestInit) => {
+      if (String(url).includes("teamcomments")) return new Response('<input name="csrf_token" value="tok">');
+      posts.push(new URLSearchParams(String(init?.body)));
+      return Response.json({ success: true, commentID: "12" });
+    }) as unknown as typeof fetch;
+    await createComment(fn, session, { tmid: 185708, optauuid: "5ju4n8wsoc85fnut62uav3i8k", teamid: 14 }, "Hallo");
+    expect(posts[0].get("optaGameUUID")).toBe("5ju4n8wsoc85fnut62uav3i8k");
+    expect(posts[0].get("teamID")).toBe("14");
+    expect(posts[0].get("newsID")).toBeNull();
+  });
+
   it("treats a missing token as a dead session", async () => {
     const { fn } = scripted([{ status: 200, body: "<div>Melde dich an</div>" }]);
     await expect(createComment(fn, session, 1, "Hallo")).rejects.toBeInstanceOf(LigaInsiderAuthError);
