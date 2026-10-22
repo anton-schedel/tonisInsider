@@ -151,6 +151,13 @@ const players = allPlayers();
     };
     input.addEventListener("input", show);
     show();
+    // A player picked from the results: back to the list, where he now is.
+    document.addEventListener("scout:added", () => {
+      if (!input.isConnected || !input.value) return;
+      input.value = "";
+      input.blur();
+      show();
+    });
 
     const state = await loadScout(true);
     const fresh = new Set(await unseen(state));
