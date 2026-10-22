@@ -17,4 +17,10 @@ export function exportAllowed(request: Request): boolean {
   return diff === 0;
 }
 
+/** The LLM for bot comments, if set up. */
+export const modelConfig = () =>
+  env.MORPHEUS_API_KEY && env.MORPHEUS_BASE_URL && env.MORPHEUS_MODEL
+    ? { url: env.MORPHEUS_BASE_URL, key: env.MORPHEUS_API_KEY, model: env.MORPHEUS_MODEL }
+    : undefined;
+
 export const NOT_SIGNED_IN = { error: "Bitte melde dich wieder an.", signedOut: true };
