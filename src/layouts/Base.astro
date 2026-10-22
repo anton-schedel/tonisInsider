@@ -91,13 +91,9 @@ const tabs = [
         const markTheme = (doc = document) => {
           const t = shown();
           doc.querySelectorAll("[data-theme-set]").forEach((btn) => {
-            const on = btn.getAttribute("data-theme-set") === t;
-            btn.classList.toggle("bg-raised", on);
-            btn.classList.toggle("shadow-sm", on);
-            btn.classList.toggle("text-fg", on);
-            btn.classList.toggle("text-muted", !on);
-            btn.setAttribute("aria-pressed", String(on));
+            btn.setAttribute("aria-pressed", String(btn.getAttribute("data-theme-set") === t));
           });
+          doc.querySelector("[data-theme-seg]")?.style.setProperty("--i", t === "dark" ? "1" : "0");
         };
         apply(document);
         // Settings: account rows and the theme choice come from cookies and this browser, so they're filled in
@@ -219,7 +215,7 @@ const tabs = [
                 { transform: `translateX(${at(0.35)}px) scale(${1 + stretch}, ${1 - stretch / 2})`, offset: 0.35 },
                 { transform: `translateX(${to}px) scale(1, 1)` },
               ],
-              { duration: 460, easing: GLIDE },
+              { duration: 340, easing: GLIDE },
             ),
           ];
           return slide[0];
@@ -227,6 +223,7 @@ const tabs = [
         const tabFor = (path) =>
           /^\/(aufstellungen|vereine)\//.test(path) ? "aufstellungen"
           : /^\/mein-team\//.test(path) ? "mein-team"
+          : /^\/scouting\//.test(path) ? "scouting"
           : /^\/(einstellungen|login)\//.test(path) ? "einstellungen"
           : "news";
         const bar = () => document.querySelector("[data-nav-progress]");
@@ -308,13 +305,22 @@ const tabs = [
           const theme = choice.getAttribute("data-theme-set");
           if (theme !== "light" && theme !== "dark") return;
           try { localStorage.setItem("theme", theme); } catch {}
-          // The whole page changes colour in one frame: buttons with colour transitions would otherwise
-          // fade from the old theme while everything around them has already switched.
+          // The whole page changes colour at once (no element fades on its own from the old theme), shown as
+          // one soft cross-fade with the thumb gliding across; without View Transitions it just switches.
           const root = document.documentElement;
-          root.classList.add("theme-switching");
-          apply(document);
-          markTheme();
-          requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("theme-switching")));
+          const swap = () => {
+            root.classList.add("theme-switching");
+            apply(document);
+            markTheme();
+          };
+          const done = () => root.classList.remove("theme-switching", "theme-fade");
+          if (document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            root.classList.add("theme-fade");
+            document.startViewTransition(swap).finished.finally(done);
+          } else {
+            swap();
+            requestAnimationFrame(() => requestAnimationFrame(done));
+          }
         });
         // Login/logout forms load a new page: show at once that the tap registered, and block double sends.
         document.addEventListener("submit", (e) => {

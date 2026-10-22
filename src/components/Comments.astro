@@ -14,15 +14,21 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
   <div data-li-box class="mb-6 hidden">
     <form data-li-form class="flex flex-col gap-2">
-      <textarea data-li-body rows="3" maxlength="2000" placeholder="Was sagst du dazu?" class={field}></textarea>
-      <div data-li-poll class="hidden flex flex-col gap-2">
-        <input data-li-question maxlength="200" placeholder="Frage der Umfrage…" class={field} />
-        <div data-li-options class="flex flex-col gap-2"></div>
-        <button type="button" data-li-add class="press self-start text-sm font-medium text-accent">Weitere Antwort</button>
+      {/* Comment text or poll fields; switching grows or shrinks this box smoothly (script below). */}
+      <div data-li-fields>
+        <textarea data-li-body rows="3" maxlength="2000" placeholder="Was sagst du dazu?" class={field}></textarea>
+        <div data-li-poll class="hidden flex flex-col gap-2">
+          <input data-li-question maxlength="200" placeholder="Frage der Umfrage…" class={field} />
+          <div data-li-options class="flex flex-col gap-2"></div>
+          <button type="button" data-li-add class="press self-start text-sm font-medium text-accent">Weitere Antwort</button>
+        </div>
       </div>
       <div class="flex items-center gap-2">
-        <button type="button" data-li-mode="text" class="press rounded-full bg-fg px-3 py-1.5 text-[13px] font-semibold text-bg">Kommentar</button>
-        <button type="button" data-li-mode="poll" class="press rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold">Umfrage</button>
+        <div class="seg w-[196px]" role="group" aria-label="Art" data-li-seg>
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button type="button" data-li-mode="text" aria-pressed="true" class="press rounded-lg py-1.5 text-[13px] font-semibold">Kommentar</button>
+          <button type="button" data-li-mode="poll" aria-pressed="false" class="press rounded-lg py-1.5 text-[13px] font-semibold">Umfrage</button>
+        </div>
         <span class="flex-1"></span>
         <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
       </div>
@@ -398,17 +404,27 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const body = section.querySelector<HTMLTextAreaElement>("[data-li-body]")!;
     options.append(optionInput(), optionInput());
 
+    const fields = section.querySelector<HTMLElement>("[data-li-fields]")!;
+    const seg = section.querySelector<HTMLElement>("[data-li-seg]")!;
     section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (btn.getAttribute("aria-pressed") === "true") return;
         const on = btn.dataset.liMode === "poll";
+        seg.style.setProperty("--i", on ? "1" : "0");
+        section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+        // The box changes height in one glide while the new fields fade in, instead of jumping.
+        const from = fields.offsetHeight;
         poll.classList.toggle("hidden", !on);
         body.classList.toggle("hidden", on);
-        section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((b) => {
-          const active = b === btn;
-          b.classList.toggle("bg-fg", active);
-          b.classList.toggle("text-bg", active);
-          b.classList.toggle("bg-surface", !active);
-        });
+        const to = fields.offsetHeight;
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        fields.style.overflow = "clip";
+        fields.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" })
+          .finished.finally(() => fields.style.removeProperty("overflow"));
+        (on ? poll : body).animate(
+          [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }],
+          { duration: 220, delay: 40, easing: "ease-out", fill: "backwards" },
+        );
       });
     });
     section.querySelector<HTMLButtonElement>("[data-li-add]")!.addEventListener("click", () => {
