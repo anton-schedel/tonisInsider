@@ -106,28 +106,34 @@ async function load(token: string) {
 }
 
 let error: string | undefined;
+// Not signed in (or the session ran out): the page says so itself instead of redirecting, so the tab bar
+// doesn't glide to Mein Team and then on to the settings.
+let signedOut: "none" | "expired" | undefined;
 let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, points: undefined, outlook: new Map(), cardNews: new Map() };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
-  if (!token) return Astro.redirect("/einstellungen/#kickbase");
-  try {
-    data = await load(token);
-  } catch (err) {
-    if (!(err instanceof KickbaseAuthError)) throw err;
-    token = await relogin(Astro.cookies, key, doLogin);
-    if (!token) {
-      clearSession(Astro.cookies);
-      return Astro.redirect("/einstellungen/?error=expired#kickbase");
+  if (!token) signedOut = "none";
+  else {
+    try {
+      data = await load(token);
+    } catch (err) {
+      if (!(err instanceof KickbaseAuthError)) throw err;
+      token = await relogin(Astro.cookies, key, doLogin);
+      if (token) data = await load(token);
+      else {
+        clearSession(Astro.cookies);
+        signedOut = "expired";
+      }
     }
-    data = await load(token);
   }
 } catch (err) {
   if (err instanceof KickbaseAuthError) {
     clearSession(Astro.cookies);
-    return Astro.redirect("/einstellungen/?error=expired#kickbase");
+    signedOut = "expired";
+  } else {
+    error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
   }
-  error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
 }
 const { leagues, league, players, starterCount, points, outlook, cardNews } = data;
 // The XI's Kickbase points this matchday, once one of its matches has started (updated live, script below).
@@ -165,6 +171,13 @@ const GROUPS = [
 let index = 0;
 ---
 <Base title="Mein Team" tab="mein-team">
+  {signedOut && (
+    <div class="py-10 text-center">
+      <p class="text-[17px] font-semibold">{signedOut === "expired" ? "Deine Kickbase-Sitzung ist abgelaufen." : "Dein Kickbase-Team auf einen Blick."}</p>
+      <p class="mx-auto mt-2 max-w-[320px] text-[15px] text-muted">Melde dich mit Kickbase an: Hier siehst du dann deine Spieler, ob sie spielen, und ihre Punkte live.</p>
+      <a href="/einstellungen/#kickbase" class="press mt-5 inline-block rounded-full bg-fg px-5 py-2.5 text-[15px] font-semibold text-bg">Mit Kickbase anmelden</a>
+    </div>
+  )}
   {error && <p class="mb-4 rounded-xl px-4 py-3 text-sm font-medium" style="background:var(--red-bg);color:var(--red-fg)">{error}</p>}
 
   {leagues.length > 1 && (
@@ -177,7 +190,7 @@ let index = 0;
   )}
 
   {!error && league && players.length === 0 && <p class="py-10 text-center text-muted">Keine Spieler in dieser Liga.</p>}
-  {!error && !league && <p class="py-10 text-center text-muted">Du bist in keiner Kickbase-Liga.</p>}
+  {!error && !signedOut && !league && <p class="py-10 text-center text-muted">Du bist in keiner Kickbase-Liga.</p>}
 
   {starterCount > 0 ? (
     <>
