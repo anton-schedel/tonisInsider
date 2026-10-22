@@ -1,6 +1,6 @@
 import type { D1 } from "cloudflare:workers";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, botPrompt, botRows, parseBots, shouldWriteBots, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, BOT_COUNT, botPrompt, botRows, parseBots, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -24,14 +24,17 @@ export function dueJobs(jobs: BotJob[], now: Date): BotJob[] {
 
 export type BotResult = { bots: number; kept?: boolean } | { error: string; status: number };
 
-/** (Re)writes the bot comments of one post that aren't out yet, or deletes them when it has bots off. */
-export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: number): Promise<BotResult> {
+/**
+ * (Re)writes the bot comments of one post that aren't out yet, or deletes them when it has bots off.
+ * `more`: adds that many to the ones there (from now on), which they see and may answer.
+ */
+export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: number, more?: number): Promise<BotResult> {
   const post = await getPost(db, postId);
   if (!post) return { error: "Den Beitrag gibt es nicht mehr.", status: 404 };
   const now = new Date().toISOString();
   const clear = () => db.prepare("DELETE FROM comments WHERE post_id = ? AND sender = 'bot' AND created_at > ?").bind(post.id, now).run();
   const existing = await db.prepare("SELECT COUNT(*) AS n FROM comments WHERE post_id = ? AND sender = 'bot'").bind(post.id).first<{ n: number }>();
-  const todo = shouldWriteBots(post, new Date(), existing?.n ?? 0);
+  const todo = more ? "write" : shouldWriteBots(post, new Date(), existing?.n ?? 0);
   if (todo === "clear") {
     await clear();
     return { bots: 0 };
@@ -44,17 +47,26 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
     .filter((p) => p.type === "result" && p.data.result && p.id !== post.id && p.publishedAt < post.publishedAt)
     .map((p) => `${kickoffDay(p.publishedAt).replace(/^\S+ /, "")}: ${p.data.result!.ours}:${p.data.result!.theirs} gegen ${p.data.result!.opponent}`);
 
-  let bots;
-  try {
-    bots = parseBots(await askModel(cfg, botPrompt(post, recent)));
-  } catch {
-    return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
+  // What's there already (when adding more): so they don't repeat it and can answer it.
+  const { results: there } = more
+    ? await db.prepare("SELECT name, body FROM comments WHERE post_id = ? AND created_at <= ? ORDER BY created_at DESC LIMIT 25").bind(post.id, now).all<{ name: string; body: string }>()
+    : { results: [] };
+  const existingTexts = there.reverse().map((c) => `${c.name}: ${c.body}`);
+
+  // Small batches in parallel; replies stay within their batch.
+  const plan = batchPlan(more ?? BOT_COUNT, topicsOf(post.data.bots?.context));
+  const answers = await Promise.allSettled(plan.map((b) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts }))));
+  const bots: BotComment[] = [];
+  for (const a of answers) {
+    if (a.status !== "fulfilled") continue;
+    const offset = bots.length;
+    bots.push(...parseBots(a.value).map((b) => (b.replyTo !== undefined ? { ...b, replyTo: b.replyTo + offset } : b)));
   }
-  if (bots.length < 5) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
+  if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 
   // A post that's already out gets its new comments from now on, not in the past.
   const rows = botRows(post.publishedAt > now ? post.publishedAt : now, bots);
-  await clear();
+  if (!more) await clear();
   const ids: number[] = [];
   for (const r of rows) {
     const parent = r.replyTo !== undefined ? ids[r.replyTo] ?? null : null;

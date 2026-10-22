@@ -28,7 +28,23 @@ function positions(lines: string[][]): string[] {
   return lines.map((l, i) => `${labels[i]}: ${l.join(", ")}`);
 }
 
-export function botPrompt(post: CoachPost, recent: string[]): { system: string; user: string } {
+/** The coach's "what the bots should know": one topic per sentence or line. */
+export const topicsOf = (context = "") =>
+  context.split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.trim().replace(/[.]$/, "")).filter(Boolean);
+
+/** Several small requests instead of one big one: each is done sooner, and one failing costs only its part. */
+export function batchPlan(count: number, topics: string[]): { count: number; topics: string[] }[] {
+  const n = Math.max(1, Math.ceil(count / 10));
+  return Array.from({ length: n }, (_, i) => ({
+    count: Math.floor(count / n) + (i < count % n ? 1 : 0),
+    topics: topics.filter((_, t) => t % n === i),
+  }));
+}
+
+export type PromptOptions = { count?: number; topics?: string[]; existing?: string[] };
+
+export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions = {}): { system: string; user: string } {
+  const count = opts.count ?? BOT_COUNT;
   const d = post.data;
   const about: string[] = [`Überschrift: ${d.headline}`];
   if (post.type === "lineup" && d.lineup) {
@@ -51,11 +67,12 @@ export function botPrompt(post: CoachPost, recent: string[]): { system: string; 
     "Sie reagieren auf genau diesen Beitrag und die Lage der Mannschaft: Sorgen, Hoffnung, Fragen, Tipps, Sprüche.",
     "Regeln: keine Beleidigungen, nichts Verletzendes über Spieler, keine echten Personen außer den genannten Spielern,",
     "verschiedene Namen (Forums-Spitznamen), unterschiedlich lang (meist 1 bis 2 Sätze), etwa ein Drittel antwortet auf einen früheren Kommentar.",
-    `Antworte nur mit einem JSON-Array mit ${BOT_COUNT} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
+    "2 bis 3 Kommentare vergleichen einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“).",
+    `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
   ].join(" ");
 
   // Each thing the coach wants them to know is one topic; only a few comments take each up, else all 30 sound alike.
-  const topics = (d.bots?.context ?? "").split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.trim().replace(/[.]$/, "")).filter(Boolean);
+  const topics = opts.topics ?? topicsOf(d.bots?.context);
   const user = [
     "Beitrag:",
     ...about,
@@ -64,6 +81,9 @@ export function botPrompt(post: CoachPost, recent: string[]): { system: string; 
     ...[...recent, ...SEASON].map((r) => `- ${r}`),
     ...(topics.length
       ? ["", "Was einige Kommentatoren wissen (Jedes Thema greifen nur 3 bis 5 Kommentare auf, verteilt über die Liste; die meisten Kommentare reden über den Beitrag selbst):", ...topics.map((t) => `- ${t}`)]
+      : []),
+    ...(opts.existing?.length
+      ? ["", "Diese Kommentare stehen schon da (nicht wiederholen; ihr dürft darauf eingehen):", ...opts.existing.map((c) => `- ${c}`)]
       : []),
   ].join("\n");
   return { system, user };
@@ -127,10 +147,22 @@ export async function askModel(cfg: ModelConfig, prompt: { system: string; user:
   const res = await fetcher(`${cfg.url.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: { authorization: `Bearer ${cfg.key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: cfg.model, stream: false, messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.user }] }),
+    // Streamed: the answer comes in pieces, so no proxy on the way drops the connection as idle while it thinks.
+    body: JSON.stringify({ model: cfg.model, stream: true, messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.user }] }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`model: HTTP ${res.status}`);
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return data.choices?.[0]?.message?.content ?? "";
+  if (!res.headers.get("content-type")?.includes("event-stream")) {
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    return data.choices?.[0]?.message?.content ?? "";
+  }
+  let text = "";
+  for (const line of (await res.text()).split("\n")) {
+    const data = line.startsWith("data:") ? line.slice(5).trim() : "";
+    if (!data || data === "[DONE]") continue;
+    try {
+      text += (JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content ?? "";
+    } catch { /* a keep-alive or a line we don't know */ }
+  }
+  return text;
 }

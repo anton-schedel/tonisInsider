@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askModel, botPrompt, botRows, parseBots, type BotComment } from "./coachBots.ts";
+import { askModel, batchPlan, botPrompt, botRows, parseBots, type BotComment } from "./coachBots.ts";
 import type { CoachPost } from "./coachPosts.ts";
 
 const lineup: CoachPost = {
@@ -118,5 +118,39 @@ describe("shouldWriteBots", () => {
     expect(shouldWriteBots(out, now, 30)).toBe("keep");
     expect(shouldWriteBots(out, now, 0)).toBe("write");
     expect(shouldWriteBots({ ...lineup, data: { ...lineup.data, bots: { on: false } } }, now, 30)).toBe("clear");
+  });
+});
+
+describe("botPrompt options", () => {
+  it("asks for the batch's number of comments, a few comparisons with known pros, and knows what's already there", () => {
+    const { system, user } = botPrompt(lineup, [], { count: 10, topics: ["Platz ist nass"], existing: ["Kabinenfunk: Ohne Nguyen wird's schwer"] });
+    expect(system).toContain("JSON-Array mit 10 Objekten");
+    expect(system).toMatch(/vergleichen .*bekannten Profi/);
+    expect(user).toContain("- Platz ist nass");
+    expect(user).not.toContain("Nguyen ist wieder dabei"); // only this batch's topics
+    expect(user).toContain("Kabinenfunk: Ohne Nguyen wird's schwer");
+    expect(user).toMatch(/nicht wiederholen/);
+  });
+});
+
+describe("batchPlan", () => {
+  it("splits the comments into batches of up to 10 and deals the topics out", () => {
+    expect(batchPlan(30, ["a", "b", "c", "d"])).toEqual([
+      { count: 10, topics: ["a", "d"] }, { count: 10, topics: ["b"] }, { count: 10, topics: ["c"] },
+    ]);
+    expect(batchPlan(25, [])).toEqual([{ count: 9, topics: [] }, { count: 8, topics: [] }, { count: 8, topics: [] }]);
+  });
+});
+
+describe("askModel streaming", () => {
+  it("reads the answer as it streams in (so the connection never sits idle)", async () => {
+    let body: { stream?: boolean } = {};
+    const sse = ['data: {"choices":[{"delta":{"role":"assistant"}}]}', 'data: {"choices":[{"delta":{"content":"[{\\"a\\""}}]}', 'data: {"choices":[{"delta":{"content":":1}]"}}]}', "data: [DONE]", ""].join("\n\n");
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
+    }) as typeof fetch;
+    expect(await askModel({ url: "https://x/api", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
+    expect(body.stream).toBe(true);
   });
 });
