@@ -219,12 +219,14 @@
     f("name").textContent = d.name;
     f("initials").textContent = initials(d.name);
     // The big number: the scorer chance; without assist odds the goal chance; for goalkeepers (no goal odds)
-    // the clean sheet. Whichever it is isn't repeated in the row below.
+    // the clean sheet; with none of them the club's win chance (else the row below would hold just that).
+    // Whichever it is isn't repeated in the row below.
     const hero = d.scorer !== undefined ? { key: "scorer", label: "Scorer" }
       : d.goal !== undefined ? { key: "goal", label: "Tor" }
       : d.cleanSheet !== undefined ? { key: "cleanSheet", label: "Zu Null" }
+      : d.win !== undefined ? { key: "win", label: "Sieg" }
       : undefined;
-    const rating = hero ? d[hero.key as "scorer" | "goal" | "cleanSheet"] : undefined;
+    const rating = hero ? d[hero.key as "scorer" | "goal" | "cleanSheet" | "win"] : undefined;
     f("rating").textContent = rating !== undefined ? `${rating}%` : "–";
     setTier(f("rating"), undefined);
     f("caption").textContent = hero?.label ?? "Scorer";

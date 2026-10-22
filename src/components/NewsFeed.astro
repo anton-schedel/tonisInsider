@@ -36,8 +36,9 @@ let index = 0;
 {allGroups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section>
-    {/* Each day opens with a slim band (global.css .day-band) that stays at the top while its posts scroll by. */}
-    <h2 class="day-band sticky top-0 z-10" data-day={g.first}>
+    {/* Each day opens with a slim band (global.css .day-band) that stays at the top while its posts scroll by.
+        Today's needs none (the newest posts are always today's) unless pinned posts come before it. */}
+    <h2 class="day-band sticky top-0 z-10" data-day={g.first} data-today={dayLabel(g.first, now).startsWith("Heute ") ? "" : undefined}>
       {(() => {
         const [rel, date] = dayLabel(g.first, now).split(" · ");
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
@@ -82,6 +83,7 @@ let index = 0;
     const now = new Date();
     for (const h of root.querySelectorAll<HTMLElement>("[data-day]")) {
       const [rel, date] = dayLabel(h.dataset.day!, now).split(" · ");
+      h.toggleAttribute("data-today", rel === "Heute");
       h.textContent = rel;
       if (date) {
         const muted = document.createElement("span");
@@ -119,7 +121,7 @@ let index = 0;
       if (marker.isConnected) appendOlder(marker, olderHtml);
     } catch {
       delete marker.dataset.loading;
-      if (btn) btn.textContent = "Ältere News laden";
+      if (btn) btn.textContent = "Nicht geladen. Nochmal versuchen";
     }
   }
 

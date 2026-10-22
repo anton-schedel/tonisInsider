@@ -22,6 +22,8 @@ const { article: a, index = 0, withDay = false, pinnedUntil, showAfter } = Astro
 const comments = commentCount(a.id);
 // Confirmed lineups show the XI right here, no need to open them.
 const lineup = confirmedLineup(a);
+// A post with neither player nor club: ours carries our name and logo, LigaInsider's theirs (initials only).
+const by = a.own ? { name: NAME, logo: LOGO } : { name: "LigaInsider", logo: undefined };
 ---
 {/* Club, time and comments: the same line under every kind of post. */}
 {(() => {
@@ -29,8 +31,8 @@ const lineup = confirmedLineup(a);
     <span class="flex items-center gap-1.5 text-[13px] text-muted">
       <StatusPill type={a.newsType} />
       {/* The name shortens on narrow rows; the time always stays visible. */}
-      <span class="min-w-[3.5em] truncate">{a.player?.name ?? a.club?.name ?? NAME}</span>
-      <span class="-ml-1 shrink-0 tabular-nums">· {withDay && dayKey(a.publishedAt) !== dayKey(new Date().toISOString()) && `${kickoffDay(a.publishedAt).replace(/^\S+ /, "")} `}{time(a.publishedAt)}</span>
+      <span class="min-w-[3.5em] truncate">{a.player?.name ?? a.club?.name ?? by.name}</span>
+      <span class="-ml-0.5 shrink-0 tabular-nums">·&nbsp;{withDay && dayKey(a.publishedAt) !== dayKey(new Date().toISOString()) && `${kickoffDay(a.publishedAt).replace(/^\S+ /, "")} `}{time(a.publishedAt)}</span>
       {/* Refreshed live by the script below. Hidden while there are no comments. */}
       <span class:list={["ml-auto flex shrink-0 items-center gap-1 pl-2 tabular-nums", !comments && "hidden"]} data-comment-count={a.id} aria-label="Kommentare">
         <svg viewBox="0 0 24 24" class="size-[15px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" /></svg>
@@ -44,7 +46,7 @@ const lineup = confirmedLineup(a);
     <a href={`/artikel/${a.id}/`} class="press-row enter block py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
       <span class="flex items-center gap-2">
         <span class="shrink-0">
-          {a.club ? <Crest src={a.club.crest} name={a.club.name} size={72} /> : <Avatar src={LOGO} name={NAME} size={72} />}
+          {a.club ? <Crest src={a.club.crest} name={a.club.name} size={72} /> : <Avatar src={by.logo} name={by.name} size={72} />}
         </span>
         <span class="min-w-0 flex-1">
           <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
@@ -61,7 +63,7 @@ const lineup = confirmedLineup(a);
           ? <Avatar src={a.player.photo} name={a.player.name} size={64} />
           : a.club
             ? <Crest src={a.club.crest} name={a.club.name} size={64} />
-            : <Avatar src={LOGO} name={NAME} size={64} />}
+            : <Avatar src={by.logo} name={by.name} size={64} />}
         {a.player && a.club?.crest && (
           <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[26px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
         )}

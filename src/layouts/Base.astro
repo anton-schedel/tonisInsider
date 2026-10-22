@@ -413,7 +413,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
             {/* Scouted players with news since the list was last opened. */}
             {t.id === "scouting" && <span class="tab-badge" data-scout-badge hidden></span>}
-            <span data-label class="text-center">{t.label}</span>
+            <span data-label class="text-center max-[380px]:text-[9.5px] max-[380px]:tracking-[-0.02em]">{t.label}</span>
           </a>
         ))}
       </div>
