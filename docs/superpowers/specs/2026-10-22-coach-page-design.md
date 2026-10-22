@@ -1,6 +1,6 @@
 # Coach page for TuS Schnöselmob
 
-Date: 2026-10-22. Status: design approved in chat, awaiting spec review.
+Date: 2026-10-22. Status: approved ("build it").
 
 ## Goal
 
@@ -11,7 +11,8 @@ hand so far (`content/posts/*.json`).
 Success: the coach opens the page on their phone, enters the password once, writes a lineup, picks "Sa. 19:00",
 and the post appears in the feed at 19:00, pinned for an hour.
 
-Out of scope (later): bot comments under coach posts, with an on/off switch per post.
+Bot comments are part of it (see "Bot comments" below), written by a small LLM the owner has access to
+(Morpheus, Qwen "3.8 next flash", OpenAI-compatible chat API).
 
 ## What the coach sees: `/schnoeselmob/`
 
@@ -98,6 +99,24 @@ All but `login` require a valid `coach` cookie, else 401.
 - Edits and deletes appear with the next run (about 5–8 minutes).
 - The existing `content/posts/*.json` posts stay as they are.
 
+## Bot comments
+
+- The editor has a switch "Bot-Kommentare" (default on) and a field "Was die Bots wissen sollen" for context
+  of the week (e.g. "Zwei wichtige Spieler haben gefehlt").
+- On save with the switch on, the Worker asks the model for about 30 comments (a JSON list of
+  `{ name, text, minute, replyTo? }`): German, short, the tone of football forum regulars, about this post. The
+  prompt contains the post (type, headline, lineup or score or player), the recent results of TuS Schnöselmob
+  (from the result posts, newest first), the context field, and rules (no insults, no real people other than
+  the named players, vary names and length, some replies to others).
+- They're stored in the existing `comments` table with `sender = 'bot'` and `created_at` = publish time + minute
+  (0–18 minutes, so they trickle in). The comments API already hides comments dated in the future.
+- Edit: if the content changed and the switch is on, its bot comments that aren't out yet are replaced; those
+  already out stay. Switch off: bot comments not out yet are deleted. Delete post: all its bot comments go.
+- The model call has a 25 s timeout. If it fails or returns nothing usable, the post is saved anyway and the
+  page says "Bot-Kommentare konnten nicht erstellt werden" with "Nochmal versuchen".
+- `MORPHEUS_API_KEY` is a Worker secret, `MORPHEUS_BASE_URL` and `MORPHEUS_MODEL` Worker vars. The key never
+  reaches the browser.
+
 ## Errors
 
 - Wrong or expired cookie: the page shows the login again; the form keeps what was typed.
@@ -107,6 +126,7 @@ All but `login` require a valid `coach` cookie, else 401.
 
 ## Testing
 
+- Unit: parsing the model's answer (valid list, junk, too long texts, unknown replyTo) and the timing.
 - Unit: `toArticle` for each type (body HTML, escaping, slug, pin, banner/photo), the validation, the cookie
   signing and expiry, the export hash.
 - API: login (right, wrong, rate limit), create/edit/delete with and without cookie.
@@ -115,6 +135,6 @@ All but `login` require a valid `coach` cookie, else 401.
 
 ## Setup the owner does once
 
-- `npx wrangler secret put COACH_PASSWORD` and `COACH_EXPORT_TOKEN` (Cloudflare).
+- `npx wrangler secret put COACH_PASSWORD`, `COACH_EXPORT_TOKEN` and `MORPHEUS_API_KEY` (Cloudflare).
 - GitHub secrets `COACH_EXPORT_TOKEN` and `COACH_EXPORT_URL`.
 - Apply the migration: `npx wrangler d1 execute COMMENTS --remote --file migrations/0003_coach_posts.sql`.
