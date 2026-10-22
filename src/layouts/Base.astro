@@ -7,7 +7,7 @@ import PostHog from "../components/posthog.astro";
 
 interface Props {
   title: string;
-  tab?: "news" | "aufstellungen" | "mein-team" | "einstellungen";
+  tab?: "news" | "aufstellungen" | "mein-team" | "scouting" | "einstellungen";
   back?: { href: string; label: string };
   /** Hide the big page title (article pages show their own headline). */
   hideHeading?: boolean;
@@ -24,6 +24,7 @@ const tabs = [
   { id: "news", href: "/", label: "News", icon: "M4 5h16M4 12h16M4 19h10" },
   { id: "aufstellungen", href: "/aufstellungen/", label: "Aufstellungen", icon: "M12 3v18M3 12h18M7 7h10v10H7z" },
   { id: "mein-team", href: "/mein-team/", label: "Mein Team", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" },
+  { id: "scouting", href: "/scouting/", label: "Scouting", icon: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5L20 20" },
   { id: "einstellungen", href: "/einstellungen/", label: "Einstellungen", icon: "M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.82-.33 1.7 1.7 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.08-1.51 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.68a1.7 1.7 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" },
 ] as const;
 ---
@@ -395,11 +396,13 @@ const tabs = [
         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         Neue Meldungen
       </button>
-      <div class="relative grid grid-cols-4 gap-1 p-1.5">
+      <div class="relative grid grid-cols-5 gap-1 p-1.5">
         <span class="tab-pill" aria-hidden="true"></span>
         {tabs.map((t) => (
           <a href={t.href} data-tab={t.id} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["tab-item press flex flex-col items-center gap-0.5 rounded-[24px] px-0.5 py-1.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent is-active" : "text-muted"]}>
             <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d={t.icon} /></svg>
+            {/* Scouted players with news since the list was last opened. */}
+            {t.id === "scouting" && <span class="tab-badge" data-scout-badge hidden></span>}
             <span data-label class="text-center">{t.label}</span>
           </a>
         ))}
@@ -410,6 +413,18 @@ const tabs = [
       import { startLive } from "../lib/liveClient.ts";
 
       startLive();
+      import { loadScout, unseen, type ScoutState } from "../lib/scoutClient.ts";
+
+      // The Scouting tab's badge: how many scouted players have news since the list was last opened.
+      const scoutBadge = async (state?: ScoutState) => {
+        const badge = document.querySelector<HTMLElement>("[data-scout-badge]");
+        if (!badge) return;
+        const n = (await unseen(state ?? (await loadScout()))).length;
+        badge.hidden = n === 0 || document.querySelector("[data-active-tab]")?.getAttribute("data-active-tab") === "scouting";
+        badge.textContent = n > 9 ? "9+" : String(n);
+      };
+      document.addEventListener("astro:page-load", () => void scoutBadge());
+      window.addEventListener("scout:change", (e) => void scoutBadge((e as CustomEvent<ScoutState>).detail));
       import { updateAction } from "../lib/freshness.ts";
       import type { Version } from "../../scraper/snapshot.ts";
 

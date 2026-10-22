@@ -137,6 +137,7 @@ const running = anyRunning(players.map((p) => p.kickbase.live), Date.now());
 const cards = new Map(players.map((p) => {
   const start = startLabel(p.status, p.statusLabel, p.rival);
   return [p.kickbase.id, cardAttr({
+    id: p.ligainsider?.id,
     name: p.ligainsider?.name ?? p.kickbase.name,
     photo: p.ligainsider?.photo ?? p.kickbase.image,
     crest: p.club?.crest,

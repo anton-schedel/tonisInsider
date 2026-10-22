@@ -5,6 +5,8 @@ import type { StartStatus } from "./match.ts";
 
 /** What the player card (PlayerCard.astro) shows; serialised into the tapped element's data-card. */
 export type CardData = PlayerInsight & {
+  /** LigaInsider player id: lets the card put him on the scout list. */
+  id?: number;
   name: string;
   photo?: string;
   crest?: string;

@@ -76,6 +76,8 @@ export type Lineup = {
   kickoff?: string;
   formation: string;
   lines: LineupPlayer[][];
+  /** The whole squad, full names ("Waldemar Anton"), for the player search. */
+  squad?: (Ref & { photo?: string })[];
   /** Where the page's comments hang (LigaInsider's match and team ids); changes with each match. */
   comments?: { tmid: number; optauuid: string; teamid: number };
   updatedAt: string;

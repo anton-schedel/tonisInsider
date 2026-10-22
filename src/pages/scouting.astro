@@ -1,0 +1,163 @@
+---
+import Base from "../layouts/Base.astro";
+import PlayerCard from "../components/PlayerCard.astro";
+import { allPlayers } from "../lib/players.ts";
+
+// Every squad player with his card, for the search and the scout list (rendered in the browser below).
+const players = allPlayers();
+---
+<Base title="Scouting" tab="scouting">
+  <label class="search-field mt-1">
+    <svg viewBox="0 0 24 24" class="size-[18px] shrink-0 text-muted" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
+    <input type="search" data-search placeholder="Spieler oder Verein suchen" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Spieler suchen" />
+  </label>
+
+  <section data-results hidden class="mt-3">
+    <ul class="divide-y divide-hairline" data-results-list></ul>
+    <p class="py-6 text-center text-sm text-muted" data-results-empty hidden>Kein Spieler gefunden.</p>
+  </section>
+
+  <section data-scoutlist class="mt-7">
+    <div class="mb-1 flex items-baseline justify-between">
+      <h2 class="text-[22px] font-bold tracking-[-0.02em]">Scoutliste</h2>
+      <span class="text-[15px] font-semibold text-muted tabular-nums" data-scout-count></span>
+    </div>
+    <ul class="divide-y divide-hairline" data-scout-list></ul>
+    <p class="py-4 text-sm text-muted" data-scout-empty hidden>
+      Noch niemand auf deiner Liste. Such einen Spieler und tipp in seiner Karte auf „Scouten“: Hier siehst du dann seine News, und der Tab zeigt dir, wenn es Neues gibt.
+    </p>
+    <p class="mt-3 text-xs text-muted" data-scout-where></p>
+  </section>
+
+  <script type="application/json" data-players set:html={JSON.stringify(players)} />
+  <PlayerCard />
+</Base>
+
+<script>
+  import type { PlayerEntry } from "../lib/players.ts";
+  import { fold } from "../lib/players.ts";
+  import { loadScout, markSeen, unseen, type ScoutState } from "../lib/scoutClient.ts";
+  import { ago, initials, kickoffDay } from "../lib/format.ts";
+  import { NEWS_TYPE } from "../lib/newsTypes.ts";
+
+  const LIMIT = 40;
+  type Indexed = PlayerEntry & { key: string };
+
+  function h(tag: string, cls = "", text?: string) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function avatar(p: PlayerEntry) {
+    const box = h("span", "relative inline-flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface text-[15px] font-semibold text-muted");
+    box.append(h("span", "", initials(p.name)));
+    if (p.photo) {
+      const img = document.createElement("img");
+      img.src = p.photo;
+      img.alt = "";
+      img.loading = "lazy";
+      img.className = "img-fade absolute inset-0 size-full object-cover";
+      img.onload = () => img.classList.add("is-loaded");
+      img.onerror = () => img.remove();
+      box.append(img);
+    }
+    if (p.crest) {
+      const wrap = h("span", "relative shrink-0");
+      const crest = document.createElement("img");
+      crest.src = p.crest;
+      crest.alt = "";
+      crest.className = "absolute -right-1.5 -bottom-1 size-[18px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]";
+      wrap.append(box, crest);
+      return wrap;
+    }
+    return box;
+  }
+
+  const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
+
+  /** One player: photo with crest, name, then his status, or (scout list) his latest news. */
+  function row(p: PlayerEntry, opts: { news?: boolean; fresh?: boolean } = {}) {
+    const li = h("li");
+    const btn = h("button", "press-row flex w-full items-center gap-3 py-3 text-left") as HTMLButtonElement;
+    btn.type = "button";
+    btn.dataset.card = JSON.stringify(p.card);
+    const text = h("span", "min-w-0 flex-1");
+    const top = h("span", "flex items-center gap-1.5");
+    top.append(h("span", "truncate text-[15px] font-semibold tracking-[-0.01em]", p.name));
+    if (opts.fresh) top.append(h("span", "scout-new", "Neu"));
+    text.append(top);
+    const latest = p.card.news?.[0];
+    if (opts.news && latest) {
+      const line = h("span", "mt-0.5 flex items-center gap-1.5 text-xs text-muted");
+      const type = NEWS_TYPE[latest.type];
+      if (type) {
+        const pill = h("span", "shrink-0 rounded-full px-[6px] py-[1px] text-[10px] font-semibold", type.label);
+        pill.style.cssText = `background:var(--${type.tone}-bg);color:var(--${type.tone}-fg)`;
+        line.append(pill);
+      }
+      line.append(h("span", "truncate", latest.title), h("span", "shrink-0", `· ${when(latest.at, new Date())}`));
+      text.append(line);
+    } else {
+      text.append(h("span", "block truncate text-xs text-muted", [p.club, p.card.status].filter(Boolean).join(" · ")));
+    }
+    btn.append(avatar(p), text);
+    li.append(btn);
+    return li;
+  }
+
+  function search(index: Indexed[], query: string): Indexed[] {
+    const words = fold(query).split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    // Every word must start a word of the name or club; a match on the surname ranks first.
+    const hits = index.filter((p) => words.every((w) => p.key.includes(` ${w}`)));
+    const surname = (p: Indexed) => fold(p.name.split(" ").pop() ?? "").startsWith(words[0]) ? 0 : 1;
+    return hits.sort((a, b) => surname(a) - surname(b) || a.rank - b.rank || a.name.localeCompare(b.name, "de")).slice(0, LIMIT);
+  }
+
+  async function renderList(byId: Map<number, Indexed>, state: ScoutState, fresh: Set<number>) {
+    const list = document.querySelector<HTMLElement>("[data-scout-list]");
+    if (!list) return;
+    const players = state.ids.flatMap((id) => byId.get(id) ?? []);
+    // Players with news since the last look first, then the newest news.
+    const latest = (p: PlayerEntry) => Date.parse(p.card.news?.[0]?.at ?? "") || 0;
+    players.sort((a, b) => Number(fresh.has(b.id)) - Number(fresh.has(a.id)) || latest(b) - latest(a));
+    list.replaceChildren(...players.map((p) => row(p, { news: true, fresh: fresh.has(p.id) })));
+    document.querySelector<HTMLElement>("[data-scout-empty]")!.hidden = players.length > 0;
+    document.querySelector<HTMLElement>("[data-scout-count]")!.textContent = players.length ? String(players.length) : "";
+    document.querySelector<HTMLElement>("[data-scout-where]")!.textContent = state.account
+      ? "Gespeichert mit deinem Konto: auf jedem Gerät, auf dem du angemeldet bist."
+      : players.length ? "Nur in diesem Browser gespeichert. Mit Kickbase oder LigaInsider angemeldet hast du sie auf jedem Gerät." : "";
+  }
+
+  document.addEventListener("astro:page-load", async () => {
+    const data = document.querySelector<HTMLScriptElement>("[data-players]");
+    if (!data) return;
+    const index: Indexed[] = (JSON.parse(data.textContent ?? "[]") as PlayerEntry[])
+      .map((p) => ({ ...p, key: ` ${fold(`${p.name} ${p.club}`).replace(/[-.]/g, " ")}` }));
+    const byId = new Map(index.map((p) => [p.id, p]));
+
+    const input = document.querySelector<HTMLInputElement>("[data-search]")!;
+    const results = document.querySelector<HTMLElement>("[data-results]")!;
+    const scoutList = document.querySelector<HTMLElement>("[data-scoutlist]")!;
+    const show = () => {
+      const q = input.value.trim();
+      results.hidden = !q;
+      scoutList.hidden = !!q;
+      if (!q) return;
+      const hits = search(index, q);
+      document.querySelector<HTMLElement>("[data-results-list]")!.replaceChildren(...hits.map((p) => row(p)));
+      document.querySelector<HTMLElement>("[data-results-empty]")!.hidden = hits.length > 0;
+    };
+    input.addEventListener("input", show);
+    show();
+
+    const state = await loadScout(true);
+    const fresh = new Set(await unseen(state));
+    await renderList(byId, state, fresh);
+    if (fresh.size) await markSeen();
+    // Scouting or unscouting in the card updates the list right away (the "Neu" marks stay for this visit).
+    window.addEventListener("scout:change", (e) => void renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh));
+  });
+</script>

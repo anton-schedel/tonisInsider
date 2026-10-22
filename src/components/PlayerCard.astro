@@ -49,6 +49,10 @@
   </div>
   {/* Always in reach: points and news scroll above it. */}
   <div class="player-card-foot">
+    <button type="button" data-scout-toggle class="scout-toggle press flex-1 rounded-xl bg-surface py-3 text-[15px] font-semibold" aria-pressed="false" hidden>
+      <svg viewBox="0 0 24 24" class="size-[17px]" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
+      <span data-scout-label>Scouten</span>
+    </button>
     <a data-f="href" class="press flex-1 rounded-xl bg-surface py-3 text-center text-[15px] font-semibold" hidden>Zum Verein</a>
     <button type="button" data-card-close class="press flex-1 rounded-xl bg-fg py-3 text-[15px] font-semibold text-bg">Schließen</button>
   </div>
@@ -59,6 +63,23 @@
   import { actionTier, setTier, TIERS, type PlayerPoints, type PointsLine } from "../lib/livePoints.ts";
   import { ago, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
+  import { loadScout, setScouted } from "../lib/scoutClient.ts";
+
+  /** The card's star: on the scout list or not (LigaInsider id in the card; none, no star). */
+  function setStar(dialog: HTMLDialogElement, on: boolean) {
+    const btn = dialog.querySelector<HTMLButtonElement>("[data-scout-toggle]")!;
+    btn.setAttribute("aria-pressed", String(on));
+    btn.querySelector("[data-scout-label]")!.textContent = on ? "Gescoutet" : "Scouten";
+  }
+  async function fillScout(dialog: HTMLDialogElement, id: number | undefined) {
+    const btn = dialog.querySelector<HTMLButtonElement>("[data-scout-toggle]")!;
+    btn.hidden = !id;
+    dialog.dataset.player = id ? String(id) : "";
+    if (!id) return;
+    setStar(dialog, false);
+    const state = await loadScout();
+    if (dialog.dataset.player === String(id)) setStar(dialog, state.ids.includes(id));
+  }
 
   /** "vor 3 Std." within a day, else the day ("Mi. 07.10."). */
   const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
@@ -279,6 +300,14 @@
     const dialog = document.querySelector<HTMLDialogElement>("[data-player-card]");
     if (!dialog || !target?.closest) return;
     if (dialog.open) {
+      const star = target.closest<HTMLButtonElement>("[data-scout-toggle]");
+      if (star) {
+        const id = Number(dialog.dataset.player);
+        const on = star.getAttribute("aria-pressed") !== "true";
+        setStar(dialog, on);
+        setScouted(id, on).catch(() => setStar(dialog, !on));
+        return;
+      }
       // Close button, or a tap on the dimmed backdrop (the dialog element itself, outside the body).
       if (target.closest("[data-card-close]") || target === dialog) closeCard(dialog);
       return;
@@ -290,6 +319,7 @@
     try {
       fill(dialog, JSON.parse(trigger.dataset.card!) as CardData);
       fillPoints(dialog, trigger);
+      void fillScout(dialog, (JSON.parse(trigger.dataset.card!) as CardData).id);
     } catch {
       return;
     }

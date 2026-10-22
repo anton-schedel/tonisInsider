@@ -34,6 +34,13 @@ describe("parseClubPage", () => {
     expect(l.comments).toEqual({ tmid: 185672, optauuid: "5efxhjkd45txyaef1hw8wwowk", teamid: 14 });
   });
 
+  it("reads the whole squad with full names", () => {
+    const l = parseClubPage(fx("club-bvb.html"), BVB, NOW);
+    expect(l.squad).toHaveLength(30);
+    expect(l.squad?.[0]).toEqual({ id: expect.any(Number), slug: "patrick-drewes", name: "Patrick Drewes" });
+    expect(l.squad?.find((p) => p.slug === "waldemar-anton")?.name).toBe("Waldemar Anton");
+  });
+
   it("marks doubtful players with label and alternative", () => {
     const l = parseClubPage(fx("club-bvb.html"), BVB, NOW);
     const schlotterbeck = l.lines[1][2];

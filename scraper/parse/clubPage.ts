@@ -58,6 +58,14 @@ export function parseClubPage(html: string, club: ClubRef, now: Date): Lineup {
   const matchdayText = cleanText($("select.day_select option[selected]").first().text());
   const matchday = Number(matchdayText.replace(/\D/g, "")) || undefined;
 
+  // The squad ("Kader") table: every player, first name plus <strong>surname</strong>.
+  const squad = new Map<number, Ref>();
+  $(".transfer_balance_table .middle_info span a").each((_, a) => {
+    const ref = parsePlayerHref($(a).attr("href") ?? "");
+    const name = cleanText($(a).text());
+    if (ref && name && !squad.has(ref.id)) squad.set(ref.id, { id: ref.id, slug: ref.slug, name });
+  });
+
   // The comments under the lineup load from teamcomments/?tmid=…&optauuid=…&teamid=… (an ESI include).
   const esi = html.match(/teamcomments\/\?[^"' ]*/)?.[0].replace(/&amp;/g, "&") ?? "";
   const q = new URLSearchParams(esi.slice(esi.indexOf("?") + 1));
@@ -71,6 +79,7 @@ export function parseClubPage(html: string, club: ClubRef, now: Date): Lineup {
     kickoff: parseGermanDateTime(matchText, now),
     formation: lines.slice(1).map((l) => l.length).join("-"),
     lines,
+    squad: squad.size ? [...squad.values()] : undefined,
     comments,
     updatedAt: now.toISOString(),
   };

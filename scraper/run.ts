@@ -215,6 +215,17 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
             p.alternative.photo = await ensureImage(fetcher, publicDir, "players", p.alternative.id, p.alternative.photoUrl);
           }
         }
+        // Squad photos: LigaInsider names them like the lineup's (<player slug>-<club>-<season>.jpg). Each player
+        // is tried once; a miss (some are spelled differently) stays without photo and isn't asked for again.
+        const pattern = lineup.lines.flat().map((p) => p.photoUrl?.match(new RegExp(`^(.*/)${p.slug}(-[^/]+\\.jpg)$`))).find(Boolean);
+        const known = new Map([
+          ...(before?.squad ?? []).map((p) => [p.id, p.photo] as const),
+          ...lineup.lines.flat().flatMap((p) => [[p.id, p.photo] as const, ...(p.alternative ? [[p.alternative.id, p.alternative.photo] as const] : [])]),
+        ]);
+        for (const p of lineup.squad ?? []) {
+          if (known.has(p.id)) p.photo = known.get(p.id);
+          else if (pattern) p.photo = await ensureImage(fetcher, publicDir, "players", p.id, `${pattern[1]}${p.slug}${pattern[2]}`);
+        }
         if (withoutTimestamps(lineup) !== withoutTimestamps(store.getLineup(club.slug))) {
           store.putLineup(lineup);
           result.changed = true;

@@ -277,7 +277,7 @@ nav.tabbar::before {
 /* The pill is a lens on the glass. It slides to the current tab from the moment of the tap (Base.astro animates
    it with the Web Animations API, stretching it on the way); this transform is where it rests. */
 .tab-pill {
-  position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc((100% - 24px) / 4);
+  position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc((100% - 28px) / 5);
   border-radius: 24px; background: var(--glass-lens);
   box-shadow: inset 0 1px 0.5px var(--glass-lens-rim), 0 1px 4px rgba(0, 0, 0, 0.06);
   transform: translateX(calc(var(--tab, 0) * (100% + 4px)));
@@ -286,6 +286,32 @@ nav.tabbar::before {
 }
 nav.no-tab .tab-pill { opacity: 0; }
 .tab-item { position: relative; }
+/* A count on a tab, like an app icon's badge. */
+.tab-badge {
+  position: absolute; top: 2px; left: calc(50% + 6px);
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px;
+  background: var(--red-fg); color: #fff; font-size: 11px; font-weight: 700; line-height: 17px; text-align: center;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* The search field on the Scouting page. */
+.search-field {
+  display: flex; align-items: center; gap: 8px; padding: 0 14px; height: 44px;
+  border-radius: 14px; background: var(--surface);
+}
+.search-field:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.search-field input { flex: 1; min-width: 0; background: none; outline: none; font-size: 16px; }
+.search-field input::-webkit-search-cancel-button { opacity: 0.5; }
+/* Scout list: news since the last look. */
+.scout-new {
+  flex-shrink: 0; border-radius: 999px; padding: 1px 7px; font-size: 10.5px; font-weight: 700;
+  background: var(--red-fg); color: #fff;
+}
+/* The card's star: filled and in colour once the player is on the scout list. */
+.scout-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.scout-toggle[hidden] { display: none; }
+.scout-toggle[aria-pressed="true"] { color: var(--accent); }
+.scout-toggle[aria-pressed="true"] svg { fill: currentColor; }
 
 /* A new page fades in under the tab bar. */
 /* Page switches crossfade: on the tap the old page dims (.page-leaving, Base.astro), the new one starts at the

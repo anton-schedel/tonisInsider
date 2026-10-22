@@ -8,17 +8,18 @@ declare module "cloudflare:workers" {
     /** Kickbase account the server uses for public live points (club pages); `wrangler secret put`. */
     KICKBASE_EMAIL?: string;
     KICKBASE_PASSWORD?: string;
-    /** Comments on our own posts (D1, see migrations/). */
+    /** Comments on our own posts and the scout lists (D1, see migrations/). */
     COMMENTS?: D1;
   };
   /** The part of Cloudflare's D1 API used here. */
+  export type D1Statement = {
+    all<T>(): Promise<{ results: T[] }>;
+    first<T>(): Promise<T | null>;
+    run(): Promise<{ meta: { last_row_id: number } }>;
+  };
   export type D1 = {
-    prepare(sql: string): {
-      bind(...values: unknown[]): {
-        all<T>(): Promise<{ results: T[] }>;
-        first<T>(): Promise<T | null>;
-        run(): Promise<{ meta: { last_row_id: number } }>;
-      };
-    };
+    prepare(sql: string): { bind(...values: unknown[]): D1Statement };
+    /** Runs the statements in one transaction. */
+    batch(statements: D1Statement[]): Promise<unknown[]>;
   };
 }
