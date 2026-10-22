@@ -356,11 +356,14 @@ nav.no-tab .tab-pill { opacity: 0; }
   width: 20px; height: 20px; border-radius: 999px; background: var(--muted); color: var(--surface);
 }
 .search-clear[hidden] { display: none; }
-/* Scout list: news since the last look. */
-.scout-new {
-  flex-shrink: 0; border-radius: 999px; padding: 1px 7px; font-size: 10.5px; font-weight: 700;
-  background: var(--red-fg); color: #fff;
+/* Scout list: news since the last look, marked like an unread mail. */
+.scout-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 999px; background: var(--fg); }
+/* Scout a suggested player without opening his card. */
+.scout-add {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 999px; background: var(--surface); color: var(--fg);
 }
+.scout-add:disabled { opacity: 0.4; }
 /* The card's star: filled and in colour once the player is on the scout list. */
 .scout-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .scout-toggle[hidden] { display: none; }

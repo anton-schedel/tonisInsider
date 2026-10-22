@@ -27,9 +27,12 @@ const players = allPlayers();
       <span class="text-[15px] font-semibold text-muted tabular-nums" data-scout-count></span>
     </div>
     <ul class="divide-y divide-hairline" data-scout-list></ul>
-    <p class="py-4 text-sm text-muted" data-scout-empty hidden>
-      Noch niemand auf deiner Liste. Such einen Spieler und tipp in seiner Karte auf „Scouten“: Hier siehst du dann seine News, und der Tab zeigt dir, wenn es Neues gibt.
-    </p>
+    <div data-scout-empty hidden>
+      <p class="pt-1 pb-2 text-[15px] leading-snug text-muted">Beobachte Spieler, die du nicht im Team hast: Ihre News landen hier, und der Tab zeigt dir, wenn es Neues gibt.</p>
+      {/* Something to scout right away: players in this week's news, added with one tap. */}
+      <h3 class="mt-5 mb-1 text-[15px] font-semibold">Gerade in den News</h3>
+      <ul class="divide-y divide-hairline" data-scout-suggest></ul>
+    </div>
     <p class="mt-3 text-xs text-muted" data-scout-where></p>
   </section>
 
@@ -39,7 +42,7 @@ const players = allPlayers();
 
 <script>
   import type { PlayerEntry } from "../lib/players.ts";
-  import { cachedScout, loadScout, markSeen, unseen, type ScoutState } from "../lib/scoutClient.ts";
+  import { cachedScout, loadScout, markSeen, setScouted, unseen, type ScoutState } from "../lib/scoutClient.ts";
   import { ago, fold, initials, kickoffDay } from "../lib/format.ts";
   import { NEWS_TYPE } from "../lib/newsTypes.ts";
 
@@ -80,33 +83,57 @@ const players = allPlayers();
 
   const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso) < 86_400_000 ? ago(iso, now) : kickoffDay(iso));
 
-  /** One player: photo with crest, name, then his status, or (scout list) his latest news. */
-  function row(p: PlayerEntry, opts: { news?: boolean; fresh?: boolean } = {}) {
-    const li = h("li");
-    const btn = h("button", "press-row flex w-full items-center gap-3 py-3 text-left") as HTMLButtonElement;
+  const STAR = '<svg viewBox="0 0 24 24" class="size-[17px]" fill="currentColor" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>';
+  const PLUS = '<svg viewBox="0 0 24 24" class="size-[16px]" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>';
+
+  /**
+   * One player: photo with crest, name, then his status, or (scout list) his latest news. Unread news: a dot
+   * before the name and the headline in full colour, like an unread mail. trail: a star (already scouted) or
+   * a + that scouts him without opening the card.
+   */
+  function row(p: PlayerEntry, opts: { news?: boolean; fresh?: boolean; trail?: "star" | "add" } = {}) {
+    const li = h("li", "flex items-center gap-2");
+    const btn = h("button", "press-row flex min-w-0 flex-1 items-center gap-3 py-3 text-left") as HTMLButtonElement;
     btn.type = "button";
     btn.dataset.card = JSON.stringify(p.card);
     const text = h("span", "min-w-0 flex-1");
     const top = h("span", "flex items-center gap-1.5");
+    if (opts.fresh) {
+      const dot = h("span", "scout-dot");
+      dot.setAttribute("aria-label", "Neue News");
+      top.append(dot);
+    }
     top.append(h("span", "truncate text-[15px] font-semibold tracking-[-0.01em]", p.name));
-    if (opts.fresh) top.append(h("span", "scout-new", "Neu"));
     text.append(top);
     const latest = p.card.news?.[0];
     if (opts.news && latest) {
-      const line = h("span", "mt-0.5 flex items-center gap-1.5 text-xs text-muted");
+      const line = h("span", `mt-0.5 flex items-center gap-1.5 text-xs ${opts.fresh ? "text-fg" : "text-muted"}`);
       const type = NEWS_TYPE[latest.type];
       if (type) {
         const pill = h("span", "shrink-0 rounded-full px-[6px] py-[1px] text-[10px] font-semibold", type.label);
         pill.style.cssText = `background:var(--${type.tone}-bg);color:var(--${type.tone}-fg)`;
         line.append(pill);
       }
-      line.append(h("span", "min-w-0 truncate", latest.title), h("span", "ml-auto shrink-0 pl-1 tabular-nums", when(latest.at, new Date())));
+      line.append(h("span", "min-w-0 truncate", latest.title), h("span", "ml-auto shrink-0 pl-1 tabular-nums text-muted", when(latest.at, new Date())));
       text.append(line);
     } else {
       text.append(h("span", "block truncate text-xs text-muted", [p.club, p.card.status].filter(Boolean).join(" · ")));
     }
     btn.append(avatar(p), text);
     li.append(btn);
+    if (opts.trail === "star") {
+      const star = h("span", "shrink-0 pr-1 text-fg");
+      star.innerHTML = STAR;
+      star.setAttribute("aria-label", "Auf deiner Scoutliste");
+      li.append(star);
+    } else if (opts.trail === "add") {
+      const add = h("button", "scout-add press") as HTMLButtonElement;
+      add.type = "button";
+      add.dataset.scoutAdd = String(p.id);
+      add.setAttribute("aria-label", `${p.name} scouten`);
+      add.innerHTML = PLUS;
+      li.append(add);
+    }
     return li;
   }
 
@@ -142,10 +169,20 @@ const players = allPlayers();
     players.sort((a, b) => Number(fresh.has(b.id)) - Number(fresh.has(a.id)) || latest(b) - latest(a));
     list.replaceChildren(...players.map((p) => row(p, { news: true, fresh: fresh.has(p.id) })));
     document.querySelector<HTMLElement>("[data-scout-empty]")!.hidden = players.length > 0;
+    if (!players.length) {
+      // The players with the newest news (one per club, so it isn't one club's press day).
+      const clubs = new Set<string>();
+      const suggest = [...byId.values()]
+        .filter((p) => p.card.news?.length)
+        .sort((a, b) => Date.parse(b.card.news![0].at) - Date.parse(a.card.news![0].at))
+        .filter((p) => !clubs.has(p.club) && clubs.add(p.club))
+        .slice(0, 6);
+      document.querySelector<HTMLElement>("[data-scout-suggest]")!.replaceChildren(...suggest.map((p) => row(p, { news: true, trail: "add" })));
+    }
     document.querySelector<HTMLElement>("[data-scout-count]")!.textContent = players.length ? String(players.length) : "";
     document.querySelector<HTMLElement>("[data-scout-where]")!.textContent = state.account
-      ? "Gespeichert mit deinem Konto: auf jedem Gerät, auf dem du angemeldet bist."
-      : players.length ? "Nur in diesem Browser gespeichert. Mit Kickbase oder LigaInsider angemeldet hast du sie auf jedem Gerät." : "";
+      ? "Mit deinem Konto gespeichert, auf jedem Gerät."
+      : players.length ? "Nur in diesem Browser gespeichert. Angemeldet hast du sie auf jedem Gerät." : "";
   }
 
   document.addEventListener("astro:page-load", async () => {
@@ -168,7 +205,8 @@ const players = allPlayers();
       scoutList.hidden = !!q;
       if (!q) return;
       const { hits, more } = search(index, q);
-      document.querySelector<HTMLElement>("[data-results-list]")!.replaceChildren(...hits.map((p) => row(p)));
+      const scouted = new Set(cachedScout().ids);
+      document.querySelector<HTMLElement>("[data-results-list]")!.replaceChildren(...hits.map((p) => row(p, { trail: scouted.has(p.id) ? "star" : undefined })));
       document.querySelector<HTMLElement>("[data-results-empty]")!.hidden = hits.length > 0;
       const moreNote = document.querySelector<HTMLElement>("[data-results-more]")!;
       moreNote.hidden = !more;
@@ -202,6 +240,13 @@ const players = allPlayers();
     for (const id of await unseen(state, times)) fresh.add(id);
     void renderList(byId, state, fresh);
     if (fresh.size) await markSeen();
+    // The + on a suggestion: on the list at once, no card in between.
+    document.querySelector("[data-scout-suggest]")?.addEventListener("click", (e) => {
+      const add = (e.target as Element).closest<HTMLButtonElement>("[data-scout-add]");
+      if (!add || add.disabled) return;
+      add.disabled = true;
+      void setScouted(Number(add.dataset.scoutAdd), true);
+    });
     // Scouting or unscouting in the card updates the list right away (the "Neu" marks stay for this visit).
     window.addEventListener("scout:change", (e) => void renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh));
   });
