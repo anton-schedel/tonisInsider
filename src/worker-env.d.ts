@@ -8,14 +8,22 @@ declare module "cloudflare:workers" {
     /** Kickbase account the server uses for public live points (club pages); `wrangler secret put`. */
     KICKBASE_EMAIL?: string;
     KICKBASE_PASSWORD?: string;
-    /** Comments on our own posts and the scout lists (D1, see migrations/). */
+    /** Comments on our own posts, the scout lists and the coach's posts (D1, see migrations/). */
     COMMENTS?: D1;
+    /** The coach's password for /schnoeselmob/ (secret). */
+    COACH_PASSWORD?: string;
+    /** Lets the scrape run fetch the coach's posts (/api/coach/export/); also a GitHub secret. */
+    COACH_EXPORT_TOKEN?: string;
+    /** The LLM that writes bot comments (Morpheus, an Open WebUI instance with an OpenAI-style API). */
+    MORPHEUS_API_KEY?: string;
+    MORPHEUS_BASE_URL?: string;
+    MORPHEUS_MODEL?: string;
   };
   /** The part of Cloudflare's D1 API used here. */
   export type D1Statement = {
     all<T>(): Promise<{ results: T[] }>;
     first<T>(): Promise<T | null>;
-    run(): Promise<{ meta: { last_row_id: number } }>;
+    run(): Promise<{ meta: { last_row_id: number; changes: number } }>;
   };
   export type D1 = {
     prepare(sql: string): { bind(...values: unknown[]): D1Statement };
