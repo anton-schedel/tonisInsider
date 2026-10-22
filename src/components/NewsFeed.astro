@@ -22,9 +22,9 @@ const until = new Map(pinned.flatMap((a) => (a.pinnedUntil ? [[a.id, a.pinnedUnt
 let index = 0;
 ---
 {pinned.length > 0 && (
-  <section class="mb-4" data-pinned>
-    <h2 class="flex items-center gap-1.5 pt-3 pb-1.5 text-[15px] font-semibold">
-      <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" /></svg>
+  <section class="mb-6" data-pinned>
+    <h2 class="flex items-center gap-1.5 border-b border-hairline pt-5 pb-2 text-[20px] leading-tight font-semibold tracking-[-0.02em]">
+      <svg viewBox="0 0 24 24" class="size-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" /></svg>
       Angeheftet
     </h2>
     <div class="divide-y divide-hairline">
@@ -34,8 +34,10 @@ let index = 0;
 )}
 {allGroups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
-  <section class="mb-4">
-    <h2 class="sticky top-0 z-10 -mx-1 bg-bg px-1 pt-3 pb-1.5 text-[15px] font-semibold" data-day={g.first}>
+  <section class="mb-6">
+    {/* A day starts with a larger title and a rule under it, so it reads as the heading of the posts below
+        rather than as the end of the post above. */}
+    <h2 class="sticky top-0 z-10 border-b border-hairline bg-bg pt-5 pb-2 text-[20px] leading-tight font-semibold tracking-[-0.02em]" data-day={g.first}>
       {(() => {
         const [rel, date] = dayLabel(g.first, now).split(" · ");
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
