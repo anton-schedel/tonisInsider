@@ -39,18 +39,20 @@ const lineup = confirmedLineup(a);
     </span>
   );
   return lineup ? (
-    // A confirmed lineup: laid out like every other post, with a larger crest since the post is taller.
-    // Crest + gap = 80 px like the other rows' picture + gap, so all text starts at the same edge.
-    <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-2 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
-      <span class="shrink-0">
-        {a.club ? <Crest src={a.club.crest} name={a.club.name} size={72} /> : <Avatar src={LOGO} name={NAME} size={72} />}
+    // A confirmed lineup: crest, headline and XI like every other post (crest + gap = 80 px like the other
+    // rows' picture + gap, so all text starts at the same edge); the bench runs on under the crest to keep it short.
+    <a href={`/artikel/${a.id}/`} class="press-row enter block py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
+      <span class="flex items-center gap-2">
+        <span class="shrink-0">
+          {a.club ? <Crest src={a.club.crest} name={a.club.name} size={72} /> : <Avatar src={LOGO} name={NAME} size={72} />}
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+          {meta}
+          <span class="mt-2 block text-[15px] leading-snug">{lineup.xi}</span>
+        </span>
       </span>
-      <span class="min-w-0 flex-1">
-        <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
-        {meta}
-        <span class="mt-2 block text-[15px] leading-snug">{lineup.xi}</span>
-        {lineup.bench && <span class="mt-1 block text-[13px] leading-snug text-muted">Bank: {lineup.bench}</span>}
-      </span>
+      {lineup.bench && <span class="mt-2 block text-[13px] leading-snug text-muted">Bank: {lineup.bench}</span>}
     </a>
   ) : (
     <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-4 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
