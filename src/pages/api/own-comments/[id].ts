@@ -26,7 +26,8 @@ export const GET: APIRoute = async ({ params, cookies }) => {
   const db = env.COMMENTS;
   if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
   // Comments dated in the future (prepared ones) appear only when their time comes, their polls with them.
-  return json(await loadThreads(db, id, voterOf(cookies), new Date()));
+  // The visitor's id is set here already, so quick taps right after loading all carry the same one.
+  return json(await loadThreads(db, id, voterOf(cookies, true), new Date()));
 };
 
 /**
@@ -56,9 +57,9 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
     if (!parent) return json({ error: "Den Kommentar gibt es nicht mehr." }, 400);
   }
   const at = new Date().toISOString();
-  await insertComment(db, { postId: id, parent: c.parent, name: c.name, text: c.text, createdAt: at, sender, ...(poll ? { poll } : {}) });
+  const newId = await insertComment(db, { postId: id, parent: c.parent, name: c.name, text: c.text, createdAt: at, sender, ...(poll ? { poll } : {}) });
   // The saved comment as the thread list shows it (its bot votes start at 0 and grow).
   const { comments } = await loadThreads(db, id, voterOf(cookies), new Date());
-  const saved = comments.flatMap((t) => [t, ...t.replies]).find((x) => x.user === c.name && x.date === at);
+  const saved = comments.flatMap((t) => [t, ...t.replies]).find((x) => x.id === newId);
   return json({ ok: true, comment: saved });
 };

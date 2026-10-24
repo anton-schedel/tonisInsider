@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
   const db = env.COMMENTS;
   if (!isOwnPost(postId) || !db) return json({ error: "Nicht gefunden." }, 404);
   let body: { comment?: unknown; on?: unknown };
-  try { body = await request.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  try { body = (await request.json()) ?? {}; } catch { return json({ error: "Ungültige Anfrage." }, 400); }
   const commentId = Number(body.comment);
   const now = new Date();
   const c = await db.prepare("SELECT id, created_at, bot_upvotes FROM comments WHERE id = ? AND post_id = ? AND created_at <= ?")
