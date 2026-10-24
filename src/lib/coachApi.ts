@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import type { CookieJar } from "./session.ts";
+import { modelFromEnv } from "./coachBots.ts";
 import { COACH_COOKIE, isCoach } from "./coachAuth.ts";
 
 export const json = (body: unknown, status = 200) =>
@@ -18,9 +19,6 @@ export function exportAllowed(request: Request): boolean {
 }
 
 /** The LLM for bot comments, if set up. */
-export const modelConfig = () =>
-  env.MORPHEUS_API_KEY && env.MORPHEUS_BASE_URL && env.MORPHEUS_MODEL
-    ? { url: env.MORPHEUS_BASE_URL, key: env.MORPHEUS_API_KEY, model: env.MORPHEUS_MODEL }
-    : undefined;
+export const modelConfig = () => modelFromEnv(env);
 
 export const NOT_SIGNED_IN = { error: "Bitte melde dich wieder an.", signedOut: true };

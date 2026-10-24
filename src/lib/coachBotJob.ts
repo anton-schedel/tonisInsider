@@ -1,6 +1,6 @@
 import type { D1 } from "cloudflare:workers";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, botCount, botPrompt, botRows, parseBots, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, botCount, botPrompt, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -60,7 +60,7 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   for (const a of answers) {
     if (a.status !== "fulfilled") continue;
     const offset = bots.length;
-    bots.push(...parseBots(a.value).map((b) => (b.replyTo !== undefined ? { ...b, replyTo: b.replyTo + offset } : b)));
+    bots.push(...parseBots(a.value, playerNames(post)).map((b) => (b.replyTo !== undefined ? { ...b, replyTo: b.replyTo + offset } : b)));
   }
   if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 

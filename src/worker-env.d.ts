@@ -18,6 +18,10 @@ declare module "cloudflare:workers" {
     MORPHEUS_API_KEY?: string;
     MORPHEUS_BASE_URL?: string;
     MORPHEUS_MODEL?: string;
+    /** Another OpenAI-style model for bot comments (Grok at xAI), used instead of Morpheus when set. */
+    LLM_API_KEY?: string;
+    LLM_BASE_URL?: string;
+    LLM_MODEL?: string;
   };
   /** The part of Cloudflare's D1 API used here. */
   export type D1Statement = {

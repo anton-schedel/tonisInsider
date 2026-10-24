@@ -83,10 +83,10 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
     "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
-    "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X, Spielername_irgendwas oder Vereinsname im Namen).",
+    "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X oder Vereinsname im Namen) und nie die Namen unserer Spieler im eigenen Namen.",
     "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), etwa ein Drittel antwortet auf einen früheren Kommentar.",
     // About one in ten, counted per batch so the batches together don't overdo it.
-    `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“), die anderen nicht.`,
+    `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“; eigene Vergleiche, nicht das Beispiel übernehmen), die anderen nicht.`,
     `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
   ].join(" ");
 
@@ -109,7 +109,16 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
 }
 
 /** The model's answer → usable comments. Tolerates code fences and prose around the list; junk gives []. */
-export function parseBots(answer: string): BotComment[] {
+/** Our players (from the posts so far); bots never comment under their names. */
+const SQUAD = ["Coach", "Gerl", "Dallwig", "Chatfield", "Daniel Torres", "Ellenberger", "Luca Loibl", "Enciu", "Schedel", "Leonhard", "Kevin Nguyen", "Oliver Kowol"];
+
+/** Lower-case name parts (4+ letters) of the squad and of the players in this post. */
+export function playerNames(post: CoachPost): string[] {
+  const all = [...SQUAD, ...(post.data.lineup?.lines.flat() ?? []), ...(post.data.lineup?.bench ?? []), post.data.player?.name ?? ""];
+  return [...new Set(all.flatMap((n) => n.toLowerCase().split(/[^a-zäöüß]+/)).filter((w) => w.length >= 4))];
+}
+
+export function parseBots(answer: string, playerWords: string[] = []): BotComment[] {
   const start = answer.indexOf("[");
   const end = answer.lastIndexOf("]");
   if (start < 0 || end <= start) return [];
@@ -125,6 +134,8 @@ export function parseBots(answer: string): BotComment[] {
     const n = typeof name === "string" ? name.trim() : "";
     const t = typeof text === "string" ? text.trim() : "";
     if (!n || !t || n.length > NAME_MAX || t.length > TEXT_MAX || BODY_INSULT.test(t) || BODY_INSULT.test(n)) return;
+    // A bot posing as a teammate ("KevinN88: last time I was missing") isn't a joke anymore.
+    if (playerWords.some((w) => n.toLowerCase().includes(w))) return;
     const m = typeof minute === "number" && Number.isFinite(minute) ? Math.min(MINUTES, Math.max(0, Math.round(minute))) : 0;
     let parent = typeof replyTo === "number" && replyTo < i ? kept.get(replyTo) : undefined;
     // Threads are one level deep: a reply to a reply goes under the first comment.
@@ -168,6 +179,15 @@ export function botRows(publishedAt: string, bots: BotComment[]): BotRow[] {
 }
 
 export type ModelConfig = { url: string; key: string; model: string };
+
+type ModelEnv = Partial<Record<"LLM_API_KEY" | "LLM_BASE_URL" | "LLM_MODEL" | "MORPHEUS_API_KEY" | "MORPHEUS_BASE_URL" | "MORPHEUS_MODEL", string>>;
+
+/** The model for bot comments: LLM_* (e.g. Grok at xAI) if set, else Morpheus; undefined if neither is complete. */
+export function modelFromEnv(e: ModelEnv): ModelConfig | undefined {
+  if (e.LLM_API_KEY && e.LLM_BASE_URL && e.LLM_MODEL) return { url: e.LLM_BASE_URL, key: e.LLM_API_KEY, model: e.LLM_MODEL };
+  if (e.MORPHEUS_API_KEY && e.MORPHEUS_BASE_URL && e.MORPHEUS_MODEL) return { url: e.MORPHEUS_BASE_URL, key: e.MORPHEUS_API_KEY, model: e.MORPHEUS_MODEL };
+  return undefined;
+}
 
 /** One chat completion; the answer's text. */
 export async function askModel(cfg: ModelConfig, prompt: { system: string; user: string }, fetcher: typeof fetch = fetch, timeoutMs = 300_000): Promise<string> {

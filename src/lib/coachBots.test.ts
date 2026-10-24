@@ -216,3 +216,33 @@ describe("startNow", () => {
     ]);
   });
 });
+
+describe("no bots under teammates' names", () => {
+  it("drops comments whose name contains a player's name, from the post or the squad", async () => {
+    const { playerNames } = await import("./coachBots.ts");
+    const names = playerNames(lineup);
+    expect(names).toEqual(expect.arrayContaining(["gerl", "loibl", "nguyen", "kowol"]));
+    const out = parseBots(JSON.stringify([
+      { name: "KevinN88", text: "Letztes Mal fehlte ich", minute: 1 },
+      { name: "der_ellenberger", text: "1:7 war hart", minute: 2 },
+      { name: "basti91", text: "Loibl am Limit", minute: 3 },
+      { name: "Nguyen_Fan", text: "Kevin wo bist du", minute: 4 },
+    ]), names);
+    expect(out.map((c) => c.name)).toEqual(["basti91"]);
+  });
+  it("tells the model not to use teammates' names and not to copy the example", () => {
+    const { system } = botPrompt(lineup, []);
+    expect(system).toMatch(/nie die Namen unserer Spieler/);
+    expect(system).toMatch(/eigene Vergleiche, nicht das Beispiel/);
+  });
+});
+
+describe("modelFromEnv", () => {
+  it("prefers the LLM_* settings (e.g. Grok) and falls back to Morpheus", async () => {
+    const { modelFromEnv } = await import("./coachBots.ts");
+    const morpheus = { MORPHEUS_API_KEY: "m", MORPHEUS_BASE_URL: "https://morpheus/api", MORPHEUS_MODEL: "qwen" };
+    expect(modelFromEnv(morpheus)).toEqual({ url: "https://morpheus/api", key: "m", model: "qwen" });
+    expect(modelFromEnv({ ...morpheus, LLM_API_KEY: "x", LLM_BASE_URL: "https://api.x.ai/v1", LLM_MODEL: "grok" })).toEqual({ url: "https://api.x.ai/v1", key: "x", model: "grok" });
+    expect(modelFromEnv({ LLM_API_KEY: "x" })).toBeUndefined();
+  });
+});
