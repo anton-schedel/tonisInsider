@@ -249,3 +249,35 @@ describe("modelFromEnv", () => {
     expect(modelFromEnv({ LLM_API_KEY: "x" })).toBeUndefined();
   });
 });
+
+describe("bot polls and upvotes", () => {
+  it("reads a poll and upvotes from the model's answer, cleaned", () => {
+    const out = parseBots(JSON.stringify([
+      { name: "Flo12", text: "Abstimmung!", minute: 3, upvotes: 99, poll: { question: " Loibl raus??? ", options: ["Ja", " Nein ", "", "Halbzeit", "x", "y"], votes: [12, 7, 3, 1] } },
+      { name: "basti91", text: "Hä", minute: 4, upvotes: -2 },
+    ]));
+    expect(out[0].upvotes).toBe(40);
+    expect(out[0].poll).toEqual({ question: "Loibl raus???", options: ["Ja", "Nein", "Halbzeit", "x"], votes: [12, 7, 3, 1] });
+    expect(out[1].upvotes).toBe(0);
+  });
+  it("drops a poll that breaks the rules, keeps the comment", () => {
+    const out = parseBots(JSON.stringify([
+      { name: "A", text: "Frage", minute: 1, poll: { question: "Wer ist die fette Sau?", options: ["Torres", "Loibl"], votes: [1, 1] } },
+      { name: "B", text: "Frage", minute: 1, poll: { question: "Wer spielt?", options: ["Nur eine"], votes: [3] } },
+    ]));
+    expect(out.map((c) => c.poll)).toEqual([undefined, undefined]);
+    expect(out).toHaveLength(2);
+  });
+  it("lets one or two batches of a post write a poll, none once it has two", async () => {
+    const { pollAllowance } = await import("./coachBots.ts");
+    for (const r of [0, 0.5, 0.99]) {
+      const a = pollAllowance(3, 0, () => r);
+      expect(a).toHaveLength(3);
+      const sum = a.reduce((x, y) => x + y, 0);
+      expect(sum).toBeGreaterThanOrEqual(1);
+      expect(sum).toBeLessThanOrEqual(2);
+    }
+    expect(pollAllowance(2, 2)).toEqual([0, 0]);
+    expect(pollAllowance(2, 1, () => 0.99).reduce((x, y) => x + y, 0)).toBe(1);
+  });
+});

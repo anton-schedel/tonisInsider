@@ -1,7 +1,7 @@
 import type { D1 } from "cloudflare:workers";
-import { removeExtras } from "./ownCommentsDb.ts";
+import { insertComment, removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, botCount, botPrompt, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, botCount, botPrompt, pollAllowance, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -59,12 +59,23 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
 
   // Small batches in parallel; replies stay within their batch.
   const plan = batchPlan(more ?? botCount(), topicsOf(post.data.bots?.context));
-  const answers = await Promise.allSettled(plan.map((b) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts }))));
+  // One or two polls per post in all: a rewrite starts afresh, "more" counts the polls already there.
+  const pollsThere = more
+    ? (await db.prepare("SELECT COUNT(*) AS n FROM polls p JOIN comments c ON c.id = p.comment_id WHERE c.post_id = ?").bind(post.id).first<{ n: number }>())?.n ?? 0
+    : 0;
+  const allowed = pollAllowance(plan.length, pollsThere);
+  const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts, polls: allowed[i], batch: i }))));
   const bots: BotComment[] = [];
   for (const a of answers) {
     if (a.status !== "fulfilled") continue;
     const offset = bots.length;
-    bots.push(...parseBots(a.value, playerNames(post)).map((b) => (b.replyTo !== undefined ? { ...b, replyTo: b.replyTo + offset } : b)));
+    const i = answers.indexOf(a);
+    // A batch that wrote more polls than it was allowed keeps only that many.
+    let polls = allowed[i];
+    bots.push(...parseBots(a.value, playerNames(post)).map((b) => {
+      const c = b.poll && polls-- <= 0 ? { ...b, poll: undefined } : b;
+      return c.replyTo !== undefined ? { ...c, replyTo: c.replyTo + offset } : c;
+    }));
   }
   if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 
@@ -75,11 +86,11 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   const ids: number[] = [];
   for (const r of rows) {
     const parent = r.replyTo !== undefined ? ids[r.replyTo] ?? null : null;
-    const { meta } = await db
-      .prepare("INSERT INTO comments (post_id, parent_id, name, body, created_at, sender) VALUES (?, ?, ?, ?, ?, 'bot')")
-      .bind(post.id, parent, r.name, r.body, r.createdAt)
-      .run();
-    ids.push(meta.last_row_id);
+    ids.push(await insertComment(db, {
+      postId: post.id, parent, name: r.name, text: r.poll?.question ?? r.body, createdAt: r.createdAt, sender: "bot",
+      ...(r.upvotes !== undefined ? { upvotes: r.upvotes } : {}),
+      ...(r.poll ? { poll: r.poll } : {}),
+    }));
   }
   return { bots: rows.length };
 }

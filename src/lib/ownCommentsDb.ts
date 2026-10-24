@@ -40,7 +40,8 @@ export async function insertComment(
     .run();
   const id = meta.last_row_id;
   if (c.poll) {
-    const votes = c.poll.votes?.length === c.poll.options.length ? c.poll.votes : botPollVotes(c.poll.options.length);
+    const given = c.poll.votes;
+    const votes = given?.length === c.poll.options.length && given.some((v) => v > 0) ? given : botPollVotes(c.poll.options.length);
     await db.batch([
       db.prepare("INSERT INTO polls (comment_id, question) VALUES (?, ?)").bind(id, c.poll.question),
       ...c.poll.options.map((label, i) =>

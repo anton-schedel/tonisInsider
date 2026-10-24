@@ -5,7 +5,8 @@ import { BOT_MOODS, CLUB, type CoachPost } from "./coachPosts.ts";
  * Bot comments under the coach's posts: an LLM (Morpheus, OpenAI-style chat API) writes them, they're stored as
  * comments dated over the first minutes after the post, so they trickle in like real ones.
  */
-export type BotComment = { name: string; text: string; minute: number; replyTo?: number };
+export type BotPoll = { question: string; options: string[]; votes: number[] };
+export type BotComment = { name: string; text: string; minute: number; replyTo?: number; upvotes?: number; poll?: BotPoll };
 
 export const BOT_COUNT = 30;
 /** Not always the same number, else it's plain they're bots: 25 to 42 per post. */
@@ -54,11 +55,29 @@ export function batchPlan(count: number, topics: string[]): { count: number; top
   }));
 }
 
-export type PromptOptions = { count?: number; topics?: string[]; existing?: string[] };
+/** polls: how many polls this batch may write (pollAllowance). */
+export type PromptOptions = { count?: number; topics?: string[]; existing?: string[]; polls?: number; batch?: number };
+
+/** Each parallel batch draws its comparisons from another pool, else they all pick the same pro (Kahn, Neuer). */
+const PRO_POOLS = [
+  "aktuelle Bundesliga-Profis",
+  "internationale Stars aus Premier League, La Liga oder Serie A",
+  "Legenden der 90er und 2000er",
+  "Kultspieler und Typen, die jeder kennt",
+];
+
+/** Which batches of a post may write a poll: one or two in all, minus the polls the post has already. */
+export function pollAllowance(batches: number, existingPolls: number, random: () => number = Math.random): number[] {
+  const want = Math.max(0, (random() < 0.5 ? 1 : 2) - existingPolls);
+  const out = Array.from({ length: batches }, () => 0);
+  for (let i = 0; i < want; i++) out[Math.floor(random() * batches) % batches]++;
+  return out;
+}
 
 export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions = {}): { system: string; user: string } {
   const count = opts.count ?? BOT_COUNT;
   const compare = Math.max(1, Math.round(count / 10));
+  const polls = opts.polls ?? 0;
   const d = post.data;
   const about: string[] = [`Überschrift: ${d.headline}`];
   if (post.type === "lineup" && d.lineup) {
@@ -86,8 +105,14 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X oder Vereinsname im Namen) und nie die Namen unserer Spieler im eigenen Namen.",
     "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), etwa ein Drittel antwortet auf einen früheren Kommentar.",
     // About one in ten, counted per batch so the batches together don't overdo it.
-    `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“; eigene Vergleiche, nicht das Beispiel übernehmen), die anderen nicht.`,
-    `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
+    `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi, die anderen nicht.`,
+    // The old example was a goalkeeper, and the bots compared everyone to goalkeepers (mostly Neuer).
+    `Der Vergleich passt zur Position des Spielers: Torhüter mit Torhütern, Stürmer mit Stürmern, Mittelfeld mit Mittelfeldspielern; jedes Mal ein anderer Profi, diesmal aus diesem Bereich: ${PRO_POOLS[(opts.batch ?? 0) % PRO_POOLS.length]} (eigene Vergleiche, nicht das Beispiel übernehmen; Manuel Neuer nur, wenn es wirklich um unseren Torwart geht).`,
+    "Jeder Kommentar bekommt \"upvotes\": wie viele Daumen hoch er bekommt (0 bis 40, ungleich verteilt: viele 0 bis 5, gute Sprüche mehr).",
+    polls
+      ? `Genau ${polls === 1 ? "1 Kommentar ist eine Umfrage" : `${polls} Kommentare sind Umfragen`}: "poll": {"question": kurze Frage zum Beitrag, "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort (zusammen 6 bis 30)}; der "text" ist dann die Frage.`
+      : "Keine Umfragen.",
+    `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "upvotes": Zahl, "replyTo": Index eines früheren Kommentars (optional), "poll": nur bei Umfragen}.`,
   ].join(" ");
 
   // Each thing the coach wants them to know is one topic; only a few comments take each up, else all 30 sound alike.
@@ -118,6 +143,22 @@ export function playerNames(post: CoachPost): string[] {
   return [...new Set(all.flatMap((n) => n.toLowerCase().split(/[^a-zäöüß]+/)).filter((w) => w.length >= 4))];
 }
 
+/** A bot's poll: 2 to 4 answers, votes 0–40 each; dropped if its text breaks the rules. */
+function parsePoll(raw: unknown): BotPoll | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as { question?: unknown; options?: unknown; votes?: unknown };
+  const question = typeof r.question === "string" ? r.question.trim().slice(0, 200) : "";
+  const options = (Array.isArray(r.options) ? r.options : []).map((o) => (typeof o === "string" ? o.trim().slice(0, 80) : "")).filter(Boolean).slice(0, 4);
+  if (question.length < 3 || options.length < 2) return undefined;
+  if ([question, ...options].some((t) => BODY_INSULT.test(t))) return undefined;
+  // Players may be named in a poll ("Loibl raus?"), unlike in bot names.
+  const votes = options.map((_, i) => {
+    const v = Array.isArray(r.votes) ? Number(r.votes[i]) : NaN;
+    return Number.isFinite(v) ? Math.min(40, Math.max(0, Math.round(v))) : 0;
+  });
+  return { question, options, votes };
+}
+
 export function parseBots(answer: string, playerWords: string[] = []): BotComment[] {
   const start = answer.indexOf("[");
   const end = answer.lastIndexOf("]");
@@ -130,7 +171,7 @@ export function parseBots(answer: string, playerWords: string[] = []): BotCommen
   const kept = new Map<number, number>();
   raw.forEach((c, i) => {
     if (!c || typeof c !== "object") return;
-    const { name, text, minute, replyTo } = c as Record<string, unknown>;
+    const { name, text, minute, replyTo, upvotes, poll } = c as Record<string, unknown>;
     const n = typeof name === "string" ? name.trim() : "";
     const t = typeof text === "string" ? text.trim() : "";
     if (!n || !t || n.length > NAME_MAX || t.length > TEXT_MAX || BODY_INSULT.test(t) || BODY_INSULT.test(n)) return;
@@ -141,7 +182,9 @@ export function parseBots(answer: string, playerWords: string[] = []): BotCommen
     // Threads are one level deep: a reply to a reply goes under the first comment.
     if (parent !== undefined) parent = out[parent].replyTo ?? parent;
     kept.set(i, out.length);
-    out.push({ name: n, text: t, minute: m, ...(parent !== undefined ? { replyTo: parent } : {}) });
+    const up = typeof upvotes === "number" && Number.isFinite(upvotes) ? Math.min(40, Math.max(0, Math.round(upvotes))) : undefined;
+    const p = parsePoll(poll);
+    out.push({ name: n, text: t, minute: m, ...(parent !== undefined ? { replyTo: parent } : {}), ...(up !== undefined ? { upvotes: up } : {}), ...(p ? { poll: p } : {}) });
   });
   return out;
 }
@@ -164,7 +207,7 @@ export function startNow(rows: { id: number; created_at: string }[], now: Date):
   return planned.map((r) => ({ id: r.id, created_at: new Date(Date.parse(r.created_at) - shift).toISOString() }));
 }
 
-export type BotRow = { name: string; body: string; createdAt: string; replyTo?: number };
+export type BotRow = { name: string; body: string; createdAt: string; replyTo?: number; upvotes?: number; poll?: BotPoll };
 
 /** When each comment appears: its minute after the post plus a few seconds, replies after their parent. */
 export function botRows(publishedAt: string, bots: BotComment[]): BotRow[] {
@@ -175,7 +218,12 @@ export function botRows(publishedAt: string, bots: BotComment[]): BotRow[] {
     if (b.replyTo !== undefined) t = Math.max(t, times[b.replyTo] + 25_000 + ((i * 13) % 40) * 1000);
     times.push(Math.min(t, start + (MINUTES + 1) * 60_000 + i * 1000));
   });
-  return bots.map((b, i) => ({ name: b.name, body: b.text, createdAt: new Date(times[i]).toISOString(), ...(b.replyTo !== undefined ? { replyTo: b.replyTo } : {}) }));
+  return bots.map((b, i) => ({
+    name: b.name, body: b.text, createdAt: new Date(times[i]).toISOString(),
+    ...(b.replyTo !== undefined ? { replyTo: b.replyTo } : {}),
+    ...(b.upvotes !== undefined ? { upvotes: b.upvotes } : {}),
+    ...(b.poll ? { poll: b.poll } : {}),
+  }));
 }
 
 export type ModelConfig = { url: string; key: string; model: string };
