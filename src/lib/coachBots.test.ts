@@ -179,8 +179,11 @@ describe("mood and limits", () => {
       { name: "B", text: "Der ist doch viel zu dick zum Laufen", minute: 2 },
       { name: "C", text: "Torres muss mehr laufen", minute: 3 },
       { name: "D", text: "Fett gespielt heute!", minute: 4 },
+      { name: "E", text: "Wie Neuer, nur mit mehr Bierbauch 😂", minute: 5 },
+      { name: "F", text: "Unser Moppel im Tor hält wieder nix", minute: 6 },
+      { name: "G", text: "Bauchgefühl sagt: wir gewinnen", minute: 7 },
     ]));
-    expect(out.map((c) => c.name)).toEqual(["C", "D"]);
+    expect(out.map((c) => c.name)).toEqual(["C", "D", "G"]);
   });
 });
 

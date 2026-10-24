@@ -29,7 +29,7 @@ const MOOD_HINT: Record<keyof typeof BOT_MOODS, string> = {
 };
 
 /** Insults about someone's body, which the model sometimes still writes (e.g. from the coach's notes). */
-const BODY_INSULT = /\b(?:fett(?:e[rsn]?)?\s*(?:sau|schwein|sack|kuh|arsch)|fettsack|dick(?:e[rsn]?)?\s+(?:sau|schwein|kuh)|zu\s+dick|wampe|plauze|schwabbel\w*|übergewicht\w*)\b/i;
+const BODY_INSULT = /\b(?:fett(?:e[rsn]?)?\s*(?:sau|schwein|sack|kuh|arsch)|fettsack|dick(?:e[rsn]?)?\s+(?:sau|schwein|kuh)|zu\s+dick|wampe|bierbauch\w*|bierwampe|moppel\w*|pummel\w*|speckr[öo]ll\w*|kugelrund|plauze|schwabbel\w*|übergewicht\w*)\b/i;
 
 /** Rows from the goalkeeper forward, named so the model knows who plays where. */
 function positions(lines: string[][]): string[] {
