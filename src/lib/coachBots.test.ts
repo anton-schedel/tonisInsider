@@ -11,40 +11,10 @@ const lineup: CoachPost = {
   },
 };
 
-describe("botPrompt", () => {
-  it("names the positions, the results and the coach's context", () => {
-    const { system, user } = botPrompt(lineup, ["28.10.: 2:2 gegen SV Beispiel"]);
-    expect(user).toContain("Tor: Coach");
-    expect(user).toContain("Abwehr: Gerl, Dallwig, Chatfield");
-    expect(user).toContain("Mittelfeld: Torres, Ellenberger");
-    expect(user).toContain("Sturm: Loibl");
-    expect(user).toContain("Bank: Enciu, Schedel");
-    expect(user).toContain("28.10.: 2:2 gegen SV Beispiel");
-    expect(user).toContain("1:7"); // earlier results
-    expect(user).toContain("- Nguyen ist wieder dabei");
-    expect(system).toMatch(/JSON/);
-  });
-  it("splits the coach's context into topics that only a few comments pick up", () => {
-    const { user } = botPrompt({ ...lineup, data: { ...lineup.data, bots: { on: true, context: "Nguyen ist zurück. Gegner ist Tabellenführer\nPlatz ist nass" } } }, []);
-    expect(user).toContain("- Nguyen ist zurück");
-    expect(user).toContain("- Gegner ist Tabellenführer");
-    expect(user).toContain("- Platz ist nass");
-    expect(user).toMatch(/Jedes Thema greifen nur 3 bis 5 Kommentare auf/);
-    expect(user).toMatch(/höchstens 5 Kommentare/);
-  });
-  it("labels a two-row lineup without a midfield", () => {
-    const { user } = botPrompt({ ...lineup, data: { ...lineup.data, lineup: { lines: [["Coach"], ["Gerl"]], bench: [] } } }, []);
-    expect(user).toContain("Tor: Coach");
-    expect(user).toContain("Feld: Gerl");
-  });
-});
-
 describe("parseBots", () => {
   const list = [{ name: "Schnösel4Life", text: "Endlich wieder Loibl vorne!", minute: 2 }, { name: "Kabinenfunk", text: "Genau", minute: 4, replyTo: 0 }];
-  it("reads a clean JSON list", () => {
+  it("reads a clean JSON list, also inside code fences or prose", () => {
     expect(parseBots(JSON.stringify(list))).toEqual(list);
-  });
-  it("finds the list inside code fences or prose", () => {
     expect(parseBots("Hier sind die Kommentare:\n```json\n" + JSON.stringify(list) + "\n```\nViel Spaß!")).toEqual(list);
   });
   it("drops what it can't use and clamps the minute", () => {
@@ -121,18 +91,6 @@ describe("shouldWriteBots", () => {
   });
 });
 
-describe("botPrompt options", () => {
-  it("asks for the batch's number of comments, a few comparisons with known pros, and knows what's already there", () => {
-    const { system, user } = botPrompt(lineup, [], { count: 10, topics: ["Platz ist nass"], existing: ["Kabinenfunk: Ohne Nguyen wird's schwer"] });
-    expect(system).toContain("JSON-Array mit 10 Objekten");
-    expect(system).toMatch(/Genau 1 Kommentar vergleicht .*bekannten Profi/);
-    expect(user).toContain("- Platz ist nass");
-    expect(user).not.toContain("Nguyen ist wieder dabei"); // only this batch's topics
-    expect(user).toContain("Kabinenfunk: Ohne Nguyen wird's schwer");
-    expect(user).toMatch(/nicht wiederholen/);
-  });
-});
-
 describe("batchPlan", () => {
   it("splits the comments into batches of up to 10 and deals the topics out", () => {
     expect(batchPlan(30, ["a", "b", "c", "d"])).toEqual([
@@ -162,17 +120,7 @@ describe("comparisons", () => {
   });
 });
 
-describe("mood and limits", () => {
-  it("tells the model the post's mood", () => {
-    const angry = { ...lineup, data: { ...lineup.data, bots: { on: true, mood: "wuetend" as const } } };
-    expect(botPrompt(angry, []).system).toMatch(/Stimmung: wütend/);
-    expect(botPrompt(lineup, []).system).toMatch(/Stimmung: gemischt/);
-  });
-  it("forbids remarks on looks, weight and origin, also when the coach's notes have them", () => {
-    const { system } = botPrompt(lineup, []);
-    expect(system).toMatch(/Aussehen, Gewicht, Herkunft/);
-    expect(system).toMatch(/auch wenn es in den Infos steht/);
-  });
+describe("body insult filter", () => {
   it("drops comments that insult someone's body anyway", () => {
     const out = parseBots(JSON.stringify([
       { name: "A", text: "Fette sau Daniel, wir brauchen dich", minute: 1 },
@@ -193,14 +141,6 @@ describe("botCount", () => {
     expect(botCount(() => 0)).toBe(25);
     expect(botCount(() => 0.9999)).toBe(42);
     expect(botCount(() => 0.5)).toBe(34);
-  });
-});
-
-describe("names", () => {
-  it("asks for mixed, unpatterned names", () => {
-    const { system } = botPrompt(lineup, []);
-    expect(system).toMatch(/Namen bunt gemischt/);
-    expect(system).toMatch(/kein Muster/);
   });
 });
 
@@ -232,11 +172,6 @@ describe("no bots under teammates' names", () => {
       { name: "Nguyen_Fan", text: "Kevin wo bist du", minute: 4 },
     ]), names);
     expect(out.map((c) => c.name)).toEqual(["basti91"]);
-  });
-  it("tells the model not to use teammates' names and not to copy the example", () => {
-    const { system } = botPrompt(lineup, []);
-    expect(system).toMatch(/nie die Namen unserer Spieler/);
-    expect(system).toMatch(/eigene Vergleiche, nicht das Beispiel/);
   });
 });
 

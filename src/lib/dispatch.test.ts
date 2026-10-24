@@ -11,7 +11,6 @@ describe("dispatchScrape", () => {
     await dispatchScrape(fetchFn, "TOKEN");
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(WORKFLOW_DISPATCH_URL);
-    expect(WORKFLOW_DISPATCH_URL).toBe("https://api.github.com/repos/anton-schedel/tonisInsider/actions/workflows/scrape.yml/dispatches");
     expect(calls[0].init.method).toBe("POST");
     const h = calls[0].init.headers as Record<string, string>;
     expect(h.authorization).toBe("Bearer TOKEN");

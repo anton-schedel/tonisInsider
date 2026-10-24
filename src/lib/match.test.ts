@@ -46,31 +46,16 @@ describe("mapClubs", () => {
 });
 
 describe("matchPlayer", () => {
-  it("marks a set starter as start, matched by last name", () => {
-    expect(matchPlayer(kb("Kobel"), bvb)).toMatchObject({ status: "start", ligainsider: { id: 9357 } });
-  });
-  it("marks a doubtful starter with its label", () => {
-    expect(matchPlayer(kb("Schlotterbeck"), bvb)).toMatchObject({ status: "doubtful", statusLabel: "Angeschlagen" });
-  });
-  it("marks a starter who has an alternative as contested, with the rival's name", () => {
-    expect(matchPlayer(kb("Veerman"), bvb)).toMatchObject({ status: "contested", rival: "Jobe", ligainsider: { name: "Veerman" } });
-  });
-
-  it("keeps 'doubtful' for an injured starter but still names the rival", () => {
-    expect(matchPlayer(kb("Schlotterbeck"), bvb)).toMatchObject({ status: "doubtful", rival: "Bensebaini" });
-  });
-
-  it("marks an alternative", () => {
-    expect(matchPlayer(kb("Bensebaini"), bvb)).toMatchObject({ status: "alternative", ligainsider: { id: 7791 } });
-  });
-  it("marks a known club's player outside the XI as bench", () => {
-    expect(matchPlayer(kb("Can"), bvb).status).toBe("bench");
-  });
-  it("refuses to guess between two players with the same last name", () => {
-    expect(matchPlayer(kb("Nmecha"), bvb).status).toBe("unknown");
-  });
-  it("matches by full name and accents", () => {
-    expect(matchPlayer(kb("Felix Nmecha"), bvb)).toMatchObject({ status: "start", ligainsider: { id: 1 } });
+  it.each([
+    ["Kobel", { status: "start", ligainsider: { id: 9357 } }], // set starter, by last name
+    ["Schlotterbeck", { status: "doubtful", statusLabel: "Angeschlagen", rival: "Bensebaini" }], // injured, still names the rival
+    ["Veerman", { status: "contested", rival: "Jobe", ligainsider: { name: "Veerman" } }],
+    ["Bensebaini", { status: "alternative", ligainsider: { id: 7791 } }],
+    ["Can", { status: "bench" }], // known club, outside the XI
+    ["Nmecha", { status: "unknown" }], // two players with that last name: no guess
+    ["Felix Nmecha", { status: "start", ligainsider: { id: 1 } }], // full name
+  ])("%s → %o", (name, expected) => {
+    expect(matchPlayer(kb(name), bvb)).toMatchObject(expected);
   });
   it("does not match a surname against a teammate's first name", () => {
     const withUzun: Lineup = { ...bvb, lines: [[...bvb.lines[0], lp(3, "can-uzun", "Uzun")]] };

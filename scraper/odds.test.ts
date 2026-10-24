@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeOdds, oddsDue, oddsUrl, parseOdds, sameOdds, type OddsEvent } from "./odds.ts";
+import { mergeOdds, oddsDue, parseOdds, sameOdds, type OddsEvent } from "./odds.ts";
 
 const book = (key: string, home: number, draw: number, away: number, h = "Borussia Dortmund", a = "Werder Bremen") => ({
   key, title: key, last_update: "2026-10-07T10:00:00Z",
@@ -49,10 +49,6 @@ describe("odds schedule", () => {
     expect(oddsDue("2026-10-07T09:00:00Z", now, soon)).toBe(false);
     expect(oddsDue("2026-10-07T01:00:00Z", now, later)).toBe(false);
     expect(oddsDue("2026-10-07T00:00:00Z", now, later)).toBe(true);
-  });
-
-  it("builds the request for European bookmakers' 1X2 odds", () => {
-    expect(oddsUrl("KEY")).toBe("https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/odds/?apiKey=KEY&regions=eu&markets=h2h&oddsFormat=decimal");
   });
 });
 

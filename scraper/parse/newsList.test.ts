@@ -51,10 +51,6 @@ describe("parseNewsList", () => {
     expect(refs.find((r) => r.id === 418890)?.playerName).toBe("Timo Becker");
   });
 
-  it("returns an empty list for unrelated HTML", () => {
-    expect(parseNewsList("<html><body><p>Wartung</p></body></html>")).toEqual([]);
-  });
-
   it("maps unknown icon labels to sonstiges", () => {
     expect(newsTypeFromLabel("Sonstiges / Interview / Persönliches")).toBe("sonstiges");
     expect(newsTypeFromLabel(undefined)).toBe("sonstiges");

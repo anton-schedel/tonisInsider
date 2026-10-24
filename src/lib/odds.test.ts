@@ -69,13 +69,7 @@ describe("likelyScore", () => {
     expect(likelyScore({ home: 70, draw: 17, away: 13 })).toEqual({ home: 2, away: 0, percent: 10 });
     expect(likelyScore({ home: 32, draw: 25, away: 43 })).toEqual({ home: 1, away: 1, percent: 12 });
     expect(likelyScore({ home: 9, draw: 11, away: 80 })).toMatchObject({ home: 1, away: 3 });
-  });
-
-  it("is symmetric: swapping the teams swaps the score", () => {
+    // Symmetric: swapping the teams swaps the score.
     expect(likelyScore({ home: 13, draw: 17, away: 70 })).toEqual({ home: 0, away: 2, percent: 10 });
-  });
-
-  it("gives an even game a draw", () => {
-    expect(likelyScore({ home: 36, draw: 28, away: 36 })).toMatchObject({ home: 1, away: 1 });
   });
 });

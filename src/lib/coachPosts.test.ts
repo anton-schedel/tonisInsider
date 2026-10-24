@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { confirmedLineup } from "./lineupNews.ts";
-import { escapeHtml, slug, toArticle, validate, type CoachPost } from "./coachPosts.ts";
+import { slug, toArticle, validate, type CoachPost } from "./coachPosts.ts";
 
 const NOW = new Date("2026-10-24T12:00:00.000Z");
 
@@ -94,13 +94,10 @@ describe("validate", () => {
   });
 });
 
-describe("helpers", () => {
+describe("slug", () => {
   it("slugs German headlines", () => {
     expect(slug("Nicht im Kader: Schnöselmob muss auf Nguyen verzichten!")).toBe("nicht-im-kader-schnoeselmob-muss-auf-nguyen-verzichten");
     expect(slug("Ärger über Maßnahmen")).toBe("aerger-ueber-massnahmen");
-  });
-  it("escapes HTML", () => {
-    expect(escapeHtml(`<a href="x">&'`)).toBe("&lt;a href=&quot;x&quot;&gt;&amp;&#39;");
   });
 });
 

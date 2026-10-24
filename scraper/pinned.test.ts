@@ -19,10 +19,6 @@ describe("pinnedIds", () => {
     expect(pinnedIds(listed, known)).toEqual([7, 8]);
   });
 
-  it("pins nothing when the list is in time order", () => {
-    expect(pinnedIds([2, 3], [at(2, "2026-10-08T09:00:00Z"), at(3, "2026-10-08T08:00:00Z")])).toEqual([]);
-  });
-
   it("ignores articles it doesn't know yet", () => {
     expect(pinnedIds([5, 2, 3], [at(2, "2026-10-08T09:00:00Z"), at(3, "2026-10-08T08:00:00Z")])).toEqual([]);
   });

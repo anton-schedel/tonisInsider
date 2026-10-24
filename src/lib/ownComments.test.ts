@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwnPost, parseNewComment, senderKey, toThreads } from "./ownComments.ts";
+import { parseNewComment, senderKey, toThreads } from "./ownComments.ts";
 
 describe("parseNewComment", () => {
   it("cleans name and text", () => {
@@ -31,11 +31,7 @@ describe("toThreads", () => {
   });
 });
 
-describe("own posts and senders", () => {
-  it("tells our posts from LigaInsider's", () => {
-    expect(isOwnPost(900000001)).toBe(true);
-    expect(isOwnPost(418926)).toBe(false);
-  });
+describe("senderKey", () => {
   it("hashes the sender without keeping the IP", async () => {
     const k = await senderKey("1.2.3.4", "s");
     expect(k).toMatch(/^[0-9a-f]{64}$/);

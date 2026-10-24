@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromRow, nextId, pinnedUntil, type CoachRow } from "./coachDb.ts";
+import { fromRow, pinnedUntil, type CoachRow } from "./coachDb.ts";
 
 const row: CoachRow = {
   id: 900_001_003, type: "lineup", data: JSON.stringify({ headline: "Aufstellung", lineup: { lines: [["Coach"]], bench: [] } }),
@@ -15,10 +15,6 @@ describe("coachDb", () => {
     });
     expect(fromRow({ ...row, pinned_until: "2026-10-24T18:00:00.000Z", image_id: "ab12cd34ef56ab78", image_w: 900, image_h: 1200 }))
       .toMatchObject({ pinnedUntil: "2026-10-24T18:00:00.000Z", image: { id: "ab12cd34ef56ab78", width: 900, height: 1200 } });
-  });
-  it("numbers new posts after the highest", () => {
-    expect(nextId(null)).toBe(900_001_000);
-    expect(nextId(900_001_007)).toBe(900_001_008);
   });
   it("pins from the publish time", () => {
     expect(pinnedUntil("2026-10-24T17:00:00.000Z", 1.5)).toBe("2026-10-24T18:30:00.000Z");

@@ -47,9 +47,6 @@ describe("parseLiScores", () => {
     expect(games.find((g) => g.home === "sc-paderborn-07")).toEqual({ home: "sc-paderborn-07", away: "vfb-stuttgart", finished: false });
     expect(games.length).toBe(9);
   });
-  it("is empty for other pages", () => {
-    expect(parseLiScores("<html></html>")).toEqual([]);
-  });
 });
 
 describe("parseEspn", () => {

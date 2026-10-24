@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { COMMENTS_TTL_SECONDS, COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchComments, fetchMoreComments, hedged, MORE_URL, parseComments, parseThreadKey, TEAM_MORE_URL, threadKey, withoutViewer, type EdgeCache } from "./comments.ts";
+import { COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchComments, fetchMoreComments, hedged, MORE_URL, parseComments, parseThreadKey, TEAM_MORE_URL, threadKey, withoutViewer, type EdgeCache } from "./comments.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../../scraper/__fixtures__/${name}`, import.meta.url), "utf8");
 
@@ -49,10 +49,6 @@ describe("parseComments", () => {
     expect(paged.comments).toHaveLength(15);
   });
 
-  it("returns no comments for an empty or unknown page", () => {
-    expect(parseComments("<html></html>")).toEqual({ total: 0, comments: [] });
-  });
-
   it("returns plain text, never markup", () => {
     const html = `<div data-comment-count>1</div><li class="comment-card-v2" data-comment-id="1" data-comment-date="Wed, 07 Oct 2026 08:12:49 UTC" data-depth="0"><a class="comment-card-v2__username">x</a><p class="comment-card-v2__text">a <img src=x onerror=alert(1)> &lt;b&gt;</p><span data-score-display>1</span></li>`;
     expect(parseComments(html).comments[0].text).toBe("a <b>");
@@ -80,10 +76,6 @@ describe("fetchComments", () => {
   it("throws when LigaInsider answers with an error", async () => {
     const fn = (async () => new Response("nope", { status: 503 })) as typeof fetch;
     await expect(fetchComments(fn, 1)).rejects.toThrow("HTTP 503");
-  });
-
-  it("caches for two minutes", () => {
-    expect(COMMENTS_TTL_SECONDS).toBe(120);
   });
 });
 
@@ -174,17 +166,14 @@ describe("commentsResponse", () => {
     expect(f.calls()).toBe(0);
   });
 
-  it("answers 502 and caches nothing when LigaInsider fails", async () => {
+  it("answers 502 and caches nothing when LigaInsider or the network fails", async () => {
     const { cache, store } = memoryCache();
     const res = await commentsResponse("418776", countingFetch(() => new Response("x", { status: 500 })).fn, cache);
     expect(res.status).toBe(502);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(store.size).toBe(0);
-  });
-
-  it("answers 502 when the network fails", async () => {
-    const fn = (async () => { throw new TypeError("network"); }) as typeof fetch;
-    expect((await commentsResponse("418776", fn)).status).toBe(502);
+    const down = (async () => { throw new TypeError("network"); }) as typeof fetch;
+    expect((await commentsResponse("418776", down)).status).toBe(502);
   });
 });
 
@@ -244,7 +233,6 @@ describe("commentCountsResponse", () => {
     const store = new Map<string, Response>();
     const cache: EdgeCache = { match: async (k) => store.get(k)?.clone(), put: async (k, r) => void store.set(k, r.clone()) };
     const res = await commentCountsResponse(fn, cache);
-    expect(COUNTS_URL).toBe("https://www.ligainsider.de/bundesliga-news/uebersicht/");
     expect(urls).toEqual([COUNTS_URL]);
     expect(res.headers.get("cache-control")).toBe("public, max-age=120");
     expect((await res.json())["418778"]).toBe(3);

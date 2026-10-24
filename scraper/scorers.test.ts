@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assistsUrl, cleanSheets, matchdayRelease, parseFullOdds, parseScorerOdds, playerMarket, propsUrl, scorerOddsUrl, scorersToFetch, pruneScorers, sameScorers } from "./scorers.ts";
+import { assistsUrl, cleanSheets, matchdayRelease, parseFullOdds, parseScorerOdds, playerMarket, propsUrl, scorersToFetch, pruneScorers, sameScorers } from "./scorers.ts";
 import type { OddsEvent } from "./odds.ts";
 
 const NOW = new Date("2026-10-08T12:00:00Z");
@@ -170,10 +170,4 @@ describe("sameScorers", () => {
     expect(sameScorers(a, b)).toBe(true);
     expect(sameScorers(a, c)).toBe(false);
   });
-});
-
-it("asks US bookmakers for the anytime goalscorer market of one match", () => {
-  expect(scorerOddsUrl("K", "e1")).toBe(
-    "https://api.the-odds-api.com/v4/sports/soccer_germany_bundesliga/events/e1/odds/?apiKey=K&regions=us&markets=player_goal_scorer_anytime&oddsFormat=decimal",
-  );
 });

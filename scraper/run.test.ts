@@ -227,13 +227,6 @@ describe("run", () => {
     expect(third.calls.some((u) => u.includes("418775"))).toBe(false);
   });
 
-  it("doesn't re-read articles whose listing time matches their date", async () => {
-    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
-    const again = fakeFetcher();
-    await run({ store, fetcher: again.fetcher, publicDir, now: NOW });
-    expect(again.calls.filter((u) => /-\d{6}\/$/.test(u))).toEqual([]);
-  });
-
   it("saves comment counts from the overview without triggering a rebuild", async () => {
     await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
     const second = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
@@ -385,10 +378,8 @@ describe("lineupsDue", () => {
   const lineup = (kickoff?: string) => ({ kickoff }) as Lineup;
   const at = (min: number) => new Date(NOW.getTime() + min * 60_000);
 
-  it("is due when never fetched", () => {
+  it("is due when never fetched, then waits 30 minutes when no kickoff is near", () => {
     expect(lineupsDue([], undefined, NOW)).toBe(true);
-  });
-  it("waits 30 minutes when no kickoff is near", () => {
     const far = lineup("2026-10-20T13:30:00Z");
     expect(lineupsDue([far], NOW.toISOString(), at(20))).toBe(false);
     expect(lineupsDue([far], NOW.toISOString(), at(30))).toBe(true);

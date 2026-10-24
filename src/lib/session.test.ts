@@ -20,9 +20,9 @@ const req = (origin?: string) =>
   new Request("https://ti.example/api/login/", { method: "POST", headers: origin ? { origin } : {} });
 
 describe("isSameOrigin (CSRF guard)", () => {
-  it("accepts our own origin", () => expect(isSameOrigin(req("https://ti.example"))).toBe(true));
-  it("rejects a foreign origin", () => expect(isSameOrigin(req("https://evil.example"))).toBe(false));
-  it("rejects a missing or null origin", () => {
+  it("accepts only our own origin (not a foreign, missing or null one)", () => {
+    expect(isSameOrigin(req("https://ti.example"))).toBe(true);
+    expect(isSameOrigin(req("https://evil.example"))).toBe(false);
     expect(isSameOrigin(req())).toBe(false);
     expect(isSameOrigin(req("null"))).toBe(false);
   });
