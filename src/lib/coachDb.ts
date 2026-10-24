@@ -1,4 +1,5 @@
 import type { D1 } from "cloudflare:workers";
+import { removeExtras } from "./ownCommentsDb.ts";
 import { COACH_ID_MIN, type CoachInput, type CoachPost, type CoachType } from "./coachPosts.ts";
 
 /** coach_posts joined with its image's size. */
@@ -56,7 +57,7 @@ export async function savePost(db: D1, input: CoachInput, now: Date, id?: number
 export async function deletePost(db: D1, id: number, now: Date): Promise<boolean> {
   const { meta } = await db.prepare("UPDATE coach_posts SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0").bind(now.toISOString(), id).run();
   if (!meta.changes) return false;
-  await db.prepare("DELETE FROM comments WHERE post_id = ? AND sender = 'bot'").bind(id).run();
+  await db.batch([...removeExtras(db, "post_id = ? AND sender = 'bot'", id), db.prepare("DELETE FROM comments WHERE post_id = ? AND sender = 'bot'").bind(id)]);
   return true;
 }
 

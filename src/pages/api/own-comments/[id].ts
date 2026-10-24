@@ -1,35 +1,50 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { isSameOrigin } from "../../../lib/session.ts";
-import { isOwnPost, parseNewComment, RATE, senderKey, toThreads, type Row } from "../../../lib/ownComments.ts";
+import { isSameOrigin, type CookieJar } from "../../../lib/session.ts";
+import { isOwnPost, parseNewComment, RATE, senderKey, VOTER_COOKIE } from "../../../lib/ownComments.ts";
+import { parseNewPoll } from "../../../lib/ownVotes.ts";
+import { insertComment, loadThreads } from "../../../lib/ownCommentsDb.ts";
 
 export const prerender = false;
 
 const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { "cache-control": "no-store" } });
+  Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
-/** GET /api/own-comments/<post id>/: the comments on one of our own posts, as threads. */
-export const GET: APIRoute = async ({ params }) => {
+/** The visitor's vote id from the cookie; with `create`, a new one is made and set (400 days). */
+export function voterOf(cookies: CookieJar, create = false): string {
+  const v = cookies.get(VOTER_COOKIE)?.value;
+  if (v && /^[0-9a-f]{32}$/.test(v)) return v;
+  if (!create) return "";
+  const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  cookies.set(VOTER_COOKIE, id, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 400 * 86_400 });
+  return id;
+}
+
+/** GET /api/own-comments/<post id>/: the comments on one of our own posts, with upvotes and polls. */
+export const GET: APIRoute = async ({ params, cookies }) => {
   const id = Number(params.id);
   const db = env.COMMENTS;
   if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
-  // Comments dated in the future (prepared ones) appear only when their time comes.
-  const { results } = await db
-    .prepare("SELECT id, parent_id, name, body, created_at FROM comments WHERE post_id = ? AND created_at <= ? ORDER BY created_at, id")
-    .bind(id, new Date().toISOString())
-    .all<Row>();
-  return json({ total: results.length, comments: toThreads(results) });
+  // Comments dated in the future (prepared ones) appear only when their time comes, their polls with them.
+  return json(await loadThreads(db, id, voterOf(cookies), new Date()));
 };
 
-/** POST /api/own-comments/<post id>/ {name, text, parent?}: anyone can comment, under a name of their choice. */
-export const POST: APIRoute = async ({ params, request }) => {
+/**
+ * POST /api/own-comments/<post id>/ {name, text, parent?} or {name, poll: {question, options}}: anyone can
+ * comment or start a poll, under a name of their choice.
+ */
+export const POST: APIRoute = async ({ params, request, cookies }) => {
   if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
   const id = Number(params.id);
   const db = env.COMMENTS;
   if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
   let raw: unknown;
   try { raw = await request.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
-  const c = parseNewComment(raw);
+  const r = raw as { poll?: unknown; text?: unknown };
+  const poll = r?.poll ? parseNewPoll(r.poll) : undefined;
+  if (poll && "error" in poll) return json(poll, 400);
+  // A poll needs no text: its question is the comment.
+  const c = parseNewComment(poll ? { ...r, text: String(r.text ?? "").trim() || poll.question } : raw);
   if ("error" in c) return json(c, 400);
 
   const sender = await senderKey(request.headers.get("cf-connecting-ip") ?? "", env.CREDENTIALS_KEY ?? "tonisinsider");
@@ -41,9 +56,9 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (!parent) return json({ error: "Den Kommentar gibt es nicht mehr." }, 400);
   }
   const at = new Date().toISOString();
-  const { meta } = await db
-    .prepare("INSERT INTO comments (post_id, parent_id, name, body, created_at, sender) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(id, c.parent ?? null, c.name, c.text, at, sender)
-    .run();
-  return json({ ok: true, comment: { id: meta.last_row_id, user: c.name, date: at, text: c.text, replies: [] } });
+  await insertComment(db, { postId: id, parent: c.parent, name: c.name, text: c.text, createdAt: at, sender, ...(poll ? { poll } : {}) });
+  // The saved comment as the thread list shows it (its bot votes start at 0 and grow).
+  const { comments } = await loadThreads(db, id, voterOf(cookies), new Date());
+  const saved = comments.flatMap((t) => [t, ...t.replies]).find((x) => x.user === c.name && x.date === at);
+  return json({ ok: true, comment: saved });
 };

@@ -1,4 +1,5 @@
 import type { D1 } from "cloudflare:workers";
+import { removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
 import { askModel, batchPlan, botCount, botPrompt, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
@@ -32,7 +33,10 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   const post = await getPost(db, postId);
   if (!post) return { error: "Den Beitrag gibt es nicht mehr.", status: 404 };
   const now = new Date().toISOString();
-  const clear = () => db.prepare("DELETE FROM comments WHERE post_id = ? AND sender = 'bot' AND created_at > ?").bind(post.id, now).run();
+  const clear = () => db.batch([
+    ...removeExtras(db, "post_id = ? AND sender = 'bot' AND created_at > ?", post.id, now),
+    db.prepare("DELETE FROM comments WHERE post_id = ? AND sender = 'bot' AND created_at > ?").bind(post.id, now),
+  ]);
   const existing = await db.prepare("SELECT COUNT(*) AS n FROM comments WHERE post_id = ? AND sender = 'bot'").bind(post.id).first<{ n: number }>();
   const todo = more ? "write" : shouldWriteBots(post, new Date(), existing?.n ?? 0);
   if (todo === "clear") {
