@@ -1,5 +1,5 @@
 import type { NewsType } from "../../scraper/types.ts";
-import type { CoachPost, CoachType } from "./coachPosts.ts";
+import type { BotMood, CoachPost, CoachType } from "./coachPosts.ts";
 import { CLUB } from "./coachPosts.ts";
 import { localInput, namesOf, statusOf, toBody, type FormValues } from "./coachForm.ts";
 import { NEWS_TYPE } from "./newsTypes.ts";
@@ -79,6 +79,7 @@ export function initCoach() {
   let when: "now" | "later" = "later";
   let home = true;
   let badge: NewsType = "angeschlagen";
+  let mood: BotMood = "gemischt";
   let imageId: string | undefined;
   let photoUrl: string | undefined;
   /** Set when the cookie ran out while saving: after signing in again, back to the form as it was. */
@@ -145,7 +146,7 @@ export function initCoach() {
   // --- The editor ------------------------------------------------------------------------------------------
   const input = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
   const values = (): FormValues => ({
-    type, when, home, badge,
+    type, when, home, badge, mood,
     lines: [0, 1, 2, 3].map((i) => input(`line${i}`).value),
     bench: input("bench").value,
     opponent: input("opponent").value, ours: input("ours").value, theirs: input("theirs").value,
@@ -177,6 +178,39 @@ export function initCoach() {
     root.querySelectorAll<HTMLElement>("[data-badge]").forEach((c) => c.classList.toggle("is-on", c.dataset.badge === b));
     preview();
   };
+  const setMood = (m: BotMood) => {
+    mood = m;
+    root.querySelectorAll<HTMLElement>("[data-mood]").forEach((c) => c.classList.toggle("is-on", c.dataset.mood === m));
+  };
+
+  /** The post's comments with a delete button each (only ones that are out). */
+  async function loadComments(postId: number) {
+    const box = q("[data-comments-box]");
+    const ul = q("[data-comments]");
+    type C = { id: number; user: string; text: string; replies: C[] };
+    const d = await fetch(`/api/own-comments/${postId}/`).then((r) => (r.ok ? (r.json() as Promise<{ total: number; comments: C[] }>) : undefined)).catch(() => undefined);
+    if (!d || editing?.id !== postId) return;
+    box.hidden = d.total === 0;
+    q("[data-comments-count]").textContent = String(d.total);
+    const item = (c: C, reply: boolean) => {
+      const li = el("li", `flex items-start gap-3 py-2.5${reply ? " pl-6" : ""}`);
+      const text = el("div", "min-w-0 flex-1 text-[14px] leading-snug");
+      text.append(el("span", "font-semibold", c.user), document.createTextNode(` ${c.text}`));
+      const del = el("button", "press shrink-0 rounded-full px-2.5 py-1 text-[13px] font-semibold text-[var(--red-fg)]", "Löschen");
+      del.type = "button";
+      del.addEventListener("click", async () => {
+        if (!confirm(`Kommentar von ${c.user} löschen?${c.replies.length ? " Die Antworten darauf gehen mit." : ""}`)) return;
+        const r = await api(`/api/coach/comments/${c.id}/`, { method: "DELETE" });
+        if (r.status === 401) return signedOut();
+        if (r.ok) void loadComments(postId);
+        else say(r.data.error ?? "Löschen hat nicht geklappt.", "error");
+      });
+      li.append(text, del);
+      return li;
+    };
+    ul.replaceChildren(...d.comments.flatMap((c) => [item(c, false), ...c.replies.map((r) => item(r, true))]));
+  }
+
   const setPhoto = (id: string | undefined, url?: string) => {
     imageId = id;
     photoUrl = url ?? (id ? imageUrl(id) : undefined);
@@ -210,6 +244,8 @@ export function initCoach() {
       input("pin").value = String([0, 1, 2, 3, 6, 12, 24].includes(hours) ? hours : 1);
       input("bots").checked = d.bots?.on ?? false;
       input("context").value = d.bots?.context ?? "";
+      setMood(d.bots?.mood ?? "gemischt");
+      void loadComments(p.id);
       type = p.type;
       setHome(d.result?.home ?? true);
       setBadge(d.player?.newsType ?? "angeschlagen");
@@ -227,6 +263,8 @@ export function initCoach() {
       setHome(true);
       setBadge("angeschlagen");
       setPhoto(undefined);
+      setMood("gemischt");
+      q("[data-comments-box]").hidden = true;
       setWhen("later");
     }
     setType(type);
@@ -286,6 +324,10 @@ export function initCoach() {
   q("[data-home-seg]").addEventListener("click", (e) => {
     const b = (e.target as Element).closest<HTMLElement>("[data-home]");
     if (b) { setHome(b.dataset.home === "1"); preview(); }
+  });
+  q("[data-moods]").addEventListener("click", (e) => {
+    const b = (e.target as Element).closest<HTMLElement>("[data-mood]");
+    if (b) setMood(b.dataset.mood as BotMood);
   });
   q("[data-badges]").addEventListener("click", (e) => {
     const b = (e.target as Element).closest<HTMLElement>("[data-badge]");

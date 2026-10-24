@@ -14,8 +14,12 @@ export type CoachPostData = {
   lineup?: { lines: string[][]; bench: string[] };
   result?: { opponent: string; ours: number; theirs: number; home: boolean };
   player?: { name: string; newsType: NewsType };
-  bots?: { on: boolean; context?: string };
+  bots?: { on: boolean; context?: string; mood?: BotMood };
 };
+
+/** How the bot commenters feel about a post (the coach picks it). */
+export const BOT_MOODS = { gemischt: "gemischt", froehlich: "fröhlich", frech: "frech", wuetend: "wütend", traurig: "traurig" } as const;
+export type BotMood = keyof typeof BOT_MOODS;
 
 export type CoachImage = { id: string; width: number; height: number };
 
@@ -141,7 +145,8 @@ export function validate(raw: unknown, now: Date): CoachInput | { error: string 
   const bots = (d.bots ?? {}) as Record<string, unknown>;
   if (typeof bots.on === "boolean") {
     const context = str(bots.context, 600);
-    data.bots = { on: bots.on, ...(context ? { context } : {}) };
+    const mood = typeof bots.mood === "string" && bots.mood in BOT_MOODS ? (bots.mood as BotMood) : undefined;
+    data.bots = { on: bots.on, ...(context ? { context } : {}), ...(mood ? { mood } : {}) };
   }
 
   const at = typeof r.publishedAt === "string" ? Date.parse(r.publishedAt) : NaN;

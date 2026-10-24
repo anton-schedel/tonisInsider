@@ -112,3 +112,13 @@ describe("dueCoach", () => {
       .toEqual([at(-86_400_000).publishedAt, at(COACH_LEAD_MS - 1000).publishedAt]);
   });
 });
+
+describe("bot mood", () => {
+  it("keeps a known mood and drops an unknown one", () => {
+    const base = { type: "result", data: { headline: "Ergebnis", result: { opponent: "FC X", ours: 1, theirs: 2, home: true } }, publishedAt: NOW.toISOString(), pinnedHours: 0 };
+    const v = validate({ ...base, data: { ...base.data, bots: { on: true, mood: "wuetend" } } }, NOW);
+    expect("data" in v && v.data.bots).toEqual({ on: true, mood: "wuetend" });
+    const w = validate({ ...base, data: { ...base.data, bots: { on: true, mood: "boese" } } }, NOW);
+    expect("data" in w && w.data.bots).toEqual({ on: true });
+  });
+});

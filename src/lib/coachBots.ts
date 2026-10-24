@@ -1,5 +1,5 @@
 import { NEWS_TYPE } from "./newsTypes.ts";
-import { CLUB, type CoachPost } from "./coachPosts.ts";
+import { BOT_MOODS, CLUB, type CoachPost } from "./coachPosts.ts";
 
 /**
  * Bot comments under the coach's posts: an LLM (Morpheus, OpenAI-style chat API) writes them, they're stored as
@@ -17,6 +17,17 @@ export const SEASON = [
   "21.10.: 0:2 gegen FC Förderbedarf – deutlich besseres Spiel als zuletzt, aber zwei wichtige Spieler fehlten (u. a. Kevin Nguyen)",
   "14.10.: 1:7 gegen AS Tralkörper – nach der Pause vom Pressing überrollt, Ehrentreffer Ellenberger",
 ];
+
+const MOOD_HINT: Record<keyof typeof BOT_MOODS, string> = {
+  gemischt: "Mal besorgt, mal hoffnungsvoll, mal witzig, wie echte Fans eben.",
+  froehlich: "Gute Laune, Vorfreude, Lob, viel Spaß.",
+  frech: "Frech und frotzelig, mit Augenzwinkern, aber nie gemein.",
+  wuetend: "Genervt und enttäuscht, fordern mehr Einsatz, schimpfen über das Spiel, nicht über Menschen.",
+  traurig: "Niedergeschlagen, enttäuscht, trösten sich gegenseitig.",
+};
+
+/** Insults about someone's body, which the model sometimes still writes (e.g. from the coach's notes). */
+const BODY_INSULT = /\b(?:fett(?:e[rsn]?)?\s*(?:sau|schwein|sack|kuh|arsch)|fettsack|dick(?:e[rsn]?)?\s+(?:sau|schwein|kuh)|zu\s+dick|wampe|plauze|schwabbel\w*|übergewicht\w*)\b/i;
 
 /** Rows from the goalkeeper forward, named so the model knows who plays where. */
 function positions(lines: string[][]): string[] {
@@ -66,7 +77,10 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     `Du schreibst Kommentare unter Beiträge über den ${CLUB.name}, eine Freizeit-Fußballmannschaft aus München.`,
     "Die Kommentatoren sind Fans, Freunde und Mitspieler: locker, kurz, umgangssprachlich, manchmal mit Emoji, wie in einem Fußballforum.",
     "Sie reagieren auf genau diesen Beitrag und die Lage der Mannschaft: Sorgen, Hoffnung, Fragen, Tipps, Sprüche.",
-    "Regeln: keine Beleidigungen, nichts Verletzendes über Spieler, keine echten Personen außer den genannten Spielern,",
+    `Stimmung: ${BOT_MOODS[d.bots?.mood ?? "gemischt"]}. ${MOOD_HINT[d.bots?.mood ?? "gemischt"]}`,
+    "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
+    "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
+    "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
     "verschiedene Namen (Forums-Spitznamen), unterschiedlich lang (meist 1 bis 2 Sätze), etwa ein Drittel antwortet auf einen früheren Kommentar.",
     // About one in ten, counted per batch so the batches together don't overdo it.
     `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“), die anderen nicht.`,
@@ -107,7 +121,7 @@ export function parseBots(answer: string): BotComment[] {
     const { name, text, minute, replyTo } = c as Record<string, unknown>;
     const n = typeof name === "string" ? name.trim() : "";
     const t = typeof text === "string" ? text.trim() : "";
-    if (!n || !t || n.length > NAME_MAX || t.length > TEXT_MAX) return;
+    if (!n || !t || n.length > NAME_MAX || t.length > TEXT_MAX || BODY_INSULT.test(t) || BODY_INSULT.test(n)) return;
     const m = typeof minute === "number" && Number.isFinite(minute) ? Math.min(MINUTES, Math.max(0, Math.round(minute))) : 0;
     let parent = typeof replyTo === "number" && replyTo < i ? kept.get(replyTo) : undefined;
     // Threads are one level deep: a reply to a reply goes under the first comment.

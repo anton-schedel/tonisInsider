@@ -1,5 +1,5 @@
 import type { NewsType } from "../../scraper/types.ts";
-import type { CoachInput, CoachType } from "./coachPosts.ts";
+import type { BotMood, CoachInput, CoachType } from "./coachPosts.ts";
 import { kickoffDay, time } from "./format.ts";
 
 /** The editor's fields as typed (coachClient reads them from the form). */
@@ -21,6 +21,7 @@ export type FormValues = {
   pin: string;
   bots: boolean;
   context: string;
+  mood: BotMood;
 };
 
 export const namesOf = (s: string) => s.split(",").map((n) => n.trim()).filter(Boolean);
@@ -33,7 +34,7 @@ export function toBody(v: FormValues, now: Date, imageId?: string): Omit<CoachIn
   if (v.type === "lineup") data.lineup = { lines: v.lines.map(namesOf).filter((l) => l.length), bench: namesOf(v.bench) };
   if (v.type === "result") data.result = { opponent: v.opponent.trim(), ours: Number(v.ours), theirs: Number(v.theirs), home: v.home };
   if (v.type === "player") data.player = { name: v.playerName.trim(), newsType: v.badge };
-  data.bots = { on: v.bots, ...(context ? { context } : {}) };
+  data.bots = { on: v.bots, ...(context ? { context } : {}), ...(v.mood !== "gemischt" ? { mood: v.mood } : {}) };
   const at = v.when === "now" || !v.at ? now : new Date(v.at);
   return {
     type: v.type, data,

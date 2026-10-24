@@ -3,7 +3,7 @@ import Base from "../layouts/Base.astro";
 import { env } from "cloudflare:workers";
 import { coachSignedIn } from "../lib/coachApi.ts";
 import { listPosts } from "../lib/coachDb.ts";
-import { CLUB } from "../lib/coachPosts.ts";
+import { BOT_MOODS, CLUB } from "../lib/coachPosts.ts";
 import { NEWS_TYPE } from "../lib/newsTypes.ts";
 import type { CoachPost } from "../lib/coachPosts.ts";
 
@@ -138,7 +138,20 @@ const field = "coach-field";
         <span>Bot-Kommentare<span class="block text-[13px] text-muted">Etwa 30 Kommentare in den ersten Minuten.</span></span>
         <input type="checkbox" name="bots" class="coach-switch" checked />
       </label>
-      <textarea name="context" rows="2" placeholder="Was die Bots wissen sollen, z. B. „Zwei Stammspieler waren krank.“" class={`${field} mt-2.5 resize-y leading-snug`} data-context></textarea>
+      <div data-context>
+        <p class="mt-3 mb-1.5 text-[13px] text-muted">Stimmung der Kommentare</p>
+        <div class="flex flex-wrap gap-2" data-moods>
+          {Object.entries(BOT_MOODS).map(([id, label]) => <button type="button" class="press coach-chip" data-mood={id}>{label[0].toUpperCase() + label.slice(1)}</button>)}
+        </div>
+        <textarea name="context" rows="2" placeholder="Was die Bots wissen sollen, z. B. „Zwei Stammspieler waren krank.“" class={`${field} mt-2.5 resize-y leading-snug`}></textarea>
+        <p class="mt-1.5 text-[13px] text-muted">Die Bots frotzeln über Fußball und die Geschichten hier, nie über Aussehen, Gewicht oder Herkunft.</p>
+      </div>
+
+      {/* The post's comments, so the coach can take one down. */}
+      <div data-comments-box hidden>
+        <h3 class="mt-7 mb-1 text-[15px] font-semibold">Kommentare <span class="font-normal text-muted" data-comments-count></span></h3>
+        <ul class="divide-y divide-hairline" data-comments></ul>
+      </div>
 
       <h3 class="mt-7 mb-1 text-[15px] font-semibold">So sieht es in den News aus</h3>
       <div class="coach-preview" data-preview aria-live="polite"></div>

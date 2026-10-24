@@ -161,3 +161,25 @@ describe("comparisons", () => {
     expect(botPrompt(lineup, [], { count: 8 }).system).toMatch(/Genau 1 Kommentar vergleicht/);
   });
 });
+
+describe("mood and limits", () => {
+  it("tells the model the post's mood", () => {
+    const angry = { ...lineup, data: { ...lineup.data, bots: { on: true, mood: "wuetend" as const } } };
+    expect(botPrompt(angry, []).system).toMatch(/Stimmung: wütend/);
+    expect(botPrompt(lineup, []).system).toMatch(/Stimmung: gemischt/);
+  });
+  it("forbids remarks on looks, weight and origin, also when the coach's notes have them", () => {
+    const { system } = botPrompt(lineup, []);
+    expect(system).toMatch(/Aussehen, Gewicht, Herkunft/);
+    expect(system).toMatch(/auch wenn es in den Infos steht/);
+  });
+  it("drops comments that insult someone's body anyway", () => {
+    const out = parseBots(JSON.stringify([
+      { name: "A", text: "Fette sau Daniel, wir brauchen dich", minute: 1 },
+      { name: "B", text: "Der ist doch viel zu dick zum Laufen", minute: 2 },
+      { name: "C", text: "Torres muss mehr laufen", minute: 3 },
+      { name: "D", text: "Fett gespielt heute!", minute: 4 },
+    ]));
+    expect(out.map((c) => c.name)).toEqual(["C", "D"]);
+  });
+});

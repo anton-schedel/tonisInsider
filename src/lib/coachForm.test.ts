@@ -5,7 +5,7 @@ const NOW = new Date("2026-10-24T12:00:00.000Z");
 const base: FormValues = {
   type: "lineup", lines: ["Coach", "Gerl, Dallwig,  Chatfield", "", "Loibl"], bench: "Enciu, Schedel",
   opponent: "", ours: "0", theirs: "0", home: true, playerName: "", badge: "sonstiges",
-  headline: " Aufstellung des TuS Schnöselmob ", text: "", when: "later", at: "2026-10-24T19:00", pin: "1", bots: true, context: "",
+  headline: " Aufstellung des TuS Schnöselmob ", text: "", when: "later", at: "2026-10-24T19:00", pin: "1", bots: true, context: "", mood: "gemischt",
 };
 
 describe("namesOf", () => {
@@ -48,5 +48,12 @@ describe("localInput", () => {
   it("formats a time for a datetime-local field in local time", () => {
     const d = new Date(2026, 9, 24, 19, 5);
     expect(localInput(d.toISOString())).toBe("2026-10-24T19:05");
+  });
+});
+
+describe("mood", () => {
+  it("sends the mood unless it's the usual mix", () => {
+    expect(toBody({ ...base, mood: "frech" }, NOW).data.bots).toEqual({ on: true, mood: "frech" });
+    expect(toBody(base, NOW).data.bots).toEqual({ on: true });
   });
 });
