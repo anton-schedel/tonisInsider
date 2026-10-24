@@ -211,6 +211,16 @@ export function initCoach() {
     ul.replaceChildren(...d.comments.flatMap((c) => [item(c, false), ...c.replies.map((r) => item(r, true))]));
   }
 
+  /** How many bot comments are still to come, with a button to bring them forward. */
+  async function loadPlanned(postId: number) {
+    const box = q("[data-planned]");
+    const r = await api<{ planned?: number }>(`/api/coach/bots/${postId}/`);
+    if (editing?.id !== postId) return;
+    const n = r.ok ? r.data.planned ?? 0 : 0;
+    box.hidden = n === 0;
+    q("[data-planned-text]").textContent = `${n} Bot-Kommentar${n === 1 ? "" : "e"} geplant`;
+  }
+
   const setPhoto = (id: string | undefined, url?: string) => {
     imageId = id;
     photoUrl = url ?? (id ? imageUrl(id) : undefined);
@@ -246,6 +256,7 @@ export function initCoach() {
       input("context").value = d.bots?.context ?? "";
       setMood(d.bots?.mood ?? "gemischt");
       void loadComments(p.id);
+      void loadPlanned(p.id);
       type = p.type;
       setHome(d.result?.home ?? true);
       setBadge(d.player?.newsType ?? "angeschlagen");
@@ -265,6 +276,7 @@ export function initCoach() {
       setPhoto(undefined);
       setMood("gemischt");
       q("[data-comments-box]").hidden = true;
+      q("[data-planned]").hidden = true;
       setWhen("later");
     }
     setType(type);
@@ -324,6 +336,16 @@ export function initCoach() {
   q("[data-home-seg]").addEventListener("click", (e) => {
     const b = (e.target as Element).closest<HTMLElement>("[data-home]");
     if (b) { setHome(b.dataset.home === "1"); preview(); }
+  });
+  q("[data-planned-now]").addEventListener("click", async () => {
+    if (!editing) return;
+    const id = editing.id;
+    const r = await api<{ moved?: number }>(`/api/coach/bots/${id}/?now=1`, { method: "POST" });
+    if (r.status === 401) return signedOut();
+    if (!r.ok) return say(r.data.error ?? "Hat nicht geklappt.", "error");
+    say(`${r.data.moved} Bot-Kommentare kommen ab jetzt.`, "ok");
+    void loadPlanned(id);
+    setTimeout(() => void loadComments(id), 8000);
   });
   q("[data-moods]").addEventListener("click", (e) => {
     const b = (e.target as Element).closest<HTMLElement>("[data-mood]");

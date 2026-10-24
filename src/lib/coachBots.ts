@@ -8,6 +8,8 @@ import { BOT_MOODS, CLUB, type CoachPost } from "./coachPosts.ts";
 export type BotComment = { name: string; text: string; minute: number; replyTo?: number };
 
 export const BOT_COUNT = 30;
+/** Not always the same number, else it's plain they're bots: 25 to 42 per post. */
+export const botCount = (random: () => number = Math.random) => 25 + Math.floor(random() * 18);
 const MINUTES = 18;
 const TEXT_MAX = 280;
 const NAME_MAX = 30;
@@ -81,7 +83,8 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
     "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
-    "verschiedene Namen (Forums-Spitznamen), unterschiedlich lang (meist 1 bis 2 Sätze), etwa ein Drittel antwortet auf einen früheren Kommentar.",
+    "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X, Spielername_irgendwas oder Vereinsname im Namen).",
+    "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), etwa ein Drittel antwortet auf einen früheren Kommentar.",
     // About one in ten, counted per batch so the batches together don't overdo it.
     `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi (z. B. „Coach im Tor erinnert mich an Tom Starke, die Krake!“), die anderen nicht.`,
     `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "replyTo": Index eines früheren Kommentars (optional)}.`,
@@ -140,6 +143,14 @@ export function shouldWriteBots(post: CoachPost, now: Date, existing: number): "
   if (!post.data.bots?.on) return "clear";
   if (Date.parse(post.publishedAt) <= now.getTime() && existing > 0) return "keep";
   return "write";
+}
+
+/** "Jetzt veröffentlichen": planned comments moved so the first comes in a few seconds, the gaps kept. */
+export function startNow(rows: { id: number; created_at: string }[], now: Date): { id: number; created_at: string }[] {
+  const planned = rows.filter((r) => Date.parse(r.created_at) > now.getTime()).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  if (!planned.length) return [];
+  const shift = Date.parse(planned[0].created_at) - (now.getTime() + 5000);
+  return planned.map((r) => ({ id: r.id, created_at: new Date(Date.parse(r.created_at) - shift).toISOString() }));
 }
 
 export type BotRow = { name: string; body: string; createdAt: string; replyTo?: number };

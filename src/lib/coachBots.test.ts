@@ -183,3 +183,36 @@ describe("mood and limits", () => {
     expect(out.map((c) => c.name)).toEqual(["C", "D"]);
   });
 });
+
+describe("botCount", () => {
+  it("is a different number each time, between 25 and 42", async () => {
+    const { botCount } = await import("./coachBots.ts");
+    expect(botCount(() => 0)).toBe(25);
+    expect(botCount(() => 0.9999)).toBe(42);
+    expect(botCount(() => 0.5)).toBe(34);
+  });
+});
+
+describe("names", () => {
+  it("asks for mixed, unpatterned names", () => {
+    const { system } = botPrompt(lineup, []);
+    expect(system).toMatch(/Namen bunt gemischt/);
+    expect(system).toMatch(/kein Muster/);
+  });
+});
+
+describe("startNow", () => {
+  it("moves planned comments so the first comes now, keeping the gaps", async () => {
+    const { startNow } = await import("./coachBots.ts");
+    const now = new Date("2026-10-24T07:30:00.000Z");
+    const rows = [
+      { id: 2, created_at: "2026-10-24T09:05:00.000Z" },
+      { id: 1, created_at: "2026-10-24T09:00:00.000Z" },
+      { id: 3, created_at: "2026-10-24T07:00:00.000Z" }, // already out: stays
+    ];
+    expect(startNow(rows, now)).toEqual([
+      { id: 1, created_at: "2026-10-24T07:30:05.000Z" },
+      { id: 2, created_at: "2026-10-24T07:35:05.000Z" },
+    ]);
+  });
+});

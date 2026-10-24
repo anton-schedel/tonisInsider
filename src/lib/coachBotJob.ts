@@ -1,6 +1,6 @@
 import type { D1 } from "cloudflare:workers";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, BOT_COUNT, botPrompt, botRows, parseBots, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, botCount, botPrompt, botRows, parseBots, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -54,7 +54,7 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   const existingTexts = there.reverse().map((c) => `${c.name}: ${c.body}`);
 
   // Small batches in parallel; replies stay within their batch.
-  const plan = batchPlan(more ?? BOT_COUNT, topicsOf(post.data.bots?.context));
+  const plan = batchPlan(more ?? botCount(), topicsOf(post.data.bots?.context));
   const answers = await Promise.allSettled(plan.map((b) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts }))));
   const bots: BotComment[] = [];
   for (const a of answers) {
