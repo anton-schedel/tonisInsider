@@ -56,7 +56,8 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       (() => {
         const box = document.querySelector("[data-kb-club]");
         const kickoff = Date.parse(box?.dataset.kickoff ?? "");
-        if (!(kickoff <= Date.now() && Date.now() < kickoff + 4 * 86400000)) return;
+        // Already drawn from this tab's last points while the page came in (astro:before-swap, script below).
+        if (box.hasAttribute("data-kb-drawn") || !(kickoff <= Date.now() && Date.now() < kickoff + 4 * 86400000)) return;
         for (const el of document.querySelectorAll("[data-kb-points^='li']")) {
           if (!el.hidden) continue;
           el.hidden = false;
@@ -82,8 +83,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
         <div class="divide-y divide-hairline border-t border-hairline" hidden>
           {news.slice(shown).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
         </div>
-        <button type="button" class="press mt-2 w-full rounded-xl bg-surface py-3 text-[15px] font-semibold"
-          onclick="this.previousElementSibling.hidden = false; this.remove()">Alle {news.length} News zeigen</button>
+        <button type="button" class="press mt-2 w-full rounded-xl bg-surface py-3 text-[15px] font-semibold" data-news-all>Alle {news.length} News zeigen</button>
       </div>
     )}
   </section>
@@ -95,6 +95,8 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
 <script>
   import { pointsLabel, setTier, type ClubPoints } from "../../lib/livePoints.ts";
   import type { SlotPlay } from "../../lib/match.ts";
+  import { revealIn } from "../../lib/commentUi.ts";
+  import { swapText } from "../../lib/swapText.ts";
 
   const POLL_MS = 30_000;
   /** Points matter from kickoff until the next matchday's lineup replaces this one; polled while it runs. */
@@ -181,23 +183,28 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     slot.dataset.sub = "1";
   }
 
-  function draw(data: ClubPoints) {
+  /** doc: the page shown, or the incoming one during a navigation (not shown yet: no fades). */
+  function draw(data: ClubPoints, doc: Document = document) {
     for (const [id, play] of Object.entries(data.slots ?? {})) {
-      const slot = document.querySelector<HTMLElement>(`[data-slot="${id}"]`);
+      const slot = doc.querySelector<HTMLElement>(`[data-slot="${id}"]`);
       if (slot) applySlot(slot, play);
     }
     const subPoints = new Map(Object.values(data.slots ?? {}).flatMap((p) => (p.sub ? [[p.sub.kb, p.sub.points] as const] : [])));
-    for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points^='li'], [data-kb-points^='kb']")) {
+    for (const el of doc.querySelectorAll<HTMLElement>("[data-kb-points^='li'], [data-kb-points^='kb']")) {
       const key = el.dataset.kbPoints!;
       const liId = Number(key.slice(2));
       const points = key.startsWith("kb") ? subPoints.get(key.slice(2)) : data.players[liId];
       if (key.startsWith("li") && data.ids?.[liId]) el.dataset.kbPlayer = data.ids[liId];
       // A player without points after the match didn't play: "–"; during it "0".
       const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) });
+      const wasShown = doc === document && !el.hidden && !el.classList.contains("is-loading");
       el.classList.remove("is-loading");
       el.hidden = !label;
       if (!label) continue;
-      el.querySelector("[data-kb-text]")!.textContent = label.text;
+      const text = el.querySelector("[data-kb-text]")!;
+      // A chip that was a placeholder or hidden just gets its number; a shown one that changes dips once.
+      if (wasShown) swapText(text, label.text);
+      else text.textContent = label.text;
       el.classList.toggle("is-live", label.live);
       setTier(el, label.tier);
       el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
@@ -210,14 +217,20 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     try { return JSON.parse(sessionStorage.getItem(cacheKey(slug)) ?? "null") ?? undefined; } catch { return undefined; }
   }
 
+  /** The club's points box when its points matter now (from kickoff on). */
+  function pointsBox(doc: Document) {
+    const box = doc.querySelector<HTMLElement>("[data-kb-club]");
+    const kickoff = Date.parse(box?.dataset.kickoff ?? "");
+    return box && kickoff <= Date.now() && Date.now() < kickoff + MAX_AFTER_MS ? box : undefined;
+  }
+
   async function tick(first = false) {
     clearTimeout(timer);
-    const box = document.querySelector<HTMLElement>("[data-kb-club]");
+    const box = pointsBox(document);
     if (!box || document.visibilityState !== "visible") return;
-    const kickoff = Date.parse(box.dataset.kickoff!);
-    if (!(kickoff <= Date.now() && Date.now() < kickoff + MAX_AFTER_MS)) return;
     const slug = box.dataset.kbClub!;
-    if (first) {
+    // Drawn from the cache already during the swap (below).
+    if (first && !box.hasAttribute("data-kb-drawn")) {
       const last = cached(slug);
       if (last) draw(last);
     }
@@ -234,6 +247,25 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     if (box.isConnected && running) timer = window.setTimeout(tick, POLL_MS);
   }
 
-  document.addEventListener("astro:page-load", () => void tick(true));
+  // Back on a club page: the last points are in before it's shown, so the chips don't wait as placeholders.
+  document.addEventListener("astro:before-swap", (e) => {
+    const box = pointsBox(e.newDocument);
+    const last = box && cached(box.dataset.kbClub!);
+    if (!box || !last) return;
+    draw(last, e.newDocument);
+    box.setAttribute("data-kb-drawn", "");
+  });
+
+  document.addEventListener("astro:page-load", () => {
+    void tick(true);
+    // The older news unfold under the newest instead of popping in.
+    document.querySelector<HTMLButtonElement>("[data-news-all]")?.addEventListener("click", (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const rest = btn.previousElementSibling as HTMLElement;
+      rest.hidden = false;
+      btn.remove();
+      revealIn(rest);
+    });
+  });
   document.addEventListener("visibilitychange", () => void tick());
 </script>

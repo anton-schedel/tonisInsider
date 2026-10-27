@@ -387,9 +387,15 @@ nav.no-tab .tab-pill { opacity: 0; }
   padding: 9px 16px; border-radius: 9999px;
   background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-  animation: fade-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.news-notice[hidden] { display: none; }
+/* Rises in when shown and sinks out when hidden (display waits for the fade, like the player card). The bar's
+   class makes it outrank .press, whose scale feedback it keeps. */
+.tabbar .news-notice {
+  transition: opacity 220ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1), scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    display 280ms allow-discrete, overlay 280ms allow-discrete;
+}
+.news-notice[hidden] { display: none; opacity: 0; transform: translateY(6px); }
+@starting-style { .news-notice:not([hidden]) { opacity: 0; transform: translateY(6px); } }
 
 /* Desktop: the same signals, lighter, on hover. */
 @media (hover: hover) {
@@ -508,7 +514,9 @@ html:not([data-navigated]) .enter {
 .press:active { scale: 0.96; transition-duration: 70ms; }
 /* News feed: a day's rows off screen aren't laid out or painted until scrolled near, so swapping to the page
    costs about one screen. 10px wider on each side (NewsFeed.astro) so the press highlight isn't clipped; the
-   size estimate (--n rows) is replaced by the real one once the day was shown. */
+   size estimate (--n rows, a lineup counts more) is replaced by the real one once the day was shown.
+   Leaving News, each day's real height is kept and given to the same day when coming back (NewsFeed.astro), so
+   the restored scroll position lands on the same rows. */
 .feed-rows { content-visibility: auto; contain-intrinsic-size: auto calc(var(--n, 4) * 104px); }
 .press-row { position: relative; isolation: isolate; -webkit-user-select: none; user-select: none; }
 .press-row::before {
@@ -532,15 +540,22 @@ html:not([data-navigated]) .enter {
   .toast { transition: none; }
   .img-fade { transition: none; }
   .skeleton { animation: none; }
+  .tabbar .news-notice { transition: none; }
+  .scout-add { transition: none; }
+  /* The loading line stands still: a faint full-width line instead of the running one. */
+  .nav-progress.is-loading::after { animation: none; transform: none; width: 100%; opacity: 0.3; }
 }
 
 /* The feed's day heading: a slim grey band that fades out to the right; stuck to the top, the posts scrolling
-   under its faded part are blurred. */
+   under its faded part are blurred. Only then (.is-stuck, set by NewsFeed.astro): elsewhere nothing is under it,
+   and a blur on every band costs on phones. */
 .day-band {
   display: flex; align-items: center; gap: 6px; height: 32px;
   margin-inline: -16px; padding-inline: 16px;
   font-size: 14px; font-weight: 600; line-height: 1;
   background: linear-gradient(90deg, color-mix(in srgb, var(--color-surface) 65%, var(--color-bg)) 35%, color-mix(in srgb, var(--color-surface) 0%, transparent));
+}
+.day-band.is-stuck {
   -webkit-backdrop-filter: blur(14px) saturate(180%);
   backdrop-filter: blur(14px) saturate(180%);
 }

@@ -29,7 +29,7 @@
         </div>
         <span class="fut-photo">
           <span data-f="initials" aria-hidden="true"></span>
-          <img data-f="photo" alt="" hidden />
+          <img data-f="photo" alt="" class="img-fade" hidden />
         </span>
       </div>
       <p data-f="match" class="mt-3 text-[14px] text-muted"></p>
@@ -234,11 +234,17 @@
     f("match").textContent = d.match ?? "";
     f("match").hidden = !d.match;
 
+    // Fades in once loaded (.img-fade); one already loaded in this tab (e.g. his pitch photo) is there at once.
     const photo = f("photo") as HTMLImageElement;
-    photo.hidden = true;
-    photo.onload = () => (photo.hidden = false);
+    const src = d.photo ? new URL(d.photo, location.href).href : "";
+    photo.hidden = !src;
+    photo.classList.toggle("is-loaded", window.__imgLoaded?.has(src) ?? false);
+    photo.onload = () => {
+      photo.classList.add("is-loaded");
+      window.__imgLoaded?.add(photo.src);
+    };
     photo.onerror = () => (photo.hidden = true);
-    if (d.photo) photo.src = d.photo;
+    if (src) photo.src = src;
     else photo.removeAttribute("src");
     const crest = f("crest") as HTMLImageElement;
     crest.hidden = !d.crest;

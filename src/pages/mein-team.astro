@@ -239,6 +239,7 @@ let index = 0;
 <script>
   import type { KbLive } from "../lib/kickbase.ts";
   import { anyRunning, pointsLabel, setTier } from "../lib/livePoints.ts";
+  import { swapText } from "../lib/swapText.ts";
 
   const POLL_MS = 30_000;
   let timer = 0;
@@ -246,16 +247,22 @@ let index = 0;
   function draw(data: { points?: number; players: Record<string, KbLive> }) {
     for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points]")) {
       const label = pointsLabel(data.players[el.dataset.kbPoints!]);
+      const wasShown = !el.hidden;
       el.hidden = !label;
       if (!label) continue;
-      el.querySelector("[data-kb-text]")!.textContent = label.text;
+      // A shown number that changes dips once; one that just appears is set.
+      const text = el.querySelector("[data-kb-text]")!;
+      if (wasShown) swapText(text, label.text);
+      else text.textContent = label.text;
       el.classList.toggle("is-live", label.live);
       setTier(el, label.tier);
       el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
     }
     const total = document.querySelector<HTMLElement>("[data-kb-total]");
     if (total && data.points !== undefined) {
-      total.querySelector("[data-kb-total-n]")!.textContent = String(data.points);
+      const n = total.querySelector("[data-kb-total-n]")!;
+      if (total.hidden) n.textContent = String(data.points);
+      else swapText(n, String(data.points));
       total.hidden = false;
     }
   }

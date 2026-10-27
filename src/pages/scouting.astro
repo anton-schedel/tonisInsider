@@ -194,6 +194,10 @@ const players = allPlayers();
     const data = document.querySelector<HTMLScriptElement>("[data-players]");
     if (!data) return;
     keepSuggest = false;
+    // The listeners on document and window below outlive the page: they go with it on the next swap.
+    const visit = new AbortController();
+    const { signal } = visit;
+    document.addEventListener("astro:before-swap", () => visit.abort(), { once: true });
     const index: Indexed[] = (JSON.parse(data.textContent ?? "[]") as PlayerEntry[])
       .map((p) => ({ ...p, key: ` ${normal(`${p.name} ${p.club} ${NICKNAMES[p.club] ?? ""}`)}` }));
     const byId = new Map(index.map((p) => [p.id, p]));
@@ -234,7 +238,7 @@ const players = allPlayers();
       input.value = "";
       input.blur();
       show();
-    });
+    }, { signal });
 
     // The list at once from the last known state, then as the account has it now. News times come from the
     // index on this page (no extra download).
@@ -270,6 +274,6 @@ const players = allPlayers();
       if (!input.isConnected) return;
       renderList(byId, (e as CustomEvent<ScoutState>).detail, fresh);
       if (input.value) show();
-    });
+    }, { signal });
   });
 </script>

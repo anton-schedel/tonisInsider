@@ -3,6 +3,7 @@ import type { Article } from "../../scraper/types.ts";
 import ArticleRow from "./ArticleRow.astro";
 import { groupByDay } from "../lib/data.ts";
 import { dayLabel } from "../lib/format.ts";
+import { confirmedLineup } from "../lib/lineupNews.ts";
 
 interface Props {
   articles: Article[];
@@ -20,6 +21,9 @@ const hasMore = !!more && days.to !== undefined && allGroups.length > days.to;
 // A post pinned for a while: on top until then, in its day after (the page may be older than the pin).
 const until = new Map(pinned.flatMap((a) => (a.pinnedUntil ? [[a.id, a.pinnedUntil] as const] : [])));
 let index = 0;
+// The size a day's rows are guessed at before they were shown (.feed-rows in global.css: --n × 104 px): a
+// confirmed lineup shows its XI and bench, about 1.7 rows.
+const rowsOf = (items: Article[]) => items.reduce((n, a) => n + (confirmedLineup(a) ? 1.7 : 1), 0);
 ---
 {pinned.length > 0 && (
   <section data-pinned>
@@ -44,7 +48,7 @@ let index = 0;
         return date ? <>{rel} <span class="font-normal text-muted">{date}</span></> : rel;
       })()}
     </h2>
-    <div class="feed-rows -mx-2.5 px-2.5" style={`--n:${g.items.length}`}>
+    <div class="feed-rows -mx-2.5 px-2.5" style={`--n:${rowsOf(g.items)}`}>
       <div class="divide-y divide-hairline">
         {g.items.map((a) => <ArticleRow article={a} index={index++} showAfter={until.get(a.id)} />)}
       </div>
@@ -115,7 +119,10 @@ let index = 0;
     labelDays(doc);
     const target = marker.ownerDocument;
     marker.replaceWith(...[...doc.querySelectorAll("section")].map((s) => target.importNode(s, true)));
-    if (target === document) window.__unpin?.();
+    if (target === document) {
+      window.__unpin?.();
+      watchBands();
+    }
   }
 
   /** Fetches the older days (the partial page) and appends their sections where the "more" marker is. */
@@ -135,15 +142,51 @@ let index = 0;
     }
   }
 
+  /** Each day's real height when News was left (key: day and number of rows), see below. */
+  let dayHeights = new Map<string, number>();
+  const dayKey = (rows: HTMLElement) => {
+    const day = rows.parentElement?.querySelector<HTMLElement>(":scope > [data-day]")?.dataset.day;
+    return day && `${day}|${rows.querySelectorAll("a").length}`;
+  };
+
+  // Leaving News: the days' real heights. Days off screen aren't laid out (content-visibility), so back here
+  // they'd count with the guess until shown and the restored scroll position would land rows off.
+  // e.from, not location: going back, location is already the page we go to.
+  document.addEventListener("astro:before-preparation", (e) => {
+    if (e.from.pathname !== "/") return;
+    dayHeights = new Map();
+    for (const rows of document.querySelectorAll<HTMLElement>(".feed-rows")) {
+      const key = dayKey(rows);
+      if (key) dayHeights.set(key, rows.offsetHeight);
+    }
+  });
+
   // Into the incoming page before it's shown: the router restores the scroll position right after the swap,
   // and without the older days the page would be too short to get back down there.
   document.addEventListener("astro:before-swap", (e) => {
     const marker = e.newDocument.querySelector<HTMLElement>("[data-feed-more]");
     if (marker && olderHtml) appendOlder(marker, olderHtml);
+    // The same days as when it was left: their real heights instead of the guess.
+    for (const rows of e.newDocument.querySelectorAll<HTMLElement>(".feed-rows")) {
+      const h = dayHeights.get(dayKey(rows) ?? "");
+      if (h) rows.style.containIntrinsicSize = `auto ${h}px`;
+    }
   });
+
+  /** A day's band blurs what scrolls under it only while it's stuck to the top; elsewhere nothing is under its
+   * faded part and the blur would just cost. Stuck: its top pixel is past the top of the screen. */
+  let stuck: IntersectionObserver | undefined;
+  function watchBands() {
+    stuck ??= new IntersectionObserver((entries) => {
+      for (const e of entries) e.target.classList.toggle("is-stuck", e.boundingClientRect.top < 1);
+    }, { rootMargin: "-1px 0px 0px 0px", threshold: [0, 0.99] });
+    for (const band of document.querySelectorAll(".day-band.sticky")) stuck.observe(band);
+  }
 
   document.addEventListener("astro:page-load", () => {
     labelDays(document);
+    stuck?.disconnect();
+    watchBands();
     const marker = document.querySelector<HTMLElement>("[data-feed-more]");
     if (!marker) return;
     marker.querySelector("[data-feed-more-btn]")?.addEventListener("click", () => void loadMore(marker));

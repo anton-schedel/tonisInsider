@@ -41,8 +41,8 @@ const clubLineupHref = a.club && !a.own ? `/vereine/${a.club.slug}/` : undefined
     {a.banner && (
       // LigaInsider's banner photo (photographer credit is printed on the image).
       a.bannerSize
-        ? <img src={a.banner} alt="" width={a.bannerSize.width} height={a.bannerSize.height} decoding="async" class="img-fade mb-6 h-auto w-full rounded-2xl bg-surface" onload="this.classList.add('is-loaded')" />
-        : <img src={a.banner} alt="" width="1200" height="675" decoding="async" class="img-fade mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" onload="this.classList.add('is-loaded')" />
+        ? <img src={a.banner} alt="" width={a.bannerSize.width} height={a.bannerSize.height} decoding="async" fetchpriority="high" class="img-fade mb-6 h-auto w-full rounded-2xl bg-surface" onload="this.classList.add('is-loaded'); window.__imgLoaded?.add(this.src)" />
+        : <img src={a.banner} alt="" width="1200" height="675" decoding="async" fetchpriority="high" class="img-fade mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" onload="this.classList.add('is-loaded'); window.__imgLoaded?.add(this.src)" />
     )}
     <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
     {/* Match reports: each team's grades on a pitch. */}
