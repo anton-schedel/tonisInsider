@@ -119,7 +119,7 @@ const COMPARE_FORMS = [
 // Said as "jemand, der …": labels like "Nörgler" or "Kabinen-Insider" ended up in the bots' names (Nörgelmax, KabineKlaus).
 const VOICES = [
   "jemand, der alles schon vorher wusste",
-  "jemand mit (frei erfundenen, harmlosen) Zahlen aus der Saison",
+  "jemand, der mit den echten Ergebnissen der Saison rechnet (es gab erst die paar Spiele unten)",
   "jemand, der angeblich mehr weiß als die anderen",
   "jemand mit einem schrägen Bild oder Wortspiel",
   "jemand, den nichts erschüttert",
@@ -223,7 +223,7 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     `Stimmung: ${BOT_MOODS[d.bots?.mood ?? "gemischt"]}. ${MOOD_HINT[d.bots?.mood ?? "gemischt"]}`,
     "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
     "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
-    "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
+    "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche); Spieler beim Namen, wie er in den Infos steht (keine erfundenen Vornamen), keine erfundenen Statistiken.",
     "Jeder Kommentar sagt etwas Eigenes: keine zwei mit derselben Aussage, demselben Witz oder demselben Anfang.",
     "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), höchstens ein Drittel antwortet auf einen früheren Kommentar, höchstens 3 Antworten unter demselben.",
     ...(compare
