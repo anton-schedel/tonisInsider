@@ -1,7 +1,7 @@
 import type { D1 } from "cloudflare:workers";
 import { insertComment, removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, botCount, botPrompt, dropSimilar, pollAllowance, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, botCount, botPrompt, comparePlan, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -64,9 +64,16 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
     ? (await db.prepare("SELECT COUNT(*) AS n FROM polls p JOIN comments c ON c.id = p.comment_id WHERE c.post_id = ?").bind(post.id).first<{ n: number }>())?.n ?? 0
     : 0;
   const allowed = pollAllowance(plan.length, pollsThere);
-  // Each batch, and each post, takes its comparisons from another pool of pros.
+  // Each post (and batch) compares differently, or not at all; and doesn't sound like the bots under other posts.
   const pool = Math.floor(Math.random() * 4);
-  const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts, polls: allowed[i], batch: pool + i }))));
+  const compare = comparePlan();
+  const comparisons = spread(more ? Math.min(1, compare.count) : compare.count, plan.length);
+  const { results: before } = await db
+    .prepare("SELECT body FROM comments WHERE sender = 'bot' AND post_id != ? ORDER BY RANDOM() LIMIT 20").bind(post.id).all<{ body: string }>();
+  const earlier = before.map((c) => c.body);
+  const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, {
+    ...b, existing: existingTexts, polls: allowed[i], batch: pool + i, compare: comparisons[i], forms: compare.forms, voices: compare.voices, earlier,
+  }))));
   let bots: BotComment[] = [];
   for (const a of answers) {
     if (a.status !== "fulfilled") continue;

@@ -115,9 +115,14 @@ describe("askModel streaming", () => {
 });
 
 describe("comparisons", () => {
-  it("about one in ten compares a player with a pro, so the batches don't add up to too many", () => {
-    expect(botPrompt(lineup, [], { count: 30 }).system).toMatch(/Genau 3 Kommentare vergleichen/);
-    expect(botPrompt(lineup, [], { count: 8 }).system).toMatch(/Genau 1 Kommentar vergleicht/);
+  it("none on some posts, one or two on the others, in two of the forms", async () => {
+    const { comparePlan } = await import("./coachBots.ts");
+    expect(comparePlan(() => 0.1).count).toBe(0);
+    expect(comparePlan(() => 0.5).count).toBe(1);
+    expect(comparePlan(() => 0.9).count).toBe(2);
+    expect(comparePlan().forms).toHaveLength(2);
+    expect(botPrompt(lineup, [], { count: 30 }).system).toMatch(/Keine Vergleiche/);
+    expect(botPrompt(lineup, [], { count: 30, compare: 2 }).system).toMatch(/Genau 2 Kommentare vergleichen/);
   });
 });
 

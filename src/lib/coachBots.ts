@@ -59,7 +59,11 @@ export function batchPlan(count: number, topics: string[], size = 10): { count: 
 }
 
 /** polls: how many polls this batch may write (pollAllowance). */
-export type PromptOptions = { count?: number; topics?: string[]; existing?: string[]; polls?: number; batch?: number };
+/** compare: how many compare a player with a pro; forms: how they put it; earlier: bot comments under other posts. */
+export type PromptOptions = {
+  count?: number; topics?: string[]; existing?: string[]; polls?: number; batch?: number;
+  compare?: number; forms?: string[]; voices?: string[]; earlier?: string[];
+};
 
 /** Each parallel batch draws its comparisons from another pool, else they all pick the same pro (Kahn, Neuer). */
 const PRO_POOLS = [
@@ -69,17 +73,60 @@ const PRO_POOLS = [
   "Kultspieler und Typen, die jeder kennt",
 ];
 
+/**
+ * Ways to put a comparison. Each post gets two at random; with one fixed example every post said
+ * "X erinnert mich an Y – nur mit …".
+ */
+const COMPARE_FORMS = [
+  "als Spitzname, der im Satz einfach so fällt",
+  "über eine bestimmte, bekannte Szene dieses Profis",
+  "als ironische Frage an die anderen",
+  "als das genaue Gegenteil des Profis",
+  "als kurzer Einwurf von ein paar Wörtern",
+  "als Antwort auf einen anderen Kommentar, der den Vergleich weiterspinnt oder zerlegt",
+  "über eine typische Geste oder Angewohnheit des Profis",
+  "als maßlose Übertreibung, über die die anderen lachen",
+];
+
+/** Who comments. Each post gets a few at random, so the comments differ in what they say, not only in wording. */
+const VOICES = [
+  "Nörgler, der alles schon vorher wusste",
+  "Statistik-Fan mit (frei erfundenen, harmlosen) Zahlen aus der Saison",
+  "Kabinen-Insider, der angeblich mehr weiß",
+  "Witzbold mit einem schrägen Bild oder Wortspiel",
+  "Optimist, den nichts erschüttert",
+  "Taktik-Fuchs mit einer konkreten Idee zur Aufstellung",
+  "jemand, der nur kurz reagiert (ein Wort, ein Emoji, eine Frage)",
+  "Anhänger des Gegners, der stichelt",
+  "Veteran, der von früher erzählt",
+  "jemand, der vom Thema abschweift (Wetter, Platz, Trikots, drittes Halbzeit)",
+  "Fan, der dem Coach eine direkte Frage stellt",
+  "Dramatiker, der alles maßlos übertreibt",
+];
+
+/** Comparisons for a post: none on some posts, one or two on the others, never one per ten like clockwork. */
+export function comparePlan(random: () => number = Math.random): { count: number; forms: string[]; voices: string[] } {
+  const r = random();
+  const count = r < 0.3 ? 0 : r < 0.8 ? 1 : 2;
+  const pick = <T,>(list: T[], n: number) => [...list].sort(() => random() - 0.5).slice(0, n);
+  return { count, forms: pick(COMPARE_FORMS, 2), voices: pick(VOICES, 6) };
+}
+
+/** n things dealt out at random over the batches (polls, comparisons). */
+export function spread(n: number, batches: number, random: () => number = Math.random): number[] {
+  const out = Array.from({ length: batches }, () => 0);
+  for (let i = 0; i < n; i++) out[Math.floor(random() * batches) % batches]++;
+  return out;
+}
+
 /** Which batches of a post may write a poll: one or two in all, minus the polls the post has already. */
 export function pollAllowance(batches: number, existingPolls: number, random: () => number = Math.random): number[] {
-  const want = Math.max(0, (random() < 0.5 ? 1 : 2) - existingPolls);
-  const out = Array.from({ length: batches }, () => 0);
-  for (let i = 0; i < want; i++) out[Math.floor(random() * batches) % batches]++;
-  return out;
+  return spread(Math.max(0, (random() < 0.5 ? 1 : 2) - existingPolls), batches, random);
 }
 
 export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions = {}): { system: string; user: string } {
   const count = opts.count ?? BOT_COUNT;
-  const compare = Math.max(1, Math.round(count / 10));
+  const compare = opts.compare ?? 0;
   const polls = opts.polls ?? 0;
   const d = post.data;
   const about: string[] = [`Überschrift: ${d.headline}`];
@@ -107,11 +154,17 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
     "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X oder Vereinsname im Namen) und nie die Namen unserer Spieler im eigenen Namen.",
     "Jeder Kommentar sagt etwas Eigenes: keine zwei mit derselben Aussage, demselben Witz oder demselben Anfang.",
-    "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), etwa ein Drittel antwortet auf einen früheren Kommentar.",
-    // About one in ten, counted per batch so the batches together don't overdo it.
-    `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi, die anderen nicht.`,
-    // The old example was a goalkeeper, and the bots compared everyone to goalkeepers (mostly Neuer).
-    `Der Vergleich passt zur Position des Spielers: Torhüter mit Torhütern, Stürmer mit Stürmern, Mittelfeld mit Mittelfeldspielern; jedes Mal ein anderer Profi, diesmal aus diesem Bereich: ${PRO_POOLS[(opts.batch ?? 0) % PRO_POOLS.length]} (eigene Vergleiche, nicht das Beispiel übernehmen; Manuel Neuer nur, wenn es wirklich um unseren Torwart geht).`,
+    "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), höchstens ein Drittel antwortet auf einen früheren Kommentar, höchstens 3 Antworten unter demselben.",
+    ...(compare
+      ? [
+        `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler mit einem bekannten Profi, die anderen nicht.`,
+        // The bots compared everyone to goalkeepers (Neuer, Kahn, Starke), and always the same way.
+        `Der Profi passt zur Position (Torhüter mit Torhütern, Stürmer mit Stürmern usw.) und kommt aus diesem Bereich: ${PRO_POOLS[(opts.batch ?? 0) % PRO_POOLS.length]}; kein Neuer, Kahn oder Starke.`,
+        `Mit dem echten Namen eines Spielers aus dem Beitrag (keine Platzhalter), ${(opts.forms ?? COMPARE_FORMS.slice(0, 2)).join(" oder ")}. Die Wörter „erinnert“ und „wie ein junger“ kommen darin nicht vor, und kein „– nur mit/ohne …“ am Ende.`,
+      ]
+      : ["Keine Vergleiche mit Profis."]),
+    ...(opts.voices?.length ? [`Unter den Kommentatoren sind diesmal u. a.: ${opts.voices.join("; ")}. Jeder hat seinen eigenen Blick, kein Satzanfang kommt mehr als zweimal vor. Die Typen stehen nie im Namen (kein „Nörgler82“, „Taktik-Fuchs“).`] : []),
+    "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend.",
     "Jeder Kommentar bekommt \"upvotes\": wie viele Daumen hoch er bekommt (0 bis 40, ungleich verteilt: viele 0 bis 5, gute Sprüche mehr).",
     polls
       ? `Genau ${polls === 1 ? "1 Kommentar ist eine Umfrage" : `${polls} Kommentare sind Umfragen`}: "poll": {"question": kurze Frage zum Beitrag, "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort (zusammen 6 bis 30)}; der "text" ist dann die Frage.`
@@ -129,6 +182,9 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     ...[...recent, ...SEASON].map((r) => `- ${r}`),
     ...(topics.length
       ? ["", "Was einige Kommentatoren wissen (Jedes Thema greifen nur 3 bis 5 Kommentare auf, verteilt über die Liste; die meisten Kommentare reden über den Beitrag selbst):", ...topics.map((t) => `- ${t}`)]
+      : []),
+    ...(opts.earlier?.length
+      ? ["", "So klangen die Bots unter früheren Beiträgen; klingt anders (andere Wörter, andere Witze, anderer Satzbau):", ...opts.earlier.map((c) => `- ${c}`)]
       : []),
     ...(opts.existing?.length
       ? ["", "Diese Kommentare stehen schon da (nicht wiederholen; ihr dürft darauf eingehen):", ...opts.existing.map((c) => `- ${c}`)]
@@ -274,7 +330,7 @@ export async function askModel(cfg: ModelConfig, prompt: { system: string; user:
     method: "POST",
     headers: { authorization: `Bearer ${cfg.key}`, "content-type": "application/json" },
     // Streamed: the answer comes in pieces, so no proxy on the way drops the connection as idle while it thinks.
-    body: JSON.stringify({ model: cfg.model, stream: true, messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.user }] }),
+    body: JSON.stringify({ model: cfg.model, stream: true, temperature: 1, messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.user }] }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`model: HTTP ${res.status}`);
