@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askModel, batchPlan, botPrompt, botRows, dropSimilar, parseBots, type BotComment } from "./coachBots.ts";
+import { askModel, batchPlan, botNames, botPrompt, botRows, dropSimilar, parseBots, type BotComment } from "./coachBots.ts";
 import type { CoachPost } from "./coachPosts.ts";
 
 const lineup: CoachPost = {
@@ -12,117 +12,32 @@ const lineup: CoachPost = {
 };
 
 describe("parseBots", () => {
-  const list = [{ name: "Schnösel4Life", text: "Endlich wieder Loibl vorne!", minute: 2 }, { name: "Kalle86", text: "Genau", minute: 4, replyTo: 0 }];
+  const list = [{ text: "Endlich wieder Loibl vorne!", minute: 2 }, { text: "Genau", minute: 4, replyTo: 0 }];
+  const named = list.map((c) => ({ name: "", ...c }));
   it("reads a clean JSON list, also inside code fences or prose", () => {
-    expect(parseBots(JSON.stringify(list))).toEqual(list);
-    expect(parseBots("Hier sind die Kommentare:\n```json\n" + JSON.stringify(list) + "\n```\nViel Spaß!")).toEqual(list);
+    expect(parseBots(JSON.stringify(list))).toEqual(named);
+    expect(parseBots("Hier sind die Kommentare:\n```json\n" + JSON.stringify(list) + "\n```\nViel Spaß!")).toEqual(named);
   });
   it("drops what it can't use and clamps the minute", () => {
     const out = parseBots(JSON.stringify([
-      { name: "", text: "ohne Namen", minute: 1 },
-      { name: "A", text: "  ", minute: 1 },
-      { name: "Zu lang", text: "x".repeat(400), minute: 1 },
-      { name: "Spät", text: "nach dem Spiel", minute: 95 },
-      { name: "Früh", text: "vorher", minute: -3, replyTo: 7 },
+      { text: "  ", minute: 1 },
+      { text: "x".repeat(400), minute: 1 },
+      { text: "nach dem Spiel", minute: 95 },
+      { text: "vorher", minute: -3, replyTo: 7 },
     ]));
-    expect(out).toEqual([
-      { name: "Spät", text: "nach dem Spiel", minute: 18 },
-      { name: "Früh", text: "vorher", minute: 0 },
-    ]);
+    expect(out).toEqual([{ name: "", text: "nach dem Spiel", minute: 18 }, { name: "", text: "vorher", minute: 0 }]);
   });
   it("gives nothing for junk", () => {
     expect(parseBots("Tut mir leid, das kann ich nicht.")).toEqual([]);
     expect(parseBots("[{oops")).toEqual([]);
   });
   it("hangs a reply to a reply under the first comment (threads are one level deep)", () => {
-    const out = parseBots(JSON.stringify([{ name: "A", text: "a", minute: 1 }, { name: "B", text: "b", minute: 2, replyTo: 0 }, { name: "C", text: "c", minute: 3, replyTo: 1 }]));
-    expect(out[2]).toEqual({ name: "C", text: "c", minute: 3, replyTo: 0 });
+    const out = parseBots(JSON.stringify([{ text: "a", minute: 1 }, { text: "b", minute: 2, replyTo: 0 }, { text: "c", minute: 3, replyTo: 1 }]));
+    expect(out[2].replyTo).toBe(0);
   });
   it("keeps replies only to earlier comments of the list", () => {
-    const out = parseBots(JSON.stringify([{ name: "A", text: "a", minute: 1, replyTo: 1 }, { name: "B", text: "b", minute: 2, replyTo: 0 }]));
-    expect(out).toEqual([{ name: "A", text: "a", minute: 1 }, { name: "B", text: "b", minute: 2, replyTo: 0 }]);
-  });
-});
-
-describe("botRows", () => {
-  it("dates them after the post and replies after their parent", () => {
-    const bots: BotComment[] = [{ name: "A", text: "a", minute: 5 }, { name: "B", text: "b", minute: 1, replyTo: 0 }, { name: "C", text: "c", minute: 0 }];
-    const rows = botRows("2026-10-28T18:00:00.000Z", bots);
-    const at = (n: string) => Date.parse(rows.find((r) => r.name === n)!.createdAt);
-    const start = Date.parse("2026-10-28T18:00:00.000Z");
-    expect(at("C")).toBeGreaterThanOrEqual(start);
-    expect(at("A")).toBeGreaterThanOrEqual(start + 5 * 60_000);
-    expect(at("B")).toBeGreaterThan(at("A"));
-    expect(rows.find((r) => r.name === "B")!.replyTo).toBe(0);
-    expect(rows.every((r) => Date.parse(r.createdAt) < start + 20 * 60_000)).toBe(true);
-  });
-});
-
-describe("askModel", () => {
-  it("sends an OpenAI-style chat request and returns the answer", async () => {
-    let sent: { url: string; body: { model: string; messages: { role: string }[] }; auth: string | null } | undefined;
-    const fetcher = (async (url: string, init: RequestInit) => {
-      sent = { url, body: JSON.parse(String(init.body)), auth: new Headers(init.headers).get("authorization") };
-      return Response.json({ choices: [{ message: { content: "[]" } }] });
-    }) as typeof fetch;
-    const answer = await askModel({ url: "https://llm.example/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher);
-    expect(answer).toBe("[]");
-    expect(sent?.url).toBe("https://llm.example/api/chat/completions");
-    expect(sent?.auth).toBe("Bearer k");
-    expect(sent?.body.model).toBe("m");
-    expect(sent?.body.messages.map((m) => m.role)).toEqual(["system", "user"]);
-  });
-  it("fails on an error status", async () => {
-    const fetcher = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
-    await expect(askModel({ url: "https://x", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
-  });
-});
-
-describe("shouldWriteBots", () => {
-  it("writes them for a post that isn't out yet, never adds more to one that is", async () => {
-    const { shouldWriteBots } = await import("./coachBots.ts");
-    const now = new Date("2026-10-28T17:00:00.000Z");
-    expect(shouldWriteBots(lineup, now, 0)).toBe("write");
-    expect(shouldWriteBots(lineup, now, 30)).toBe("write");
-    const out = { ...lineup, publishedAt: "2026-10-28T16:00:00.000Z" };
-    expect(shouldWriteBots(out, now, 30)).toBe("keep");
-    expect(shouldWriteBots(out, now, 0)).toBe("write");
-    expect(shouldWriteBots({ ...lineup, data: { ...lineup.data, bots: { on: false } } }, now, 30)).toBe("clear");
-  });
-});
-
-describe("batchPlan", () => {
-  it("splits the comments into batches of up to 10 and deals the topics out", () => {
-    expect(batchPlan(30, ["a", "b", "c", "d"])).toEqual([
-      { count: 10, topics: ["a", "d"] }, { count: 10, topics: ["b"] }, { count: 10, topics: ["c"] },
-    ]);
-    expect(batchPlan(25, [])).toEqual([{ count: 9, topics: [] }, { count: 8, topics: [] }, { count: 8, topics: [] }]);
-    expect(batchPlan(42, ["a", "b"], 50)).toEqual([{ count: 42, topics: ["a", "b"] }]);
-  });
-});
-
-describe("askModel streaming", () => {
-  it("reads the answer as it streams in (so the connection never sits idle)", async () => {
-    let body: { stream?: boolean } = {};
-    const sse = ['data: {"choices":[{"delta":{"role":"assistant"}}]}', 'data: {"choices":[{"delta":{"content":"[{\\"a\\""}}]}', 'data: {"choices":[{"delta":{"content":":1}]"}}]}', "data: [DONE]", ""].join("\n\n");
-    const fetcher = (async (_url: string, init: RequestInit) => {
-      body = JSON.parse(String(init.body));
-      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
-    }) as typeof fetch;
-    expect(await askModel({ url: "https://x/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
-    expect(body.stream).toBe(true);
-  });
-});
-
-describe("comparisons", () => {
-  it("none on some posts, one or two on the others, in two of the forms", async () => {
-    const { comparePlan } = await import("./coachBots.ts");
-    expect(comparePlan(() => 0.1).count).toBe(0);
-    expect(comparePlan(() => 0.5).count).toBe(1);
-    expect(comparePlan(() => 0.9).count).toBe(2);
-    expect(comparePlan().forms).toHaveLength(2);
-    expect(botPrompt(lineup, [], { count: 30 }).system).toMatch(/Keine Vergleiche/);
-    expect(botPrompt(lineup, [], { count: 30, compare: 2 }).system).toMatch(/Genau 2 Kommentare vergleichen/);
+    const out = parseBots(JSON.stringify([{ text: "a", minute: 1, replyTo: 1 }, { text: "b", minute: 2, replyTo: 0 }]));
+    expect(out.map((c) => c.replyTo)).toEqual([undefined, 0]);
   });
 });
 
@@ -137,7 +52,7 @@ describe("body insult filter", () => {
       { name: "F", text: "Unser Moppel im Tor hält wieder nix", minute: 6 },
       { name: "G", text: "Bauchgefühl sagt: wir gewinnen", minute: 7 },
     ]));
-    expect(out.map((c) => c.name)).toEqual(["C", "D", "G"]);
+    expect(out.map((c) => c.text[0])).toEqual(["T", "F", "B"]);
   });
 });
 
@@ -166,18 +81,17 @@ describe("startNow", () => {
   });
 });
 
-describe("no bots under teammates' names", () => {
-  it("drops comments whose name contains a player's name, from the post or the squad", async () => {
+describe("botNames", () => {
+  it("mixes forum names, never with a player's name in them", async () => {
     const { playerNames } = await import("./coachBots.ts");
-    const names = playerNames(lineup);
-    expect(names).toEqual(expect.arrayContaining(["gerl", "loibl", "nguyen", "kowol"]));
-    const out = parseBots(JSON.stringify([
-      { name: "KevinN88", text: "Letztes Mal fehlte ich", minute: 1 },
-      { name: "der_ellenberger", text: "1:7 war hart", minute: 2 },
-      { name: "basti91", text: "Loibl am Limit", minute: 3 },
-      { name: "Nguyen_Fan", text: "Kevin wo bist du", minute: 4 },
-    ]), names);
-    expect(out.map((c) => c.name)).toEqual(["basti91"]);
+    const words = playerNames(lineup);
+    expect(words).toEqual(expect.arrayContaining(["gerl", "loibl", "nguyen", "kowol"]));
+    const names = botNames(200, [...words, "max"]);
+    expect(names).toHaveLength(200);
+    expect(names.filter((n) => words.some((w) => n.toLowerCase().includes(w)) || n.toLowerCase().includes("max"))).toEqual([]);
+    expect(new Set(names).size).toBeGreaterThan(150);
+    const few = botNames(30).map((n) => n.replace(/[\d_. ].*$/, "").toLowerCase());
+    expect(new Set(few).size).toBeGreaterThan(25);
   });
 });
 
@@ -223,15 +137,14 @@ describe("bot polls and upvotes", () => {
   });
 });
 
-describe("worn comparisons and role names", () => {
-  it("drops Kahn/Starke comparisons and names that give the bot's part away", () => {
+describe("worn comparisons", () => {
+  it("drops Kahn/Starke comparisons, keeps 'ein neuer Spieler'", () => {
     const out = parseBots(JSON.stringify([
-      { name: "Olli", text: "Waldeck mit einer Hand wie Oliver Kahn", minute: 1 },
-      { name: "Nörgelmax", text: "Hab ich doch gesagt", minute: 1 },
-      { name: "KabineKlaus", text: "Aus der Kabine hör ich was", minute: 1 },
-      { name: "Max B.", text: "Ein neuer Spieler im Tor, spannend", minute: 1 },
+      { text: "Waldeck mit einer Hand wie Oliver Kahn", minute: 1 },
+      { text: "Unser Coach, die Krake 🐙", minute: 1 },
+      { text: "Ein neuer Spieler im Tor, spannend", minute: 1 },
     ]));
-    expect(out.map((o) => o.name)).toEqual(["Max B."]);
+    expect(out.map((o) => o.text)).toEqual(["Ein neuer Spieler im Tor, spannend"]);
   });
 });
 

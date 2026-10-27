@@ -1,11 +1,13 @@
 import { NEWS_TYPE } from "./newsTypes.ts";
 import { BOT_MOODS, CLUB, type CoachPost } from "./coachPosts.ts";
+import { kickoffDay } from "./format.ts";
 
 /**
  * Bot comments under the coach's posts: an LLM (Morpheus, OpenAI-style chat API) writes them, they're stored as
  * comments dated over the first minutes after the post, so they trickle in like real ones.
  */
 export type BotPoll = { question: string; options: string[]; votes: number[] };
+/** name: given by botNames (the model named everyone after their comment: PizzaAugenzeuge, Trainerfrage). */
 export type BotComment = { name: string; text: string; minute: number; replyTo?: number; upvotes?: number; poll?: BotPoll };
 
 export const BOT_COUNT = 30;
@@ -13,7 +15,32 @@ export const BOT_COUNT = 30;
 export const botCount = (random: () => number = Math.random) => 25 + Math.floor(random() * 18);
 const MINUTES = 18;
 const TEXT_MAX = 280;
-const NAME_MAX = 30;
+
+/** What happened before the coach page existed (hand-written posts), newest first. */
+const OLD_STORIES = [
+  "21.10.: Aufstellung gegen Förderbedarf: Coach – Gerl, Dallwig, Chatfield – Torres, Ellenberger – Loibl; Bank: Enciu, Schedel, Leonhard",
+  "21.10.: Nicht im Kader: Kevin Nguyen fehlt gegen Förderbedarf, Gründe unbekannt",
+  "14.10.: Aufstellung gegen Tralkörper: Coach – Dallwig, Chatfield, Torres, Ellenberger, Kowol, Nguyen; Bank: Enciu, Gerl, Paule, Schedel, Loibl, Leonhard",
+];
+
+/**
+ * The club's story so far, for callbacks ("Kowol findet aus dem Klo, aber nicht in den Strafraum"): the coach's
+ * earlier posts (lineups in full, news as headline and first sentence), newest first, then the old ones.
+ */
+export function storiesOf(posts: CoachPost[], post: CoachPost, max = 8): string[] {
+  const day = (p: CoachPost) => kickoffDay(p.publishedAt).replace(/^\S+ /, "");
+  const told = posts
+    .filter((p) => p.id !== post.id && p.type !== "result" && p.publishedAt < post.publishedAt)
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, max)
+    .map((p) => {
+      const l = p.data.lineup;
+      if (p.type === "lineup" && l) return `${day(p)}: Aufstellung: ${l.lines.map((r) => r.join(", ")).join(" – ")}${l.bench.length ? `; Bank: ${l.bench.join(", ")}` : ""}`;
+      const first = (p.data.text ?? "").split(/(?<=[.!?])\s/)[0]?.trim().slice(0, 160);
+      return `${day(p)}: ${p.data.headline}${first ? ` – ${first}` : ""}`;
+    });
+  return [...told, ...OLD_STORIES];
+}
 
 /** Results before the coach page existed (newest first); later ones come from the coach's result posts. */
 export const SEASON = [
@@ -62,7 +89,7 @@ export function batchPlan(count: number, topics: string[], size = 10): { count: 
 /** compare: how many compare a player with a pro; forms: how they put it; earlier: bot comments under other posts. */
 export type PromptOptions = {
   count?: number; topics?: string[]; existing?: string[]; polls?: number; batch?: number;
-  compare?: number; forms?: string[]; voices?: string[]; earlier?: string[];
+  compare?: number; forms?: string[]; voices?: string[]; earlier?: string[]; stories?: string[];
 };
 
 /** Each parallel batch draws its comparisons from another pool, else they all pick the same pro (Kahn, Neuer). */
@@ -105,9 +132,49 @@ const VOICES = [
   "jemand, der alles maßlos übertreibt",
 ];
 
-/** The goalkeepers every bot compared everyone with; and names that give a bot's part away (KabineKlaus, StatistikSepp). */
+/** The goalkeepers every bot compared everyone with. */
 const WORN_PROS = /\b(?:kahn|tom starke|manuel neuer|neuer im tor|krake)\b/i;
-const ROLE_NAME = /n[öo]rgl|nörgel|kabine|statisti|drama|witz|taktik|optimist|veteran|haudegen|insider|pessimist/i;
+
+const FIRST = ["Max", "Flo", "Basti", "Toni", "Kalle", "Michi", "Luki", "Seppi", "Hansi", "Andi", "Domi", "Jonas", "Felix", "Tobi", "Simon", "Lena", "Jule", "Caro", "Nico", "Paul", "Ben", "Moritz", "Vroni", "Resi", "Schorsch", "Wastl", "Ferdl", "Steffi", "Chris", "Jakob", "Korbi", "Quirin", "Marco", "Sandro", "Deniz", "Mehmet", "Ivan", "Anna", "Sophie", "Lisa", "Benni", "Jojo", "Matze", "Olli", "Rudi", "Fabi", "Vinc", "Elias", "Mia", "Hias"];
+const PLACES = ["Giesing", "Haidhausen", "Schwabing", "Sendling", "Pasing", "Moosach", "der Au", "Bogenhausen", "Garching", "Freising", "Laim", "Neuhausen"];
+const HANDLES = ["Bolzplatzlegende", "Weißbierwade", "Grätschenkönig", "Isarkicker", "Kreisligakaiser", "Sonntagskicker", "Abseitsfalle", "Flankengott", "Breznsalzer", "Tribünenhocker", "Seitenauslinie", "Pfostenschuss", "Rasenmäher", "Eckfahne", "Kabinenduft", "Stollenschuh"];
+
+/**
+ * Forum names, mixed like real ones (kalle86, Max B., Flo aus Giesing, Weißbierwade): never a player's name
+ * (a bot posing as a teammate isn't a joke anymore), now and then the same person twice.
+ */
+export function botNames(n: number, playerWords: string[] = [], random: () => number = Math.random): string[] {
+  const pick = <T,>(list: T[]) => list[Math.floor(random() * list.length) % list.length];
+  const num = () => String(Math.floor(random() * 99) + 1).padStart(random() < 0.5 ? 2 : 1, "0");
+  const letter = () => "ABCDEFGHKLMNPRSTW"[Math.floor(random() * 17) % 17];
+  const forms = [
+    (f: string) => `${f.toLowerCase()}${num()}`,
+    (f: string) => `${f}${num()}`,
+    (f: string) => `${f}_${num()}`,
+    (f: string) => `${f} ${letter()}.`,
+    (f: string) => `${f.toLowerCase()}.${letter().toLowerCase()}`,
+    (f: string) => `${f} aus ${pick(PLACES)}`,
+    (f: string) => f,
+    () => pick(HANDLES),
+    () => `${pick(HANDLES)}${num()}`,
+  ];
+  const out: string[] = [];
+  // Each first name or handle once (Anna_83, Anna_94 and Anna07 under one post read like a bot farm).
+  const used = new Set<string>();
+  while (out.length < n) {
+    if (out.length > 3 && random() < 0.08) { out.push(pick(out)); continue; }
+    for (let tries = 0; ; tries++) {
+      const first = pick(FIRST);
+      const name = pick(forms)(first);
+      const base = HANDLES.find((h) => name.startsWith(h)) ?? first;
+      if ((used.has(base) && tries < 50) || out.includes(name) || playerWords.some((w) => name.toLowerCase().includes(w))) continue;
+      used.add(base);
+      out.push(name);
+      break;
+    }
+  }
+  return out;
+}
 
 /** Comparisons for a post: none on some posts, one or two on the others, never one per ten like clockwork. */
 export function comparePlan(random: () => number = Math.random): { count: number; forms: string[]; voices: string[] } {
@@ -157,7 +224,6 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
     "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
-    "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X oder Vereinsname im Namen) und nie die Namen unserer Spieler im eigenen Namen.",
     "Jeder Kommentar sagt etwas Eigenes: keine zwei mit derselben Aussage, demselben Witz oder demselben Anfang.",
     "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), höchstens ein Drittel antwortet auf einen früheren Kommentar, höchstens 3 Antworten unter demselben.",
     ...(compare
@@ -168,13 +234,13 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
         `Mit dem echten Namen eines Spielers aus dem Beitrag (keine Platzhalter), ${(opts.forms ?? COMPARE_FORMS.slice(0, 2)).join(" oder ")}. Die Wörter „erinnert“ und „wie ein junger“ kommen darin nicht vor, und kein „– nur mit/ohne …“ am Ende.`,
       ]
       : ["Keine Vergleiche mit Profis."]),
-    ...(opts.voices?.length ? [`Unter den Kommentatoren sind diesmal u. a.: ${opts.voices.join("; ")}. Jeder hat seinen eigenen Blick, kein Satzanfang kommt mehr als zweimal vor. Die Typen stehen nie im Namen (kein „Nörgler82“, „Taktik-Fuchs“).`] : []),
+    ...(opts.voices?.length ? [`Unter den Kommentatoren sind diesmal u. a.: ${opts.voices.join("; ")}. Jeder hat seinen eigenen Blick, kein Satzanfang kommt mehr als zweimal vor.`] : []),
     "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend.",
     "Jeder Kommentar bekommt \"upvotes\": wie viele Daumen hoch er bekommt (0 bis 40, ungleich verteilt: viele 0 bis 5, gute Sprüche mehr).",
     polls
       ? `Genau ${polls === 1 ? "1 Kommentar ist eine Umfrage" : `${polls} Kommentare sind Umfragen`}: "poll": {"question": kurze Frage zum Beitrag, "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort (zusammen 6 bis 30)}; der "text" ist dann die Frage.`
       : "Keine Umfragen.",
-    `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"name": string, "text": string, "minute": Zahl 0 bis ${MINUTES}, "upvotes": Zahl, "replyTo": Index eines früheren Kommentars (optional), "poll": nur bei Umfragen}.`,
+    `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"text": string, "minute": Zahl 0 bis ${MINUTES}, "upvotes": Zahl, "replyTo": Index eines früheren Kommentars (optional), "poll": nur bei Umfragen}.`,
   ].join(" ");
 
   // Each thing the coach wants them to know is one topic; only a few comments take each up, else all 30 sound alike.
@@ -186,13 +252,16 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Letzte Ergebnisse (neueste zuerst; höchstens 5 Kommentare erwähnen sie, die anderen reden über diesen Beitrag):",
     ...[...recent, ...SEASON].map((r) => `- ${r}`),
     ...(topics.length
-      ? ["", "Was einige Kommentatoren wissen (Jedes Thema greifen nur 3 bis 5 Kommentare auf, verteilt über die Liste; die meisten Kommentare reden über den Beitrag selbst):", ...topics.map((t) => `- ${t}`)]
+      ? ["", "Was einige Kommentatoren wissen (Jedes Thema greifen nur 2 bis 3 Kommentare auf, verteilt über die Liste; die meisten Kommentare reden über den Beitrag selbst):", ...topics.map((t) => `- ${t}`)]
+      : []),
+    ...(opts.stories?.length
+      ? ["", "Was bisher bei uns los war (neueste zuerst; ein paar Kommentare spielen darauf an, z. B. wer zuletzt gespielt hat oder eine alte Geschichte, die meisten nicht):", ...opts.stories.map((t) => `- ${t}`)]
       : []),
     ...(opts.earlier?.length
       ? ["", "So klangen die Bots unter früheren Beiträgen; klingt anders (andere Wörter, andere Witze, anderer Satzbau):", ...opts.earlier.map((c) => `- ${c}`)]
       : []),
     ...(opts.existing?.length
-      ? ["", "Diese Kommentare stehen schon da (nicht wiederholen; ihr dürft darauf eingehen):", ...opts.existing.map((c) => `- ${c}`)]
+      ? ["", "Diese Kommentare stehen schon da (nicht wiederholen; ihr dürft darauf eingehen). Die neuen kommen später dazu und reagieren auf den Beitrag, wie er jetzt ist (z. B. ein Update im Text):", ...opts.existing.map((c) => `- ${c}`)]
       : []),
   ].join("\n");
   return { system, user };
@@ -224,7 +293,7 @@ function parsePoll(raw: unknown): BotPoll | undefined {
   return { question, options, votes };
 }
 
-export function parseBots(answer: string, playerWords: string[] = []): BotComment[] {
+export function parseBots(answer: string): BotComment[] {
   const start = answer.indexOf("[");
   const end = answer.lastIndexOf("]");
   if (start < 0 || end <= start) return [];
@@ -236,13 +305,9 @@ export function parseBots(answer: string, playerWords: string[] = []): BotCommen
   const kept = new Map<number, number>();
   raw.forEach((c, i) => {
     if (!c || typeof c !== "object") return;
-    const { name, text, minute, replyTo, upvotes, poll } = c as Record<string, unknown>;
-    const n = typeof name === "string" ? name.trim() : "";
+    const { text, minute, replyTo, upvotes, poll } = c as Record<string, unknown>;
     const t = typeof text === "string" ? text.trim() : "";
-    if (!n || !t || n.length > NAME_MAX || t.length > TEXT_MAX || BODY_INSULT.test(t) || BODY_INSULT.test(n)) return;
-    if (WORN_PROS.test(t) || ROLE_NAME.test(n)) return;
-    // A bot posing as a teammate ("KevinN88: last time I was missing") isn't a joke anymore.
-    if (playerWords.some((w) => n.toLowerCase().includes(w))) return;
+    if (!t || t.length > TEXT_MAX || BODY_INSULT.test(t) || WORN_PROS.test(t)) return;
     const m = typeof minute === "number" && Number.isFinite(minute) ? Math.min(MINUTES, Math.max(0, Math.round(minute))) : 0;
     let parent = typeof replyTo === "number" && replyTo < i ? kept.get(replyTo) : undefined;
     // Threads are one level deep: a reply to a reply goes under the first comment.
@@ -250,7 +315,7 @@ export function parseBots(answer: string, playerWords: string[] = []): BotCommen
     kept.set(i, out.length);
     const up = typeof upvotes === "number" && Number.isFinite(upvotes) ? Math.min(40, Math.max(0, Math.round(upvotes))) : undefined;
     const p = parsePoll(poll);
-    out.push({ name: n, text: t, minute: m, ...(parent !== undefined ? { replyTo: parent } : {}), ...(up !== undefined ? { upvotes: up } : {}), ...(p ? { poll: p } : {}) });
+    out.push({ name: "", text: t, minute: m, ...(parent !== undefined ? { replyTo: parent } : {}), ...(up !== undefined ? { upvotes: up } : {}), ...(p ? { poll: p } : {}) });
   });
   return out;
 }

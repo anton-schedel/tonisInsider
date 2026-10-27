@@ -1,7 +1,7 @@
 import type { D1 } from "cloudflare:workers";
 import { insertComment, removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, botCount, botPrompt, comparePlan, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, botCount, botNames, botPrompt, comparePlan, storiesOf, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -46,8 +46,10 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   if (todo === "keep") return { bots: existing?.n ?? 0, kept: true };
   if (!cfg) return { error: "Bot-Kommentare sind noch nicht eingerichtet.", status: 503 };
 
-  // The coach's earlier results, newest first.
-  const recent = (await listPosts(db))
+  // The coach's earlier results, newest first, and the rest of the club's story.
+  const posts = await listPosts(db);
+  const stories = storiesOf(posts, post);
+  const recent = posts
     .filter((p) => p.type === "result" && p.data.result && p.id !== post.id && p.publishedAt < post.publishedAt)
     .map((p) => `${kickoffDay(p.publishedAt).replace(/^\S+ /, "")}: ${p.data.result!.ours}:${p.data.result!.theirs} gegen ${p.data.result!.opponent}`);
 
@@ -72,7 +74,7 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
     .prepare("SELECT body FROM comments WHERE sender = 'bot' AND post_id != ? ORDER BY RANDOM() LIMIT 20").bind(post.id).all<{ body: string }>();
   const earlier = before.map((c) => c.body);
   const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, {
-    ...b, existing: existingTexts, polls: allowed[i], batch: pool + i, compare: comparisons[i], forms: compare.forms, voices: compare.voices, earlier,
+    ...b, existing: existingTexts, polls: allowed[i], batch: pool + i, compare: comparisons[i], forms: compare.forms, voices: compare.voices, earlier, stories,
   }))));
   let bots: BotComment[] = [];
   for (const a of answers) {
@@ -81,12 +83,14 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
     const i = answers.indexOf(a);
     // A batch that wrote more polls than it was allowed keeps only that many.
     let polls = allowed[i];
-    bots.push(...parseBots(a.value, playerNames(post)).map((b) => {
+    bots.push(...parseBots(a.value).map((b) => {
       const c = b.poll && polls-- <= 0 ? { ...b, poll: undefined } : b;
       return c.replyTo !== undefined ? { ...c, replyTo: c.replyTo + offset } : c;
     }));
   }
   bots = dropSimilar(bots);
+  const names = botNames(bots.length, playerNames(post));
+  bots = bots.map((b, i) => ({ ...b, name: names[i] }));
   if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 
   // A post that's already out gets its new comments from now on (after the model's minutes), not in the past.
