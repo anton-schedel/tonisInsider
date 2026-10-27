@@ -136,7 +136,8 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         // its kickoff time to the score in front of you.
         // Score and end come from /api/live/ (li: LigaInsider, else ESPN); OpenLigaDB (matches) only adds the goal
         // scorers when its score agrees: its own scores were wrong too often to show. A game counts as over at
-        // the latest 2 h 10 min after kickoff, whatever the sources say.
+        // the latest 2 h 10 min after kickoff, whatever the sources say, and never before 1 h 45 min (90 minutes
+        // and the break): a running game showed "Ende" (LigaInsider's "Noten" link isn't proof it's over).
         window.__applyLive = (doc) => {
           let live;
           try { live = JSON.parse(sessionStorage.getItem("live") ?? "null"); } catch {}
@@ -154,7 +155,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
             const sameScore = ol && ol.score[0] === score[0] && ol.score[1] === score[1];
             const m = {
               score,
-              finished: !!li?.finished || Date.now() > kickoff + 130 * 60000,
+              finished: (!!li?.finished && Date.now() > kickoff + 105 * 60000) || Date.now() > kickoff + 130 * 60000,
               goals: sameScore ? ol.goals : [],
             };
             box.querySelector("[data-live-main]").textContent = m.score[0] + ":" + m.score[1];
