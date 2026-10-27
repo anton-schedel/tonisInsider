@@ -238,7 +238,7 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend.",
     "Jeder Kommentar bekommt \"upvotes\": wie viele Daumen hoch er bekommt (0 bis 40, ungleich verteilt: viele 0 bis 5, gute Sprüche mehr).",
     polls
-      ? `Genau ${polls === 1 ? "1 Kommentar ist eine Umfrage" : `${polls} Kommentare sind Umfragen`}: "poll": {"question": kurze Frage zum Beitrag, "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort (zusammen 6 bis 30)}; der "text" ist dann die Frage.`
+      ? `Genau ${polls === 1 ? "1 Kommentar ist eine Umfrage" : `${polls} Kommentare sind Umfragen`}: "poll": {"question": kurze Frage zum Beitrag, "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort (zusammen 6 bis 30)}, also z. B. {"text": "Spielt Julian?", "minute": 5, "upvotes": 3, "poll": {"question": "Spielt Julian?", "options": ["Ja", "Nein"], "votes": [12, 5]}}.`
       : "Keine Umfragen.",
     `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"text": string, "minute": Zahl 0 bis ${MINUTES}, "upvotes": Zahl, "replyTo": Index eines früheren Kommentars (optional), "poll": nur bei Umfragen}.`,
   ].join(" ");
@@ -293,12 +293,33 @@ function parsePoll(raw: unknown): BotPoll | undefined {
   return { question, options, votes };
 }
 
+/**
+ * The list's objects one by one, for when the list as a whole isn't valid JSON (one broken item, e.g.
+ * {"text": "poll": {…}}, cost all 32 comments): broken ones become null, so the indexes for replyTo stay right.
+ */
+function eachObject(list: string): unknown[] {
+  const out: unknown[] = [];
+  let depth = 0, from = -1, inString = false;
+  for (let i = 0; i < list.length; i++) {
+    const ch = list[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === "{" && depth++ === 0) from = i;
+    else if (ch === "}" && --depth === 0) {
+      try { out.push(JSON.parse(list.slice(from, i + 1))); } catch { out.push(null); }
+    }
+  }
+  return out;
+}
+
 export function parseBots(answer: string): BotComment[] {
   const start = answer.indexOf("[");
   const end = answer.lastIndexOf("]");
   if (start < 0 || end <= start) return [];
   let raw: unknown;
-  try { raw = JSON.parse(answer.slice(start, end + 1)); } catch { return []; }
+  try { raw = JSON.parse(answer.slice(start, end + 1)); } catch { raw = eachObject(answer.slice(start + 1, end)); }
   if (!Array.isArray(raw)) return [];
   const out: BotComment[] = [];
   // Index in the model's list → index in ours (some get dropped).

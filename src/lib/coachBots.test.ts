@@ -27,6 +27,10 @@ describe("parseBots", () => {
     ]));
     expect(out).toEqual([{ name: "", text: "nach dem Spiel", minute: 18 }, { name: "", text: "vorher", minute: 0 }]);
   });
+  it("keeps the good comments when one item breaks the JSON (seen from Grok)", () => {
+    const answer = '```json\n[\n {"text": "a", "minute": 1},\n {"text": "poll": {"question": "Wer?", "options": ["A", "B"]}},\n {"text": "c {mit} \\"Klammern\\"", "minute": 2, "replyTo": 0}\n]\n```';
+    expect(parseBots(answer)).toEqual([{ name: "", text: "a", minute: 1 }, { name: "", text: 'c {mit} "Klammern"', minute: 2, replyTo: 0 }]);
+  });
   it("gives nothing for junk", () => {
     expect(parseBots("Tut mir leid, das kann ich nicht.")).toEqual([]);
     expect(parseBots("[{oops")).toEqual([]);
