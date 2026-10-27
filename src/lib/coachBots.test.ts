@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askModel, batchPlan, botPrompt, botRows, parseBots, type BotComment } from "./coachBots.ts";
+import { askModel, batchPlan, botPrompt, botRows, dropSimilar, parseBots, type BotComment } from "./coachBots.ts";
 import type { CoachPost } from "./coachPosts.ts";
 
 const lineup: CoachPost = {
@@ -65,7 +65,7 @@ describe("askModel", () => {
       sent = { url, body: JSON.parse(String(init.body)), auth: new Headers(init.headers).get("authorization") };
       return Response.json({ choices: [{ message: { content: "[]" } }] });
     }) as typeof fetch;
-    const answer = await askModel({ url: "https://llm.example/api", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher);
+    const answer = await askModel({ url: "https://llm.example/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher);
     expect(answer).toBe("[]");
     expect(sent?.url).toBe("https://llm.example/api/chat/completions");
     expect(sent?.auth).toBe("Bearer k");
@@ -74,7 +74,7 @@ describe("askModel", () => {
   });
   it("fails on an error status", async () => {
     const fetcher = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
-    await expect(askModel({ url: "https://x", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
+    await expect(askModel({ url: "https://x", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
   });
 });
 
@@ -97,6 +97,7 @@ describe("batchPlan", () => {
       { count: 10, topics: ["a", "d"] }, { count: 10, topics: ["b"] }, { count: 10, topics: ["c"] },
     ]);
     expect(batchPlan(25, [])).toEqual([{ count: 9, topics: [] }, { count: 8, topics: [] }, { count: 8, topics: [] }]);
+    expect(batchPlan(42, ["a", "b"], 50)).toEqual([{ count: 42, topics: ["a", "b"] }]);
   });
 });
 
@@ -108,7 +109,7 @@ describe("askModel streaming", () => {
       body = JSON.parse(String(init.body));
       return new Response(sse, { headers: { "content-type": "text/event-stream" } });
     }) as typeof fetch;
-    expect(await askModel({ url: "https://x/api", key: "k", model: "m" }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
+    expect(await askModel({ url: "https://x/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
     expect(body.stream).toBe(true);
   });
 });
@@ -179,8 +180,8 @@ describe("modelFromEnv", () => {
   it("prefers the LLM_* settings (e.g. Grok) and falls back to Morpheus", async () => {
     const { modelFromEnv } = await import("./coachBots.ts");
     const morpheus = { MORPHEUS_API_KEY: "m", MORPHEUS_BASE_URL: "https://morpheus/api", MORPHEUS_MODEL: "qwen" };
-    expect(modelFromEnv(morpheus)).toEqual({ url: "https://morpheus/api", key: "m", model: "qwen" });
-    expect(modelFromEnv({ ...morpheus, LLM_API_KEY: "x", LLM_BASE_URL: "https://api.x.ai/v1", LLM_MODEL: "grok" })).toEqual({ url: "https://api.x.ai/v1", key: "x", model: "grok" });
+    expect(modelFromEnv(morpheus)).toEqual({ url: "https://morpheus/api", key: "m", model: "qwen", batch: 10 });
+    expect(modelFromEnv({ ...morpheus, LLM_API_KEY: "x", LLM_BASE_URL: "https://api.x.ai/v1", LLM_MODEL: "grok" })).toEqual({ url: "https://api.x.ai/v1", key: "x", model: "grok", batch: 50 });
     expect(modelFromEnv({ LLM_API_KEY: "x" })).toBeUndefined();
   });
 });
@@ -214,5 +215,21 @@ describe("bot polls and upvotes", () => {
     }
     expect(pollAllowance(2, 2)).toEqual([0, 0]);
     expect(pollAllowance(2, 1, () => 0.99).reduce((x, y) => x + y, 0)).toBe(1);
+  });
+});
+
+describe("dropSimilar", () => {
+  const c = (text: string, replyTo?: number, poll = false): BotComment => ({ name: "x", text, minute: 0, ...(replyTo !== undefined ? { replyTo } : {}), ...(poll ? { poll: { question: text, options: ["Ja", "Nein"], votes: [1, 1] } } : {}) });
+  it("drops near-repeats (seen on real posts), keeps different takes and polls, re-points replies", () => {
+    const out = dropSimilar([
+      c("ach manno, ohne ellenberger wird das richtig schwer... hoffentlich finden die nen plan"),
+      c("Der hat doch erst letzte Woche den Ehrentreffer gemacht."),
+      c("Ach nein, nicht schon wieder... ohne Ellenberger wird's richtig schwer gegen die."),
+      c("Kopf hoch, das wird schon", 2),
+      c("Wer soll Ellenberger ersetzen?", undefined, true),
+      c("Waldeck erinnert mich an den jungen Harry Kane, hat diesen Torriecher"),
+    ]);
+    expect(out.map((o) => o.text.slice(0, 12))).toEqual(["ach manno, o", "Der hat doch", "Kopf hoch, d", "Wer soll Ell", "Waldeck erin"]);
+    expect(out[2].replyTo).toBe(0);
   });
 });

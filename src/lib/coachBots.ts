@@ -46,9 +46,12 @@ function positions(lines: string[][]): string[] {
 export const topicsOf = (context = "") =>
   context.split(/(?<=[.!?])\s+|\n+|;\s*/).map((t) => t.trim().replace(/[.]$/, "")).filter(Boolean);
 
-/** Several small requests instead of one big one: each is done sooner, and one failing costs only its part. */
-export function batchPlan(count: number, topics: string[]): { count: number; topics: string[] }[] {
-  const n = Math.max(1, Math.ceil(count / 10));
+/**
+ * Comments per request. One request sees all its comments and doesn't repeat itself, so a fast model writes them
+ * all at once; a slow one (Morpheus) gets small parallel requests, else the connection drops before it's done.
+ */
+export function batchPlan(count: number, topics: string[], size = 10): { count: number; topics: string[] }[] {
+  const n = Math.max(1, Math.ceil(count / size));
   return Array.from({ length: n }, (_, i) => ({
     count: Math.floor(count / n) + (i < count % n ? 1 : 0),
     topics: topics.filter((_, t) => t % n === i),
@@ -103,6 +106,7 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche),",
     "Namen bunt gemischt wie in einem echten Forum: mal Vorname mit Zahl, mal Spitzname, mal kleingeschrieben, mal „Max B.“, mal etwas Albernes; kein Muster (nicht immer Fan_von_X oder Vereinsname im Namen) und nie die Namen unserer Spieler im eigenen Namen.",
+    "Jeder Kommentar sagt etwas Eigenes: keine zwei mit derselben Aussage, demselben Witz oder demselben Anfang.",
     "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), etwa ein Drittel antwortet auf einen früheren Kommentar.",
     // About one in ten, counted per batch so the batches together don't overdo it.
     `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler augenzwinkernd mit einem bekannten Profi, die anderen nicht.`,
@@ -189,6 +193,32 @@ export function parseBots(answer: string, playerWords: string[] = []): BotCommen
   return out;
 }
 
+// Words that say nothing about what a comment means; the rest are compared by their first six letters (Testspiel/Testspiels).
+const FILLER = new Set("aber alle auch beim bitte dann dass denn diese doch eine einen einer echt eben erst etwas gegen gerade gibt hier immer jetzt kein keine klar macht mach mehr mich mein meine nach nicht noch nur oder schon sein seine sich sind soll unser unsere viel wenn wieder wird wirds wäre ganz einfach wohl haben habe hatte mann leute endlich hoffentlich richtig".split(" "));
+const gist = (t: string) => new Set(t.toLowerCase().replace(/[^a-zäöüß0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length >= 4 && !FILLER.has(w)).map((w) => w.slice(0, 6)));
+
+/** Two comments say about the same: at least 3 words in common, half of the shorter one's. */
+export function similar(a: string, b: string): boolean {
+  const A = gist(a), B = gist(b);
+  const shared = [...A].filter((w) => B.has(w)).length;
+  return shared >= 3 && shared >= Math.min(A.size, B.size) / 2;
+}
+
+/** Drops comments that repeat an earlier one (polls stay); replies to a dropped one go under the one it repeats. */
+export function dropSimilar(bots: BotComment[]): BotComment[] {
+  const out: BotComment[] = [];
+  const to = new Map<number, number>();
+  bots.forEach((b, i) => {
+    const parent = b.replyTo !== undefined ? to.get(b.replyTo) : undefined;
+    const twin = b.poll ? -1 : out.findIndex((o) => !o.poll && similar(o.text, b.text));
+    if (twin >= 0) { to.set(i, out[twin].replyTo ?? twin); return; }
+    to.set(i, out.length);
+    const { replyTo: _, ...rest } = b;
+    out.push(parent !== undefined ? { ...rest, replyTo: parent } : rest);
+  });
+  return out;
+}
+
 /**
  * After a save: a post that isn't out yet gets fresh bot comments (its old ones not out yet are replaced). One
  * that is out keeps the ones it has, else every edit would add another 30; it only gets some if it has none.
@@ -226,14 +256,15 @@ export function botRows(publishedAt: string, bots: BotComment[]): BotRow[] {
   }));
 }
 
-export type ModelConfig = { url: string; key: string; model: string };
+/** batch: comments per request (see batchPlan). */
+export type ModelConfig = { url: string; key: string; model: string; batch: number };
 
 type ModelEnv = Partial<Record<"LLM_API_KEY" | "LLM_BASE_URL" | "LLM_MODEL" | "MORPHEUS_API_KEY" | "MORPHEUS_BASE_URL" | "MORPHEUS_MODEL", string>>;
 
 /** The model for bot comments: LLM_* (e.g. Grok at xAI) if set, else Morpheus; undefined if neither is complete. */
 export function modelFromEnv(e: ModelEnv): ModelConfig | undefined {
-  if (e.LLM_API_KEY && e.LLM_BASE_URL && e.LLM_MODEL) return { url: e.LLM_BASE_URL, key: e.LLM_API_KEY, model: e.LLM_MODEL };
-  if (e.MORPHEUS_API_KEY && e.MORPHEUS_BASE_URL && e.MORPHEUS_MODEL) return { url: e.MORPHEUS_BASE_URL, key: e.MORPHEUS_API_KEY, model: e.MORPHEUS_MODEL };
+  if (e.LLM_API_KEY && e.LLM_BASE_URL && e.LLM_MODEL) return { url: e.LLM_BASE_URL, key: e.LLM_API_KEY, model: e.LLM_MODEL, batch: 50 };
+  if (e.MORPHEUS_API_KEY && e.MORPHEUS_BASE_URL && e.MORPHEUS_MODEL) return { url: e.MORPHEUS_BASE_URL, key: e.MORPHEUS_API_KEY, model: e.MORPHEUS_MODEL, batch: 10 };
   return undefined;
 }
 

@@ -1,7 +1,7 @@
 import type { D1 } from "cloudflare:workers";
 import { insertComment, removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, botCount, botPrompt, pollAllowance, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { askModel, batchPlan, botCount, botPrompt, dropSimilar, pollAllowance, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -57,15 +57,17 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
     : { results: [] };
   const existingTexts = there.reverse().map((c) => `${c.name}: ${c.body}`);
 
-  // Small batches in parallel; replies stay within their batch.
-  const plan = batchPlan(more ?? botCount(), topicsOf(post.data.bots?.context));
+  // Batches (Morpheus only) run in parallel; replies stay within their batch.
+  const plan = batchPlan(more ?? botCount(), topicsOf(post.data.bots?.context), cfg.batch);
   // One or two polls per post in all: a rewrite starts afresh, "more" counts the polls already there.
   const pollsThere = more
     ? (await db.prepare("SELECT COUNT(*) AS n FROM polls p JOIN comments c ON c.id = p.comment_id WHERE c.post_id = ?").bind(post.id).first<{ n: number }>())?.n ?? 0
     : 0;
   const allowed = pollAllowance(plan.length, pollsThere);
-  const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts, polls: allowed[i], batch: i }))));
-  const bots: BotComment[] = [];
+  // Each batch, and each post, takes its comparisons from another pool of pros.
+  const pool = Math.floor(Math.random() * 4);
+  const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, { ...b, existing: existingTexts, polls: allowed[i], batch: pool + i }))));
+  let bots: BotComment[] = [];
   for (const a of answers) {
     if (a.status !== "fulfilled") continue;
     const offset = bots.length;
@@ -77,6 +79,7 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
       return c.replyTo !== undefined ? { ...c, replyTo: c.replyTo + offset } : c;
     }));
   }
+  bots = dropSimilar(bots);
   if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 
   // A post that's already out gets its new comments from now on (after the model's minutes), not in the past.
