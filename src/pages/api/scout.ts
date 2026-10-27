@@ -2,11 +2,9 @@ import type { APIRoute } from "astro";
 import { env, type D1 } from "cloudflare:workers";
 import { isSameOrigin } from "../../lib/session.ts";
 import { playerIds, SCOUT_MAX, scoutOwner } from "../../lib/scout.ts";
+import { json, readJson } from "../../lib/http.ts";
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
 /** The list, newest first, with when each player was added (his older news isn't new). */
 async function answer(db: D1, owner: string) {
@@ -36,8 +34,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const owner = await scoutOwner(cookies, env.CREDENTIALS_KEY);
   const db = env.COMMENTS;
   if (!owner || !db) return json({ account: false }, 401);
-  let raw: { add?: unknown; remove?: unknown; seen?: unknown };
-  try { raw = await request.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const raw = await readJson<{ add?: unknown; remove?: unknown; seen?: unknown }>(request);
+  if (raw instanceof Response) return raw;
   const now = new Date().toISOString();
   const add = playerIds(raw.add), remove = playerIds(raw.remove);
   const count = await db.prepare("SELECT COUNT(*) AS n FROM scout WHERE owner = ?").bind(owner).first<{ n: number }>();

@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { KickbaseAuthError, login } from "../../lib/kickbase.ts";
 import { getPostHogServer } from "../../lib/posthog-server.ts";
+import { forbidden } from "../../lib/http.ts";
 import { isSameOrigin, parseExpiry, rememberCredentials, setSession } from "../../lib/session.ts";
 
 export const prerender = false;
@@ -13,7 +14,7 @@ export const POST: APIRoute = async (context) => {
 };
 
 const handle: APIRoute = async ({ request, cookies, redirect }) => {
-  if (!isSameOrigin(request)) return new Response("Forbidden", { status: 403 });
+  if (!isSameOrigin(request)) return forbidden();
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");

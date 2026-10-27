@@ -1,0 +1,12 @@
+<div data-skeleton role="status" aria-label="Kommentare werden geladen">
+  {[0.9, 0.6, 0.75].map((w) => (
+    <div class="flex gap-2.5 py-3.5">
+      <span class="skeleton size-8 shrink-0 rounded-full"></span>
+      <span class="flex-1">
+        <span class="skeleton block h-3 w-24 rounded-full"></span>
+        <span class="skeleton mt-2.5 block h-3 rounded-full" style={`width:${w * 100}%`}></span>
+        <span class="skeleton mt-2 block h-3 w-1/2 rounded-full"></span>
+      </span>
+    </div>
+  ))}
+</div>

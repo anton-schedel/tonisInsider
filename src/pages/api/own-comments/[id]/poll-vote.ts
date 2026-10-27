@@ -4,11 +4,9 @@ import { isSameOrigin } from "../../../../lib/session.ts";
 import { isOwnPost } from "../../../../lib/ownComments.ts";
 import { loadThreads } from "../../../../lib/ownCommentsDb.ts";
 import { voterOf } from "../[id].ts";
+import { json, readJson } from "../../../../lib/http.ts";
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
 /** POST /api/own-comments/<post id>/poll-vote/ {comment, option}: one vote per visitor and poll, final. */
 export const POST: APIRoute = async ({ params, request, cookies }) => {
@@ -16,8 +14,8 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
   const postId = Number(params.id);
   const db = env.COMMENTS;
   if (!isOwnPost(postId) || !db) return json({ error: "Nicht gefunden." }, 404);
-  let body: { comment?: unknown; option?: unknown };
-  try { body = (await request.json()) ?? {}; } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const body = await readJson<{ comment?: unknown; option?: unknown }>(request);
+  if (body instanceof Response) return body;
   const commentId = Number(body.comment);
   const optionId = Number(body.option);
   const now = new Date();

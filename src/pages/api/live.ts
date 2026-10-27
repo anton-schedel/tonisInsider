@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro";
-import { env } from "cloudflare:workers";
 import { USER_AGENT } from "../../../scraper/fetch.ts";
-import type { Snapshot } from "../../../scraper/snapshot.ts";
-import { hedged, type EdgeCache } from "../../lib/comments.ts";
+import { hedged } from "../../lib/comments.ts";
+import { edgeCache, later } from "../../lib/http.ts";
+import { loadSnapshot } from "../../lib/snapshotServer.ts";
 import { espnUrls, LI_HOME_URL, mergeScores, parseEspn, parseLiScores, type LiScore } from "../../lib/live.ts";
 
 export const prerender = false;
@@ -15,8 +15,8 @@ const KEY = "https://live.cache/scores";
  * GET /api/live/: scores and ends of the matchday's games. From LigaInsider's match bar; games it doesn't list
  * (its homepage sometimes has no match bar at all) come from ESPN's scoreboard.
  */
-export const GET: APIRoute = async ({ url }) => {
-  const cache = (globalThis as { caches?: { default?: EdgeCache } }).caches?.default;
+export const GET: APIRoute = async ({ url, locals }) => {
+  const cache = edgeCache();
   const hit = await cache?.match(KEY);
   if (hit) return hit;
   const [li, espn] = await Promise.allSettled([
@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
   const games = mergeScores(li.status === "fulfilled" ? li.value : [], espn.status === "fulfilled" ? espn.value : []);
   const res = Response.json(games, { headers: { "cache-control": `public, max-age=${TTL_SECONDS}` } });
-  if (games.length) await cache?.put(KEY, res.clone());
+  if (games.length && cache) later(locals)(cache.put(KEY, res.clone()));
   return res;
 };
 
@@ -41,8 +41,9 @@ async function fromEspn(url: URL): Promise<LiScore[]> {
   const day = (u: string) => fetch(u, { signal: AbortSignal.timeout(5000) }).then((r) => (r.ok ? r.json() : undefined)).catch(() => undefined);
   const [days, snapshot] = await Promise.all([
     Promise.all(espnUrls(new Date()).map(day)),
-    env.ASSETS.fetch(new URL("/data/snapshot.json", url)).then((r: Response) => r.json() as Promise<Snapshot>),
+    loadSnapshot(url),
   ]);
   if (days.every((d) => d === undefined)) throw new Error("ESPN unavailable");
+  if (!snapshot) throw new Error("no snapshot");
   return parseEspn(days, snapshot.lineups.map((l) => ({ name: l.club.name, slug: l.club.slug })));
 }

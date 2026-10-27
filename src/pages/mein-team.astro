@@ -13,7 +13,7 @@ import { cardAttr, hasFreshNews, matchLine, newsByPlayer, POSITIONS, startLabel,
 import { confirmedClubs } from "../lib/lineupNews.ts";
 import { anyRunning } from "../lib/livePoints.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
-import type { Snapshot } from "../../scraper/snapshot.ts";
+import { loadSnapshot } from "../lib/snapshotServer.ts";
 
 export const prerender = false;
 
@@ -34,6 +34,12 @@ const g = globalThis as unknown as {
 const rosters = (g.__kbRosters ??= new Map());
 
 async function load(token: string) {
+  // Needed whatever the league: asked for while Kickbase looks up the leagues.
+  const table = !g.__kbTable || Date.now() - g.__kbTable.at > DAY
+    ? clubTable(fetch, token).then((teams) => void (teams.length > 0 && (g.__kbTable = { at: Date.now(), teams })))
+    : undefined;
+  table?.catch(() => {}); // still thrown below; this only covers the early returns
+  const snapshotLoad = loadSnapshot(Astro.url);
   const leagues = await fetchLeagues(fetch, token);
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
@@ -43,22 +49,13 @@ async function load(token: string) {
   if (picked && league.id === picked) {
     Astro.cookies.set(LEAGUE_COOKIE, league.id, { path: "/", secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 400 });
   }
-  if (!g.__kbTable || Date.now() - g.__kbTable.at > DAY) {
-    const teams = await clubTable(fetch, token);
-    if (teams.length > 0) g.__kbTable = { at: Date.now(), teams };
-  }
   // The manager's own XI and bench; if Kickbase can't deliver it, fall back to the plain squad list.
   const eleven = (token: string, id: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[]; points?: number }> =>
     myEleven(fetch, token, id).catch((err) => {
       if (err instanceof KickbaseAuthError) throw err;
       return fetchSquad(fetch, token, id).then((all) => ({ starters: [], bench: all }));
     });
-  const [{ starters, bench, points }, snapshot] = await Promise.all([
-    eleven(token, league.id),
-    env.ASSETS.fetch(new URL("/data/snapshot.json", Astro.url))
-      .then((r: Response) => (r.ok ? (r.json() as Promise<Snapshot>) : undefined))
-      .catch(() => undefined),
-  ]);
+  const [{ starters, bench, points }, snapshot] = await Promise.all([eleven(token, league.id), snapshotLoad, table]);
   const squad = [...starters, ...bench];
   const teamIds = [...new Set(squad.map((p) => p.teamId))];
   await Promise.all(

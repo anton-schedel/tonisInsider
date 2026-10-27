@@ -2,10 +2,9 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { KickbaseAuthError, login, myEleven, type KbLive } from "../../../lib/kickbase.ts";
 import { relogin, TOKEN_COOKIE } from "../../../lib/session.ts";
+import { json } from "../../../lib/http.ts";
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
 /**
  * GET /api/kickbase/live/?league=<id>: the logged-in manager's live Kickbase points (XI total and per player),

@@ -1,4 +1,5 @@
-import type { AstroCookieSetOptions } from "astro";
+import type { APIRoute, AstroCookieSetOptions } from "astro";
+import { forbidden } from "./http.ts";
 import { KickbaseAuthError, type KbLogin } from "./kickbase.ts";
 import { seal, unseal } from "./vault.ts";
 
@@ -132,3 +133,13 @@ export async function ligaCredentials(cookies: CookieJar, key: string | undefine
 export function clearLigaSession(cookies: CookieJar): void {
   for (const name of liCookies) cookies.delete(name, { path: "/" });
 }
+
+/** POST /api/logout/ and /api/li-logout/: sign out with `clear`, then back to the form's "next" page. */
+export const logoutRoute = (clear: (cookies: CookieJar) => void): APIRoute => async ({ request, cookies, redirect }) => {
+  if (!isSameOrigin(request)) return forbidden();
+  clear(cookies);
+  const next = safeNext(String((await request.formData().catch(() => new FormData())).get("next") ?? ""));
+  const res = redirect(next, 303);
+  res.headers.set("Cache-Control", "private, no-store");
+  return res;
+};

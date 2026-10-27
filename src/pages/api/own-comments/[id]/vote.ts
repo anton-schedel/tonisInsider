@@ -4,11 +4,9 @@ import { isSameOrigin } from "../../../../lib/session.ts";
 import { isOwnPost } from "../../../../lib/ownComments.ts";
 import { grown } from "../../../../lib/ownVotes.ts";
 import { voterOf } from "../[id].ts";
+import { json, readJson } from "../../../../lib/http.ts";
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
 /** POST /api/own-comments/<post id>/vote/ {comment, on}: upvote a comment, or take the upvote back. */
 export const POST: APIRoute = async ({ params, request, cookies }) => {
@@ -16,8 +14,8 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
   const postId = Number(params.id);
   const db = env.COMMENTS;
   if (!isOwnPost(postId) || !db) return json({ error: "Nicht gefunden." }, 404);
-  let body: { comment?: unknown; on?: unknown };
-  try { body = (await request.json()) ?? {}; } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const body = await readJson<{ comment?: unknown; on?: unknown }>(request);
+  if (body instanceof Response) return body;
   const commentId = Number(body.comment);
   const now = new Date();
   const c = await db.prepare("SELECT id, created_at, bot_upvotes FROM comments WHERE id = ? AND post_id = ? AND created_at <= ?")

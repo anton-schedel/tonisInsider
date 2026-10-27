@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { isSameOrigin } from "../../../lib/session.ts";
 import { senderKey } from "../../../lib/ownComments.ts";
 import { COACH_COOKIE, COACH_DAYS, LOGIN_RATE, passwordMatches, signCoach } from "../../../lib/coachAuth.ts";
-import { json } from "../../../lib/coachApi.ts";
+import { json, readJson } from "../../../lib/http.ts";
 
 export const prerender = false;
 
@@ -12,8 +12,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
   const db = env.COMMENTS;
   if (!db || !env.CREDENTIALS_KEY || !env.COACH_PASSWORD) return json({ error: "Die Trainerseite ist noch nicht eingerichtet." }, 503);
-  let password = "";
-  try { password = String(((await request.json()) as { password?: unknown }).password ?? ""); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const raw = await readJson<{ password?: unknown }>(request);
+  if (raw instanceof Response) return raw;
+  const password = String(raw.password ?? "");
 
   const sender = await senderKey(request.headers.get("cf-connecting-ip") ?? "", env.CREDENTIALS_KEY);
   const since = new Date(Date.now() - LOGIN_RATE.windowMs).toISOString();

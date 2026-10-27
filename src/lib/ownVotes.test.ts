@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GROW_MS, grown, parseNewPoll, pollView } from "./ownVotes.ts";
+import { GROW_MS, grown, parseNewPoll, pollView, wholePercents } from "./ownVotes.ts";
 
 const T0 = "2026-10-24T10:00:00.000Z";
 const at = (ms: number) => new Date(Date.parse(T0) + ms);
@@ -24,14 +24,12 @@ describe("grown", () => {
 
 describe("pollView", () => {
   const opts = [{ id: 1, label: "Ja", bot: 12, real: 1 }, { id: 2, label: "Nein", bot: 6, real: 0 }];
-  it("adds grown bot votes and real ones, percentages add up to about 100", () => {
+  it("adds grown bot votes and real ones, percentages add up to 100", () => {
     const v = pollView("Loibl raus???", opts, T0, at(GROW_MS), 1);
     expect(v.total).toBe(19);
     expect(v.mine).toBe(1);
     expect(v.options.map((o) => o.label)).toEqual(["Ja", "Nein"]);
-    const sum = v.options.reduce((a, o) => a + o.pct, 0);
-    expect(sum).toBeGreaterThanOrEqual(99);
-    expect(sum).toBeLessThanOrEqual(101);
+    expect(v.options.reduce((a, o) => a + o.pct, 0)).toBe(100);
     expect(v.options[0].pct).toBeGreaterThan(v.options[1].pct);
     expect(pollView("Frage", opts, T0, at(0)).total).toBe(1); // only the real votes before the bot votes grow
   });
@@ -53,4 +51,12 @@ describe("parseNewPoll", () => {
     const p = parseNewPoll({ question: "  Wer spielt? ", options: [" A ", "B", "C", "D", "E", "F", "G", ""] });
     expect(p).toEqual({ question: "Wer spielt?", options: ["A", "B", "C", "D", "E", "F"] });
   });
+});
+
+describe("wholePercents", () => {
+  it.each([
+    [[1, 1, 1], [34, 33, 33]],
+    [[2, 1], [67, 33]],
+    [[0, 0], [0, 0]],
+  ])("%j → %j", (counts, pct) => expect(wholePercents(counts)).toEqual(pct));
 });

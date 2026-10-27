@@ -1,76 +1,41 @@
 ---
 /**
  * Comments on our own posts, from our own database via /api/own-comments/<id>/. They look and work like
- * LigaInsider's (Comments.astro: upvotes, polls, the Kommentar/Umfrage switch), without a login: everyone writes
- * under a name of their choice (remembered in this browser) and votes once per comment or poll.
+ * LigaInsider's (Comments.astro; both draw with lib/commentUi.ts), without a login: everyone writes under a name
+ * of their choice (remembered in this browser) and votes once per comment or poll.
  */
 import { NAME_MAX, TEXT_MAX } from "../lib/ownComments.ts";
-import { ANSWER_MAX, QUESTION_MAX } from "../lib/ownVotes.ts";
+import { QUESTION_MAX } from "../lib/ownVotes.ts";
+import { FIELD } from "../lib/commentUi.ts";
+import CommentComposer from "./CommentComposer.astro";
+import CommentsSkeleton from "./CommentsSkeleton.astro";
 
 interface Props { postId: number }
 const { postId } = Astro.props;
-const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
-<section class="mt-10" data-own-comments={postId} data-answer-max={ANSWER_MAX}>
+<section class="mt-10" data-own-comments={postId}>
   <h2 class="mb-4 flex items-baseline gap-2 text-[20px] font-bold tracking-[-0.02em]">
     Kommentare <span class="text-[15px] font-semibold text-muted" data-own-count></span>
   </h2>
 
-  <form data-own-form class="mb-6 flex flex-col gap-2">
-    <input data-own-name maxlength={NAME_MAX} placeholder="Dein Name" autocomplete="nickname" class={field} />
-    {/* Comment text or poll fields; switching grows or shrinks this box smoothly (script below). */}
-    <div data-own-fields>
-      <textarea data-own-text rows="3" maxlength={TEXT_MAX} placeholder="Was sagst du dazu?" class={field}></textarea>
-      <div data-own-poll class="hidden flex flex-col gap-2">
-        <input data-own-question maxlength={QUESTION_MAX} placeholder="Frage der Umfrage…" class={field} />
-        <div data-own-options class="flex flex-col gap-2"></div>
-        <button type="button" data-own-add class="press self-start text-sm font-medium text-accent">Weitere Antwort</button>
-      </div>
-    </div>
-    <div class="flex items-center gap-2">
-      <div class="seg w-[196px]" role="group" aria-label="Art" data-own-seg>
-        <span class="seg-thumb" aria-hidden="true"></span>
-        <button type="button" data-own-mode="text" aria-pressed="true" class="press rounded-lg py-1.5 text-[13px] font-semibold">Kommentar</button>
-        <button type="button" data-own-mode="poll" aria-pressed="false" class="press rounded-lg py-1.5 text-[13px] font-semibold">Umfrage</button>
-      </div>
-      <span class="flex-1"></span>
-      <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
-    </div>
+  <CommentComposer textMax={TEXT_MAX} questionMax={QUESTION_MAX} class="mb-6">
+    <input slot="before" data-own-name maxlength={NAME_MAX} placeholder="Dein Name" autocomplete="nickname" class={FIELD} />
     <p data-own-error class="min-h-5 text-sm" style="color:var(--red-fg)"></p>
-  </form>
+  </CommentComposer>
 
-  <div data-own-skeleton role="status" aria-label="Kommentare werden geladen">
-    {[0.9, 0.6, 0.75].map((w) => (
-      <div class="flex gap-2.5 py-3.5">
-        <span class="skeleton size-8 shrink-0 rounded-full"></span>
-        <span class="flex-1">
-          <span class="skeleton block h-3 w-24 rounded-full"></span>
-          <span class="skeleton mt-2.5 block h-3 rounded-full" style={`width:${w * 100}%`}></span>
-        </span>
-      </div>
-    ))}
-  </div>
+  <CommentsSkeleton />
   <p data-own-status class="hidden text-sm text-muted"></p>
-  <ul class="flex flex-col" data-own-list></ul>
+  <ul class="flex flex-col" data-comment-list></ul>
 </section>
 
 <script>
   import type { OwnComment } from "../lib/ownComments.ts";
   import type { PollView } from "../lib/ownVotes.ts";
   import { NAME_MAX, TEXT_MAX } from "../lib/ownComments.ts";
-  import { ago, initials } from "../lib/format.ts";
+  import { ANSWER_MAX } from "../lib/ownVotes.ts";
+  import { FIELD, h, pollOf, renderComment, renderPoll, revealIn, setVote, settle, showResults, swapPoll, voteButton, withVote, wireComposer, type PollOpts, type RenderOpts } from "../lib/commentUi.ts";
 
   const NAME_KEY = "commentName";
-  const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
-
-  // Builds DOM with textContent only: comment text is untrusted and never parsed as HTML.
-  function h(tag: string, cls = "", text?: string) {
-    const el = document.createElement(tag);
-    if (cls) el.className = cls;
-    if (text !== undefined) el.textContent = text;
-    return el;
-  }
-
   const savedName = () => { try { return localStorage.getItem(NAME_KEY) ?? ""; } catch { return ""; } };
   const saveName = (n: string) => { try { localStorage.setItem(NAME_KEY, n); } catch {} };
 
@@ -82,100 +47,14 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     return data;
   }
 
-  // ▲ with the count, like LigaInsider's (Comments.astro voteControl); anyone can vote here.
-  function voteControl(c: OwnComment): HTMLElement {
-    const up = h("button", `vote-btn press${c.voted ? " is-on" : ""}`);
-    up.setAttribute("type", "button");
-    up.dataset.ownUp = String(c.id);
-    up.dataset.voted = c.voted ? "1" : "";
-    up.dataset.score = String(c.score);
-    up.setAttribute("aria-pressed", String(c.voted));
-    up.setAttribute("aria-label", c.voted ? "Deine Stimme" : "Hochvoten");
-    up.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", c.score ? String(c.score) : ""));
-    return up;
-  }
-
-  function setVote(btn: HTMLElement, voted: boolean, score: number) {
-    btn.dataset.voted = voted ? "1" : "";
-    btn.dataset.score = String(score);
-    btn.classList.toggle("is-on", voted);
-    btn.setAttribute("aria-pressed", String(voted));
-    btn.setAttribute("aria-label", voted ? "Deine Stimme" : "Hochvoten");
-    btn.querySelector(".vote-count")!.textContent = score ? String(score) : "";
-  }
-
-  const polls = new WeakMap<HTMLElement, PollView>();
-
-  /** Same markup as LigaInsider's polls (Comments.astro renderPoll): answers to tap, then bars with ✓. */
-  function renderPoll(commentId: number, poll: PollView): HTMLElement {
-    const box = h("div", "poll mt-2 rounded-xl bg-surface p-3");
-    polls.set(box, poll);
-    box.dataset.ownPoll = String(commentId);
-    box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
-    const voted = poll.mine !== undefined;
-    const best = Math.max(...poll.options.map((o) => o.pct));
-    for (const o of poll.options) {
-      const row = h(voted ? "div" : "button", "poll-choice relative mb-1.5 w-full overflow-hidden rounded-xl px-3 py-3 text-left text-[15px]");
-      if (row instanceof HTMLButtonElement) {
-        row.type = "button";
-        row.classList.add("press");
-        row.dataset.ownOption = String(o.id);
-      }
-      const fill = h("span", "poll-fill absolute inset-y-0 left-0");
-      fill.style.width = `${voted ? o.pct : 0}%`;
-      if (voted && o.pct === best && o.pct > 0) fill.classList.add("is-best");
-      const label = h("span", "relative", o.label);
-      if (poll.mine === o.id) {
-        row.classList.add("is-mine");
-        label.append(h("span", "poll-check", " ✓"));
-      }
-      row.append(fill, label);
-      if (voted) row.append(h("span", "poll-pct relative float-right font-semibold tabular-nums", `${o.pct}%`));
-      box.append(row);
-    }
-    box.append(h("p", "poll-total mt-1 text-xs text-muted", `${poll.total} ${poll.total === 1 ? "Stimme" : "Stimmen"}`));
-    return box;
-  }
-
-  /** The poll as it looks right after this visitor's vote, before the server answers. */
-  function withVote(poll: PollView, optionId: number): PollView {
-    const counts = poll.options.map((o) => Math.round((o.pct * poll.total) / 100) + (o.id === optionId ? 1 : 0));
-    const total = poll.total + 1;
-    return { ...poll, total, mine: optionId, options: poll.options.map((o, i) => ({ ...o, pct: Math.round((counts[i] / total) * 100) })) };
-  }
-
-  function renderComment(c: OwnComment, now: Date, reply = false, pending = false): HTMLElement {
-    const li = h("li", reply ? "comment comment-reply" : "comment");
-    if (pending) li.classList.add("is-pending");
-    const row = h("div", "flex items-start gap-2");
-    const main = h("div", "min-w-0 flex-1");
-    const head = h("div", "flex items-center gap-2.5");
-    const size = reply ? "size-7 text-[10px]" : "size-8 text-[11px]";
-    head.append(
-      h("span", `flex ${size} shrink-0 items-center justify-center rounded-full bg-surface font-semibold text-muted`, initials(c.user) || "?"),
-      h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
-      h("span", "shrink-0 text-xs text-muted", pending ? "Wird gesendet …" : ago(c.date, now)),
-    );
-    main.append(head);
-    // A poll's question is its text: shown once, in the poll.
-    if (c.text && c.text !== c.poll?.question) main.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
-    if (c.poll) main.append(renderPoll(c.id, c.poll));
-    if (!reply && !pending) {
-      const btn = h("button", "press mt-1 text-xs font-medium text-muted", "Antworten");
-      (btn as HTMLButtonElement).type = "button";
-      btn.dataset.ownReply = String(c.id);
-      main.append(btn);
-    }
-    row.append(main);
-    if (c.id && !pending) row.append(voteControl(c));
-    li.append(row);
-    const ul = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
-    ul.dataset.ownReplies = String(c.id);
-    ul.hidden = c.replies.length === 0;
-    for (const r of c.replies) ul.append(renderComment(r, now, true));
-    li.append(ul);
-    return li;
-  }
+  // Anyone can vote here; a preview (no id yet) can't.
+  const pollOpts = (commentId: number): PollOpts => ({ key: commentId, canVote: commentId > 0 });
+  const view: RenderOpts<OwnComment> = {
+    vote: (c) => voteButton(c.id, c.voted ? 1 : 0, c.score),
+    poll: (c) => renderPoll(c.poll!, pollOpts(c.id)),
+    canReply: (_, reply) => !reply,
+  };
+  const render = (c: OwnComment, now: Date, reply = false, pending = false) => renderComment(c, now, { ...view, reply, pending });
 
   function setCount(section: HTMLElement, n: number) {
     section.dataset.n = String(n);
@@ -183,14 +62,14 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   }
 
   async function load(section: HTMLElement) {
-    const list = section.querySelector<HTMLElement>("[data-own-list]")!;
+    const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
     const status = section.querySelector<HTMLElement>("[data-own-status]")!;
     try {
       const res = await fetch(apiBase(section));
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { total: number; comments: OwnComment[] };
       const now = new Date();
-      list.replaceChildren(...data.comments.map((c) => renderComment(c, now)));
+      list.replaceChildren(...data.comments.map((c) => render(c, now)));
       setCount(section, data.total);
       status.classList.toggle("hidden", data.total > 0);
       status.textContent = "Noch keine Kommentare. Schreib den ersten!";
@@ -198,30 +77,32 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       status.classList.remove("hidden");
       status.textContent = "Kommentare konnten nicht geladen werden.";
     } finally {
-      section.querySelector("[data-own-skeleton]")?.remove();
+      section.querySelector("[data-skeleton]")?.remove();
     }
   }
 
   type Draft = { name: string; text: string; parent?: number; poll?: { question: string; options: string[] } };
 
-  /** Sends a comment or poll; shows it at once (faded) and replaces it with the saved one, or takes it back. */
+  /** Sends a comment or poll; shows it at once (faded), then turns it into the saved one in place, or takes it back. */
   async function send(section: HTMLElement, d: Draft, target: HTMLElement, error: HTMLElement) {
     const now = new Date();
     const preview: OwnComment = {
       id: 0, user: d.name, date: now.toISOString(), text: d.poll?.question ?? d.text, replies: [], score: 0, voted: false,
       ...(d.poll ? { poll: { question: d.poll.question, total: 0, options: d.poll.options.map((label, i) => ({ id: -i - 1, label, pct: 0 })) } } : {}),
     };
-    const pending = renderComment(preview, now, !!d.parent, true);
+    const pending = render(preview, now, !!d.parent, true);
     if (d.parent) { target.hidden = false; target.append(pending); } else target.prepend(pending);
+    revealIn(pending);
     section.querySelector("[data-own-status]")?.classList.add("hidden");
     try {
       const data = await call<{ comment?: OwnComment }>(apiBase(section), d);
       if (!data.comment) throw new Error("Konnte nicht gesendet werden.");
-      pending.replaceWith(renderComment(data.comment, new Date(), !!d.parent));
+      settle(pending, render(data.comment, new Date(), !!d.parent));
       setCount(section, Number(section.dataset.n ?? 0) + 1);
       return true;
     } catch (err) {
       pending.remove();
+      if (d.parent) target.hidden = !target.children.length;
       error.textContent = (err as Error).message;
       return false;
     }
@@ -229,24 +110,26 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
   function replyForm(section: HTMLElement, li: HTMLElement, parent: number) {
     li.querySelector("[data-own-reply-form]")?.remove();
-    const form = h("form", "mt-2 flex flex-col gap-2") as HTMLFormElement;
+    const form = h("form", "mt-2 flex flex-col gap-2");
     form.dataset.ownReplyForm = "";
-    const name = h("input", field) as HTMLInputElement;
+    const name = h("input", FIELD);
     name.maxLength = NAME_MAX;
     name.placeholder = "Dein Name";
     name.value = savedName();
-    const text = h("textarea", field) as HTMLTextAreaElement;
+    const text = h("textarea", FIELD);
     text.rows = 2;
     text.maxLength = TEXT_MAX;
     text.placeholder = "Antworten …";
     const row = h("div", "flex items-center gap-3");
     const error = h("p", "min-w-0 flex-1 text-sm");
     error.style.color = "var(--red-fg)";
-    const submit = h("button", "press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg", "Senden") as HTMLButtonElement;
+    const submit = h("button", "press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg", "Senden");
     submit.type = "submit";
     row.append(error, submit);
     form.append(name, text, row);
-    li.querySelector("[data-own-replies]")!.before(form);
+    const replies = li.querySelector<HTMLElement>(":scope > [data-replies]")!;
+    replies.before(form);
+    revealIn(form);
     (name.value ? text : name).focus();
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -257,65 +140,21 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       if (!t) return void (error.textContent = "Schreib etwas.");
       saveName(n);
       form.hidden = true;
-      if (await send(section, { name: n, text: t, parent }, li.querySelector<HTMLElement>("[data-own-replies]")!, error)) form.remove();
+      if (await send(section, { name: n, text: t, parent }, replies, error)) form.remove();
       else form.hidden = false;
     });
-  }
-
-  function optionInput(max: number, value = "") {
-    const input = h("input", field) as HTMLInputElement;
-    input.maxLength = max;
-    input.placeholder = "Antwort…";
-    input.value = value;
-    input.dataset.ownOptionInput = "";
-    return input;
   }
 
   document.addEventListener("astro:page-load", () => {
     const section = document.querySelector<HTMLElement>("[data-own-comments]");
     if (!section || section.dataset.ready) return;
     section.dataset.ready = "1";
-    const answerMax = Number(section.dataset.answerMax) || 80;
-    const form = section.querySelector<HTMLFormElement>("[data-own-form]")!;
+    const form = section.querySelector<HTMLFormElement>("[data-composer]")!;
     const name = form.querySelector<HTMLInputElement>("[data-own-name]")!;
-    const text = form.querySelector<HTMLTextAreaElement>("[data-own-text]")!;
     const error = form.querySelector<HTMLElement>("[data-own-error]")!;
-    const poll = form.querySelector<HTMLElement>("[data-own-poll]")!;
-    const question = form.querySelector<HTMLInputElement>("[data-own-question]")!;
-    const options = form.querySelector<HTMLElement>("[data-own-options]")!;
-    const add = form.querySelector<HTMLButtonElement>("[data-own-add]")!;
-    const fields = form.querySelector<HTMLElement>("[data-own-fields]")!;
-    const seg = form.querySelector<HTMLElement>("[data-own-seg]")!;
+    const composer = wireComposer(form, { answerMax: ANSWER_MAX });
     name.value = savedName();
-    options.append(optionInput(answerMax), optionInput(answerMax));
     void load(section);
-
-    // Kommentar | Umfrage: the box changes height in one glide while the new fields fade in.
-    form.querySelectorAll<HTMLButtonElement>("[data-own-mode]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (btn.getAttribute("aria-pressed") === "true") return;
-        const on = btn.dataset.ownMode === "poll";
-        seg.style.setProperty("--i", on ? "1" : "0");
-        form.querySelectorAll<HTMLButtonElement>("[data-own-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
-        const from = fields.offsetHeight;
-        poll.classList.toggle("hidden", !on);
-        text.classList.toggle("hidden", on);
-        const to = fields.offsetHeight;
-        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        fields.style.overflow = "clip";
-        fields.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" })
-          .finished.finally(() => fields.style.removeProperty("overflow"));
-        (on ? poll : text).animate(
-          [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }],
-          { duration: 220, delay: 40, easing: "ease-out", fill: "backwards" },
-        );
-      });
-    });
-    add.addEventListener("click", () => {
-      if (options.children.length >= 6) return;
-      options.append(optionInput(answerMax));
-      add.hidden = options.children.length >= 6;
-    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -323,43 +162,39 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       const n = name.value.trim();
       if (n.length < 2) return void (error.textContent = "Gib einen Namen ein.");
       saveName(n);
-      const list = section.querySelector<HTMLElement>("[data-own-list]")!;
-      if (!poll.classList.contains("hidden")) {
-        const q = question.value.trim();
-        const answers = [...options.querySelectorAll<HTMLInputElement>("input")].map((i) => i.value.trim()).filter(Boolean);
+      const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
+      const d = composer.read();
+      let draft: Draft;
+      if (composer.polling()) {
+        const q = d.question.trim();
+        const answers = d.answers.map((a) => a.trim()).filter(Boolean);
         if (q.length < 3) return void (error.textContent = "Schreib eine Frage.");
         if (answers.length < 2) return void (error.textContent = "Mindestens zwei Antworten.");
-        const before = { q: question.value, a: [...options.querySelectorAll<HTMLInputElement>("input")].map((i) => i.value) };
-        question.value = "";
-        options.replaceChildren(optionInput(answerMax), optionInput(answerMax));
-        add.hidden = false;
-        if (!(await send(section, { name: n, text: "", poll: { question: q, options: answers } }, list, error))) {
-          question.value = before.q;
-          options.replaceChildren(...before.a.map((v) => optionInput(answerMax, v)));
-        }
-        return;
+        draft = { name: n, text: "", poll: { question: q, options: answers } };
+      } else {
+        const t = d.text.trim();
+        if (!t) return void (error.textContent = "Schreib etwas.");
+        draft = { name: n, text: t };
       }
-      const t = text.value.trim();
-      if (!t) return void (error.textContent = "Schreib etwas.");
-      text.value = "";
-      if (!(await send(section, { name: n, text: t }, list, error))) text.value = t;
+      composer.clear();
+      if (!(await send(section, draft, list, error))) composer.restore(d);
     });
 
     section.addEventListener("click", async (e) => {
       const target = e.target instanceof Element ? e.target : null;
-      const replyBtn = target?.closest<HTMLElement>("[data-own-reply]");
-      const up = target?.closest<HTMLButtonElement>("[data-own-up]");
-      const option = target?.closest<HTMLButtonElement>("[data-own-option]");
-      if (replyBtn) return replyForm(section, replyBtn.closest("li")!, Number(replyBtn.dataset.ownReply));
+      const replyBtn = target?.closest<HTMLElement>("[data-reply]");
+      const up = target?.closest<HTMLButtonElement>("[data-up]");
+      const option = target?.closest<HTMLButtonElement>("[data-option]");
+      if (replyBtn) return replyForm(section, replyBtn.closest("li")!, Number(replyBtn.dataset.reply));
       if (up) {
         // One request at a time per comment; taps meanwhile are ignored.
         if (up.dataset.busy) return;
         up.dataset.busy = "1";
-        const voted = !!up.dataset.voted;
+        const voted = up.dataset.vote === "1";
         const score = Number(up.dataset.score);
         setVote(up, !voted, score + (voted ? -1 : 1));
         try {
-          const r = await call<{ score: number; voted: boolean }>(`${apiBase(section)}vote/`, { comment: Number(up.dataset.ownUp), on: !voted });
+          const r = await call<{ score: number; voted: boolean }>(`${apiBase(section)}vote/`, { comment: Number(up.dataset.up), on: !voted });
           setVote(up, r.voted, r.score);
         } catch {
           setVote(up, voted, score);
@@ -368,16 +203,17 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
         }
       } else if (option) {
         const box = option.closest<HTMLElement>(".poll")!;
-        const before = polls.get(box)!;
-        const optionId = Number(option.dataset.ownOption);
-        const commentId = Number(box.dataset.ownPoll);
-        const after = renderPoll(commentId, withVote(before, optionId));
-        box.replaceWith(after);
+        const before = pollOf(box) as PollView;
+        const optionId = Number(option.dataset.option);
+        const commentId = Number(box.dataset.poll);
+        const after = swapPoll(box, withVote(before, optionId), pollOpts(commentId));
         try {
+          // A repeat vote (409) answers with the poll as it stands, the earlier choice ticked.
           const r = await call<{ poll?: PollView }>(`${apiBase(section)}poll-vote/`, { comment: commentId, option: optionId });
-          if (r.poll) after.replaceWith(renderPoll(commentId, r.poll));
+          if (r.poll?.mine === optionId) showResults(after, r.poll);
+          else if (r.poll) swapPoll(after, r.poll, pollOpts(commentId));
         } catch {
-          after.replaceWith(renderPoll(commentId, before));
+          swapPoll(after, before, pollOpts(commentId));
         }
       }
     });

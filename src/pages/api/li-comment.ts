@@ -4,19 +4,17 @@ import { callLiga } from "../../lib/ligaAccount.ts";
 import { LigaInsiderAuthError, LigaInsiderRejectedError, pageReferer, parseAction, runAction } from "../../lib/ligainsider.ts";
 import { isSameOrigin } from "../../lib/session.ts";
 import { parseThreadKey, type Thread } from "../../lib/comments.ts";
+import { forbidden, json, readJson } from "../../lib/http.ts";
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   if (!isSameOrigin(request)) {
     console.warn(`li-comment: foreign origin ${request.headers.get("origin") ?? "none"}`);
-    return new Response("Forbidden", { status: 403, headers: { "cache-control": "private, no-store" } });
+    return forbidden();
   }
-  let raw: unknown;
-  try { raw = await request.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const raw = await readJson(request);
+  if (raw instanceof Response) return raw;
   const thread = threadOf(raw);
   const action = parseAction(raw);
   if (thread === undefined || !action) return json({ error: "Ungültige Anfrage." }, 400);

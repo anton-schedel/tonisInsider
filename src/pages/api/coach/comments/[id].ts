@@ -1,7 +1,5 @@
 import type { APIRoute } from "astro";
-import { env } from "cloudflare:workers";
-import { isSameOrigin } from "../../../../lib/session.ts";
-import { coachSignedIn, json, NOT_SIGNED_IN } from "../../../../lib/coachApi.ts";
+import { coachGuard, json } from "../../../../lib/coachApi.ts";
 import { COACH_ID_MIN } from "../../../../lib/coachPosts.ts";
 import { removeExtras } from "../../../../lib/ownCommentsDb.ts";
 
@@ -9,10 +7,8 @@ export const prerender = false;
 
 /** DELETE /api/coach/comments/<id>/: the coach removes a comment (and its replies) under one of their posts. */
 export const DELETE: APIRoute = async ({ request, cookies, params }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
-  const db = env.COMMENTS;
-  if (!db) return json({ error: "Gerade nicht erreichbar." }, 503);
-  if (!(await coachSignedIn(cookies))) return json(NOT_SIGNED_IN, 401);
+  const db = await coachGuard(request, cookies);
+  if (db instanceof Response) return db;
   const id = Number(params.id);
   const row = await db.prepare("SELECT post_id FROM comments WHERE id = ?").bind(id).first<{ post_id: number }>();
   if (!row || row.post_id < COACH_ID_MIN) return json({ error: "Den Kommentar gibt es nicht mehr." }, 404);

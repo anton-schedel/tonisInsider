@@ -32,6 +32,18 @@ export function botPollVotes(options: number, random: () => number = Math.random
   return votes;
 }
 
+/** Whole percentages that add up to 100 (the largest remainders get the leftover points); all 0 without votes. */
+export function wholePercents(counts: number[]): number[] {
+  const total = counts.reduce((a, b) => a + b, 0);
+  if (!total) return counts.map(() => 0);
+  const exact = counts.map((n) => (n / total) * 100);
+  const pct = exact.map((x) => Math.floor(x));
+  const order = exact.map((_, i) => i).sort((i, j) => (exact[j] - pct[j]) - (exact[i] - pct[i]));
+  const left = 100 - pct.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < left; k++) pct[order[k]]++;
+  return pct;
+}
+
 export type PollOptionView = { id: number; label: string; pct: number };
 export type PollView = { question: string; total: number; options: PollOptionView[]; mine?: number };
 
@@ -43,11 +55,11 @@ export function pollView(
   mine?: number,
 ): PollView {
   const counts = options.map((o) => grown(o.bot, createdAt, now) + o.real);
-  const total = counts.reduce((a, b) => a + b, 0);
+  const pct = wholePercents(counts);
   return {
     question,
-    total,
-    options: options.map((o, i) => ({ id: o.id, label: o.label, pct: total ? Math.round((counts[i] / total) * 100) : 0 })),
+    total: counts.reduce((a, b) => a + b, 0),
+    options: options.map((o, i) => ({ id: o.id, label: o.label, pct: pct[i] })),
     ...(mine !== undefined ? { mine } : {}),
   };
 }

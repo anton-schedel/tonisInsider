@@ -2,6 +2,7 @@ import { load, type CheerioAPI } from "cheerio/slim";
 import type { Element } from "domhandler";
 import { USER_AGENT } from "../../scraper/fetch.ts";
 import { parseCommentCounts } from "../../scraper/parse/commentCounts.ts";
+import type { EdgeCache, Later } from "./http.ts";
 
 /** LigaInsider comments are fetched live per article view and cached this long at the edge. */
 export const COMMENTS_TTL_SECONDS = 120;
@@ -228,14 +229,13 @@ export function cursorFrom(params: URLSearchParams): MoreCursor | undefined {
   return Object.values(c).every((v) => v !== undefined) ? (c as MoreCursor) : undefined;
 }
 
-/** The subset of Cloudflare's Cache API we use (caches.default). */
-export type EdgeCache = {
-  match(key: string): Promise<Response | undefined>;
-  put(key: string, res: Response): Promise<void>;
-};
+export type { EdgeCache };
 
-/** A logged-in read is that viewer's vote state, so it must not enter the shared cache. */
-export type CommentsOpts = { personal?: boolean };
+/**
+ * A logged-in read is that viewer's vote state, so it must not enter the shared cache. `later` writes the cache
+ * after the response (without it, before).
+ */
+export type CommentsOpts = { personal?: boolean; later?: Later };
 
 /**
  * Serves load() as JSON, cached at the edge for COMMENTS_TTL_SECONDS. Every good answer is also kept for a
@@ -246,7 +246,7 @@ async function cachedJson<T>(
   key: string,
   load: () => Promise<T>,
   cache: EdgeCache | undefined,
-  { personal = false, shareable = (data: T): unknown => data } = {},
+  { personal = false, shareable = (data: T): unknown => data, later = undefined as Later | undefined } = {},
 ): Promise<Response> {
   const hit = personal ? undefined : await cache?.match(key);
   if (hit) return hit;
@@ -264,8 +264,12 @@ async function cachedJson<T>(
   const res = Response.json(data, {
     headers: { "cache-control": personal ? "private, no-store" : `public, max-age=${COMMENTS_TTL_SECONDS}` },
   });
-  if (!personal) await cache?.put(key, res.clone());
-  await cache?.put(staleKey, Response.json(shareable(data), { headers: { "cache-control": `public, max-age=${STALE_SECONDS}` } }));
+  if (cache) {
+    const stale = Response.json(shareable(data), { headers: { "cache-control": `public, max-age=${STALE_SECONDS}` } });
+    const puts = Promise.all([personal ? undefined : cache.put(key, res.clone()), cache.put(staleKey, stale)]);
+    if (later) later(puts);
+    else await puts;
+  }
   return res;
 }
 
@@ -274,7 +278,7 @@ export async function commentsResponse(id: string, fetchFn: typeof fetch, cache?
   const thread = parseThreadKey(id);
   if (thread === undefined) return new Response("Not found", { status: 404 });
   return cachedJson(`https://comments.cache/${id}`, () => fetchComments(fetchFn, thread), cache, {
-    personal: opts?.personal,
+    ...opts,
     shareable: withoutViewer,
   });
 }
@@ -288,7 +292,7 @@ export async function moreCommentsResponse(
   if (thread === undefined || !from) return new Response("Not found", { status: 404 });
   const key = `https://comments.cache/${id}/more/${from.offset}-${from.goffset}-${from.moffset}-${from.cursor}`;
   return cachedJson(key, () => fetchMoreComments(fetchFn, thread, from), cache, {
-    personal: opts?.personal,
+    ...opts,
     shareable: withoutViewer,
   });
 }
@@ -297,10 +301,10 @@ export async function moreCommentsResponse(
 export const COUNTS_URL = "https://www.ligainsider.de/bundesliga-news/uebersicht/";
 
 /** GET /api/comment-counts/: article id → comment count for LigaInsider's newest articles. */
-export async function commentCountsResponse(fetchFn: typeof fetch, cache?: EdgeCache): Promise<Response> {
+export async function commentCountsResponse(fetchFn: typeof fetch, cache?: EdgeCache, later?: Later): Promise<Response> {
   return cachedJson("https://comments.cache/counts", () => hedged(async (signal) => {
     const res = await fetchFn(COUNTS_URL, { headers: HEADERS, signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return parseCommentCounts(await res.text());
-  }), cache);
+  }), cache, { later });
 }

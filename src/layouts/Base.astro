@@ -450,14 +450,20 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       };
       let hiddenAt = 0;
       let busy = false;
+      // The last answer: a page change within 30 s compares against it instead of asking again.
+      let last: { at: number; live: Version } | undefined;
 
       async function check(resumed: boolean) {
         if (busy || document.visibilityState !== "visible") return;
         busy = true;
         try {
-          const res = await fetch("/data/version.json", { cache: "no-store" });
-          if (!res.ok) return;
-          const live = (await res.json()) as Version;
+          let live = last && Date.now() - last.at < 30_000 ? last.live : undefined;
+          if (!live) {
+            const res = await fetch("/data/version.json", { cache: "no-store" });
+            if (!res.ok) return;
+            live = (await res.json()) as Version;
+            last = { at: Date.now(), live };
+          }
           const action = updateAction(pageVersion(), live, { resumed, nearTop: scrollY < 120, path: location.pathname });
           if (action === "refresh") navigate(location.pathname + location.search, { history: "replace" });
           else if (action === "notice") notice()?.removeAttribute("hidden");

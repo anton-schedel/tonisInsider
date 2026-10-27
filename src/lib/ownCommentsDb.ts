@@ -29,6 +29,17 @@ export async function loadThreads(db: D1, postId: number, voter: string, now: Da
   return { total: rows.length, comments: toThreads(rows, polls, now) };
 }
 
+/** Post id → how many of its comments are out (replies included, as loadThreads' total); 0 for those with none. */
+export async function commentTotals(db: D1, postIds: number[], now: Date): Promise<Record<number, number>> {
+  const { results } = await db
+    .prepare(`SELECT post_id, COUNT(*) AS n FROM comments WHERE post_id IN (${postIds.map(() => "?").join(",")}) AND created_at <= ? GROUP BY post_id`)
+    .bind(...postIds, now.toISOString())
+    .all<{ post_id: number; n: number }>();
+  const totals: Record<number, number> = Object.fromEntries(postIds.map((id) => [id, 0]));
+  for (const r of results) totals[r.post_id] = r.n;
+  return totals;
+}
+
 /** Saves a comment (and its poll) with bot votes, so visitors' and bots' comments look alike. */
 export async function insertComment(
   db: D1,

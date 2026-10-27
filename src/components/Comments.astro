@@ -1,10 +1,11 @@
 ---
 import { threadKey, type Thread } from "../lib/comments.ts";
+import CommentComposer from "./CommentComposer.astro";
+import CommentsSkeleton from "./CommentsSkeleton.astro";
 
 /** thread: the article id, or a club's lineup page (its match and team); url: the same page on LigaInsider. */
 interface Props { thread: Thread; url: string }
 const { thread, url } = Astro.props;
-const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
 <!-- Loaded live from LigaInsider (via /api/comments/<thread key>/). Logged-in reads are personal and uncached. -->
 <section class="mt-10" data-comments={threadKey(thread)} data-li-page={url}>
@@ -13,26 +14,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   </h2>
 
   <div data-li-box class="mb-6 hidden">
-    <form data-li-form class="flex flex-col gap-2">
-      {/* Comment text or poll fields; switching grows or shrinks this box smoothly (script below). */}
-      <div data-li-fields>
-        <textarea data-li-body rows="3" maxlength="2000" placeholder="Was sagst du dazu?" class={field}></textarea>
-        <div data-li-poll class="hidden flex flex-col gap-2">
-          <input data-li-question maxlength="200" placeholder="Frage der Umfrage…" class={field} />
-          <div data-li-options class="flex flex-col gap-2"></div>
-          <button type="button" data-li-add class="press self-start text-sm font-medium text-accent">Weitere Antwort</button>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <div class="seg w-[196px]" role="group" aria-label="Art" data-li-seg>
-          <span class="seg-thumb" aria-hidden="true"></span>
-          <button type="button" data-li-mode="text" aria-pressed="true" class="press rounded-lg py-1.5 text-[13px] font-semibold">Kommentar</button>
-          <button type="button" data-li-mode="poll" aria-pressed="false" class="press rounded-lg py-1.5 text-[13px] font-semibold">Umfrage</button>
-        </div>
-        <span class="flex-1"></span>
-        <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
-      </div>
-    </form>
+    <CommentComposer textMax={2000} questionMax={200} />
     <form method="post" action="/api/li-logout/" class="mt-2" data-astro-reload>
       <input type="hidden" name="next" value="/" data-li-next />
       <button type="submit" class="press text-xs text-muted">LigaInsider abmelden</button>
@@ -45,19 +27,8 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   <p class="hidden text-sm text-muted" data-comments-status></p>
   <p class="mb-3 hidden text-xs text-muted" data-comments-stale>LigaInsider antwortet gerade nicht. Das ist der zuletzt geladene Stand.</p>
   <p class="hidden pb-2 text-xs text-muted" data-comments-slow>LigaInsider antwortet gerade langsam …</p>
-  <div data-comments-skeleton role="status" aria-label="Kommentare werden geladen">
-    {[0.9, 0.6, 0.75].map((w) => (
-      <div class="flex gap-2.5 py-3.5">
-        <span class="skeleton size-8 shrink-0 rounded-full"></span>
-        <span class="flex-1">
-          <span class="skeleton block h-3 w-24 rounded-full"></span>
-          <span class="skeleton mt-2.5 block h-3 rounded-full" style={`width:${w * 100}%`}></span>
-          <span class="skeleton mt-2 block h-3 w-1/2 rounded-full"></span>
-        </span>
-      </div>
-    ))}
-  </div>
-  <ul class="flex flex-col" data-comments-list></ul>
+  <CommentsSkeleton />
+  <ul class="flex flex-col" data-comment-list></ul>
   {/* Loads LigaInsider's next batch into the list (script below); hidden after the last one. */}
   <button type="button" class="press mt-3 hidden w-full rounded-xl bg-surface py-3 text-[15px] font-semibold" data-comments-load>Weitere Kommentare laden</button>
   <a
@@ -71,78 +42,22 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
 
 <script>
   import type { Comment, Comments, MoreCursor, Poll } from "../lib/comments.ts";
-  import { ago, initials } from "../lib/format.ts";
-
-  const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
-
-  // Builds DOM with textContent only: comment text is untrusted and never parsed as HTML.
-  function h(tag: string, cls = "", text?: string) {
-    const el = document.createElement(tag);
-    if (cls) el.className = cls;
-    if (text !== undefined) el.textContent = text;
-    return el;
-  }
+  import { FIELD, h, pollOf, renderComment, renderPoll, revealIn, setVote, settle, swapPoll, voteButton, withVote, wireComposer, type PollOpts, type RenderOpts } from "../lib/commentUi.ts";
 
   function loggedIn() {
     return /(?:^|; )liin=1/.test(document.cookie);
   }
+  const loginHref = () => `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`;
 
+  // The up-vote count is always visible; logged out, the ▲ leads to the login.
   function voteControl(c: Comment): HTMLElement {
-    const mine = c.vote === 1;
-    // The up-vote count is always visible, voted or not, logged in or not.
-    const label = c.score ? String(c.score) : "";
-    if (!loggedIn()) {
-      const link = h("a", "vote-btn press");
-      link.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", label));
-      link.setAttribute("href", `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`);
-      link.setAttribute("aria-label", "Zum Hochvoten anmelden");
-      return link;
-    }
-    const up = h("button", `vote-btn press${mine ? " is-on" : ""}`);
-    up.setAttribute("type", "button");
-    up.dataset.up = String(c.id);
-    up.dataset.vote = String(c.vote);
-    up.dataset.score = String(c.score);
-    up.setAttribute("aria-pressed", String(mine));
-    up.setAttribute("aria-label", mine ? "Deine Stimme" : "Hochvoten");
-    up.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", label));
-    return up;
+    if (loggedIn()) return voteButton(c.id, c.vote, c.score);
+    const link = h("a", "vote-btn press");
+    link.append(h("span", "vote-chevron", "▲"), h("span", "vote-count", c.score ? String(c.score) : ""));
+    link.href = loginHref();
+    link.setAttribute("aria-label", "Zum Hochvoten anmelden");
+    return link;
   }
-
-  function renderComment(c: Comment, now: Date, reply = false, pending = false): HTMLElement {
-    const li = h("li", reply ? "comment comment-reply" : "comment");
-    if (pending) li.classList.add("is-pending");
-    const row = h("div", "flex items-start gap-2");
-    const main = h("div", "min-w-0 flex-1");
-    const head = h("div", "flex items-center gap-2.5");
-    const size = reply ? "size-7 text-[10px]" : "size-8 text-[11px]";
-    head.append(
-      h("span", `flex ${size} shrink-0 items-center justify-center rounded-full bg-surface font-semibold text-muted`, initials(c.user) || "?"),
-      h("b", "min-w-0 truncate text-[14px] font-semibold", c.user),
-      h("span", "shrink-0 text-xs text-muted", pending ? "Wird gesendet …" : c.date ? ago(c.date, now) : ""),
-    );
-    main.append(head);
-    if (c.text) main.append(h("p", "mt-1 text-[15px] leading-[1.45] whitespace-pre-line break-words", c.text));
-    if (c.poll) main.append(renderPoll(c.poll, c.poll.votingId ? myVotes()[c.poll.votingId] : undefined));
-    if (loggedIn() && c.id && !pending) {
-      const replyBtn = h("button", "press mt-1 text-xs font-medium text-muted", "Antworten");
-      replyBtn.type = "button";
-      replyBtn.dataset.reply = String(c.id);
-      main.append(replyBtn);
-    }
-    row.append(main);
-    if (c.id) row.append(voteControl(c));
-    li.append(row);
-
-    if (c.replies.length) {
-      const ul = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
-      for (const r of c.replies) ul.append(renderComment(r, now, true));
-      li.append(ul);
-    }
-    return li;
-  }
-
-  const polls = new WeakMap<HTMLElement, Poll>();
 
   // LigaInsider only says whether you voted, not for what: the choice is remembered in this browser.
   const VOTES_KEY = "pollVotes";
@@ -161,57 +76,29 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     } catch {}
   }
 
-  function renderPoll(poll: Poll, mine?: number): HTMLElement {
-    // Results are always shown (like the rest of the comments). Note: Tailwind only sees whole class
-    // words, so classes must not touch a ${…} placeholder.
-    const box = h("div", "poll mt-2 rounded-xl bg-surface p-3");
-    polls.set(box, poll);
-    box.append(h("p", "mb-2 text-[14px] font-semibold", poll.question));
-    const voted = poll.voted || mine !== undefined;
-    const best = Math.max(...poll.options.map((o) => o.pct));
-    for (const o of poll.options) {
-      const canVote = !voted && loggedIn() && poll.votingId && o.id;
-      const row = h(voted ? "div" : canVote ? "button" : "a", "poll-choice relative mb-1.5 w-full overflow-hidden rounded-xl px-3 py-3 text-left text-[15px]");
-      if (!voted && !canVote) {
-        row.classList.add("press");
-        row.setAttribute("href", `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`);
-      }
-      if (row instanceof HTMLButtonElement) {
-        row.type = "button";
-        row.classList.add("press");
-        row.dataset.voting = String(poll.votingId);
-        row.dataset.option = String(o.id);
-      }
-      const fill = h("span", "poll-fill absolute inset-y-0 left-0");
-      fill.dataset.pct = String(o.pct);
-      fill.style.width = `${o.pct}%`;
-      if (o.pct === best && o.pct > 0) fill.classList.add("is-best");
-      const label = h("span", "relative", o.label);
-      if (mine !== undefined && o.id === mine) {
-        row.classList.add("is-mine");
-        label.append(h("span", "poll-check", " ✓"));
-      }
-      row.append(fill, label, h("span", "poll-pct relative float-right font-semibold tabular-nums", `${o.pct}%`));
-      box.append(row);
-    }
-    box.append(h("p", "poll-total mt-1 text-xs text-muted", `${poll.total} Stimmen`));
-    return box;
-  }
+  const pollOpts = (p: Poll): PollOpts => ({ key: p.votingId, canVote: loggedIn() && !!p.votingId, loginHref: loginHref() });
+  const view: RenderOpts<Comment> = {
+    vote: voteControl,
+    poll: (c) => renderPoll({ ...c.poll!, mine: c.poll!.votingId ? myVotes()[c.poll!.votingId] : undefined }, pollOpts(c.poll!)),
+    canReply: loggedIn,
+  };
+  const render = (c: Comment, now: Date, reply = false, pending = false) => renderComment(c, now, { ...view, reply, pending });
 
   function sectionOf() {
     return document.querySelector<HTMLElement>("[data-comments]");
   }
 
-  async function post(payload: Record<string, unknown>) {
+  async function post(payload: Record<string, unknown>): Promise<{ commentId?: number }> {
     const section = sectionOf();
     const res = await fetch("/api/li-comment/", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ thread: section?.dataset.comments, page: section?.dataset.liPage, ...payload }),
     });
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    const data = (await res.json().catch(() => ({}))) as { error?: string; commentId?: number };
     if (!res.ok) throw new Error(data.error || "Konnte nicht gesendet werden.");
     window.posthog?.capture("ligainsider_interaction_completed", { action_kind: String(payload.kind) });
+    return data;
   }
 
   // Short message above the tab bar, so it's seen wherever on the page the tap was.
@@ -230,28 +117,6 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     toastTimer = window.setTimeout(() => el!.classList.remove("is-on"), 3500);
   }
 
-  // Changes show at once; the request runs in the background and a failure undoes the change.
-  function setVote(btn: HTMLElement, vote: number, score: number) {
-    btn.dataset.vote = String(vote);
-    btn.dataset.score = String(score);
-    btn.classList.toggle("is-on", vote === 1);
-    btn.setAttribute("aria-pressed", String(vote === 1));
-    btn.setAttribute("aria-label", vote === 1 ? "Deine Stimme" : "Hochvoten");
-    btn.querySelector(".vote-count")!.textContent = score ? String(score) : "";
-  }
-
-  function withVote(poll: Poll, optionId: number): Poll {
-    const counts = poll.options.map((o) => Math.round((o.pct * poll.total) / 100) + (o.id === optionId ? 1 : 0));
-    const total = poll.total + 1;
-    // Whole percentages that add up to 100 (largest remainders get the leftover points).
-    const exact = counts.map((n) => (n / total) * 100);
-    const pct = exact.map(Math.floor);
-    const order = exact.map((x, i) => i).sort((i, j) => (exact[j] - pct[j]) - (exact[i] - pct[i]));
-    const left = 100 - pct.reduce((s, x) => s + x, 0);
-    for (let k = 0; k < left; k++) pct[order[k % order.length]]++;
-    return { ...poll, voted: true, total, options: poll.options.map((o, i) => ({ ...o, pct: pct[i] })) };
-  }
-
   function myName() {
     let s = document.cookie.split("; ").find((p) => p.startsWith("lin="))?.slice(4) ?? "";
     // Names from older logins were encoded twice.
@@ -266,6 +131,16 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
   const countAll = (cs: Comment[]): number => cs.reduce((n, c) => n + 1 + countAll(c.replies), 0);
   // The thread on this page: what's shown and where LigaInsider's next batch starts.
   let thread: { total: number; shown: Set<number>; count: number; more?: MoreCursor } | undefined;
+
+  /** A sent comment or reply stays where it is (no reload, loaded batches stay), now counted. */
+  function sent(section: HTMLElement, shown: HTMLElement, draft: Comment, id: number | undefined, reply: boolean) {
+    settle(shown, render({ ...draft, id: id ?? 0, date: new Date().toISOString() }, new Date(), reply));
+    thread ??= { total: 0, shown: new Set(), count: 0 };
+    if (id && !reply) thread.shown.add(id);
+    thread.total++;
+    thread.count++;
+    section.querySelector("[data-comments-count]")!.textContent = String(thread.total);
+  }
 
   function showLoadMore(section: HTMLElement) {
     const btn = section.querySelector<HTMLButtonElement>("[data-comments-load]");
@@ -285,13 +160,15 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
       const res = await fetch(`/api/comments/${section.dataset.comments}/more/?${q}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as Comments;
-      const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
+      const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
       const now = new Date();
       // Batches can overlap by a comment; each shows once.
       const fresh = data.comments.filter((c) => !thread!.shown.has(c.id));
       for (const c of fresh) {
         thread.shown.add(c.id);
-        list.append(renderComment(c, now));
+        const li = render(c, now);
+        list.append(li);
+        revealIn(li);
       }
       thread.count += countAll(fresh);
       // An empty batch or the same cursor again means the end.
@@ -309,9 +186,9 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const section = sectionOf();
     if (!section) return;
     const status = section.querySelector<HTMLElement>("[data-comments-status]");
-    const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
+    const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
     const more = section.querySelector<HTMLElement>("[data-comments-more]")!;
-    const skeleton = section.querySelector("[data-comments-skeleton]");
+    const skeleton = section.querySelector("[data-skeleton]");
     const slowNote = section.querySelector("[data-comments-slow]");
     // LigaInsider is sometimes very slow; say so instead of leaving only the placeholder.
     const slow = setTimeout(() => slowNote?.classList.remove("hidden"), 4000);
@@ -341,7 +218,7 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
         return;
       }
       status?.remove();
-      for (const c of data.comments) list.append(renderComment(c, now));
+      for (const c of data.comments) list.append(render(c, now));
       thread = { total: data.total, shown: new Set(data.comments.map((c) => c.id)), count: countAll(data.comments), more: data.more };
       showLoadMore(section);
       // Without a next batch to load (e.g. LigaInsider stops sending one), the rest stays a link.
@@ -366,15 +243,6 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     }
   }
 
-  function optionInput(value = "") {
-    const input = h("input", field) as HTMLInputElement;
-    input.maxLength = 80;
-    input.placeholder = "Antwort…";
-    input.value = value;
-    input.dataset.liOption = "";
-    return input;
-  }
-
   function setup(section: HTMLElement) {
     const loadBtn = section.querySelector<HTMLButtonElement>("[data-comments-load]");
     if (loadBtn) {
@@ -393,84 +261,44 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
     const here = `${location.pathname}${location.search}`;
     section.querySelectorAll<HTMLInputElement>("[data-li-next]").forEach((input) => { input.value = here; });
     const login = section.querySelector<HTMLAnchorElement>("[data-li-login]");
-    if (login) login.href = `/einstellungen/?next=${encodeURIComponent(location.pathname)}#ligainsider`;
+    if (login) login.href = loginHref();
     const box = section.querySelector<HTMLElement>("[data-li-box]")!;
     const guest = section.querySelector<HTMLElement>("[data-li-guest]")!;
     if (loggedIn()) box.classList.remove("hidden");
     else guest.classList.remove("hidden");
 
-    const poll = section.querySelector<HTMLElement>("[data-li-poll]")!;
-    const options = section.querySelector<HTMLElement>("[data-li-options]")!;
-    const body = section.querySelector<HTMLTextAreaElement>("[data-li-body]")!;
-    options.append(optionInput(), optionInput());
-
-    const fields = section.querySelector<HTMLElement>("[data-li-fields]")!;
-    const seg = section.querySelector<HTMLElement>("[data-li-seg]")!;
-    section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (btn.getAttribute("aria-pressed") === "true") return;
-        const on = btn.dataset.liMode === "poll";
-        seg.style.setProperty("--i", on ? "1" : "0");
-        section.querySelectorAll<HTMLButtonElement>("[data-li-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
-        // The box changes height in one glide while the new fields fade in, instead of jumping.
-        const from = fields.offsetHeight;
-        poll.classList.toggle("hidden", !on);
-        body.classList.toggle("hidden", on);
-        const to = fields.offsetHeight;
-        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        fields.style.overflow = "clip";
-        fields.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" })
-          .finished.finally(() => fields.style.removeProperty("overflow"));
-        (on ? poll : body).animate(
-          [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }],
-          { duration: 220, delay: 40, easing: "ease-out", fill: "backwards" },
-        );
-      });
-    });
-    section.querySelector<HTMLButtonElement>("[data-li-add]")!.addEventListener("click", () => {
-      if (options.children.length >= 6) return;
-      options.append(optionInput());
-      // Six answers at most: the button goes once they're there.
-      (section.querySelector("[data-li-add]") as HTMLElement).hidden = options.children.length >= 6;
-    });
-
-    const form = section.querySelector<HTMLFormElement>("[data-li-form]")!;
+    const form = section.querySelector<HTMLFormElement>("[data-composer]")!;
+    const composer = wireComposer(form, { answerMax: 80 });
     const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
-    const list = section.querySelector<HTMLElement>("[data-comments-list]")!;
+    const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (submit.disabled) return;
-      const polling = !poll.classList.contains("hidden");
-      const questionInput = section.querySelector<HTMLInputElement>("[data-li-question]")!;
-      const question = questionInput.value;
-      const labels = [...options.querySelectorAll<HTMLInputElement>("[data-li-option]")].map((i) => i.value);
-      const text = body.value;
-      if (polling ? !question.trim() : !text.trim()) return;
+      const polling = composer.polling();
+      const d = composer.read();
+      if (polling ? !d.question.trim() : !d.text.trim()) return;
       // Shown at once (greyed out), the form is cleared; a failure puts everything back.
-      const draft = pendingComment(polling ? "" : text);
-      if (polling) draft.poll = { question, total: 0, voted: true, options: labels.filter((l) => l.trim()).map((label) => ({ label, pct: 0 })) };
-      const shown = renderComment(draft, new Date(), false, true);
+      const draft = pendingComment(polling ? "" : d.text);
+      if (polling) draft.poll = { question: d.question, total: 0, voted: true, options: d.answers.filter((l) => l.trim()).map((label) => ({ label, pct: 0 })) };
+      const shown = render(draft, new Date(), false, true);
       list.prepend(shown);
+      revealIn(shown);
       section.querySelector("[data-comments-status]")?.classList.add("hidden");
-      body.value = "";
-      questionInput.value = "";
-      options.replaceChildren(optionInput(), optionInput());
+      composer.clear();
       submit.disabled = true;
       try {
-        await post(polling ? { kind: "poll", question, options: labels } : { kind: "comment", body: text });
-        await load();
+        const r = await post(polling ? { kind: "poll", question: d.question, options: d.answers } : { kind: "comment", body: d.text });
+        sent(section, shown, draft, r.commentId, false);
       } catch (err) {
         shown.remove();
-        body.value = text;
-        questionInput.value = question;
-        options.replaceChildren(...labels.map((l) => optionInput(l)));
+        composer.restore(d);
         toast(err);
       } finally {
         submit.disabled = false;
       }
     });
 
-    section.querySelector<HTMLElement>("[data-comments-list]")!.addEventListener("click", async (e) => {
+    list.addEventListener("click", async (e) => {
       const target = e.target instanceof Element ? e.target : null;
       const up = target?.closest<HTMLButtonElement>("[data-up]");
       const replyBtn = target?.closest<HTMLButtonElement>("[data-reply]");
@@ -482,50 +310,50 @@ const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none f
         const vote = Number(up.dataset.vote);
         const score = Number(up.dataset.score);
         const next = vote === 1 ? 0 : 1;
-        setVote(up, next, score + next - vote);
+        setVote(up, next === 1, score + next - vote);
         try { await post({ kind: "vote", commentId: Number(up.dataset.up), currentVote: vote }); }
-        catch (err) { setVote(up, vote, score); toast(err); }
+        catch (err) { setVote(up, vote === 1, score); up.dataset.vote = String(vote); toast(err); }
         finally { delete up.dataset.busy; }
       } else if (option) {
         const box = option.closest<HTMLElement>(".poll")!;
-        const before = polls.get(box)!;
+        const before = pollOf(box) as Poll;
         const optionId = Number(option.dataset.option);
-        const after = renderPoll(withVote(before, optionId), optionId);
-        box.replaceWith(after);
+        const votingId = Number(box.dataset.poll);
+        const after = swapPoll(box, withVote(before, optionId), pollOpts(before));
         try {
-          await post({ kind: "pollvote", votingId: Number(option.dataset.voting), optionId });
-          rememberVote(Number(option.dataset.voting), optionId);
+          await post({ kind: "pollvote", votingId, optionId });
+          rememberVote(votingId, optionId);
         }
-        catch (err) { after.replaceWith(renderPoll(before)); toast(err); }
+        catch (err) { swapPoll(after, before, pollOpts(before)); toast(err); }
       } else if (replyBtn && !replyBtn.nextElementSibling?.matches("[data-reply-row]")) {
         const row = h("form", "mt-2 flex gap-2");
         row.dataset.replyRow = "";
-        const input = h("input", field) as HTMLInputElement;
+        const input = h("input", FIELD);
         input.maxLength = 2000;
         input.placeholder = "Antwort…";
         const go = h("button", "press shrink-0 rounded-full bg-fg px-3 text-sm font-semibold text-bg", "Senden");
         go.type = "submit";
         row.append(input, go);
         replyBtn.after(row);
+        revealIn(row);
         row.addEventListener("submit", async (ev) => {
           ev.preventDefault();
           const text = input.value;
           if (go.disabled || !text.trim()) return;
           // The reply shows at once under its comment; the box closes and comes back on failure.
-          const li = replyBtn.closest<HTMLElement>("li")!;
-          let replies = li.querySelector<HTMLElement>(":scope > ul");
-          if (!replies) {
-            replies = h("ul", "mt-3 flex flex-col gap-3 border-l-2 border-hairline pl-3 ml-[15px]");
-            li.append(replies);
-          }
-          const shown = renderComment(pendingComment(text), new Date(), true, true);
+          const replies = replyBtn.closest<HTMLElement>("li")!.querySelector<HTMLElement>(":scope > [data-replies]")!;
+          const draft = pendingComment(text);
+          const shown = render(draft, new Date(), true, true);
+          replies.hidden = false;
           replies.append(shown);
+          revealIn(shown);
           row.remove();
           try {
-            await post({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: text });
-            await load();
+            const r = await post({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: text });
+            sent(section, shown, draft, r.commentId, true);
           } catch (err) {
             shown.remove();
+            replies.hidden = !replies.children.length;
             replyBtn.after(row);
             input.value = text;
             toast(err);

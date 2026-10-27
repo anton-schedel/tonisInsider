@@ -4,11 +4,9 @@ import { isSameOrigin, type CookieJar } from "../../../lib/session.ts";
 import { isOwnPost, parseNewComment, RATE, senderKey, VOTER_COOKIE } from "../../../lib/ownComments.ts";
 import { parseNewPoll } from "../../../lib/ownVotes.ts";
 import { insertComment, loadThreads } from "../../../lib/ownCommentsDb.ts";
+import { json, readJson } from "../../../lib/http.ts";
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
 /** The visitor's vote id from the cookie; with `create`, a new one is made and set (400 days). */
 export function voterOf(cookies: CookieJar, create = false): string {
@@ -39,8 +37,8 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
   const id = Number(params.id);
   const db = env.COMMENTS;
   if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
-  let raw: unknown;
-  try { raw = await request.json(); } catch { return json({ error: "Ungültige Anfrage." }, 400); }
+  const raw = await readJson(request);
+  if (raw instanceof Response) return raw;
   const r = raw as { poll?: unknown; text?: unknown };
   const poll = r?.poll ? parseNewPoll(r.poll) : undefined;
   if (poll && "error" in poll) return json(poll, 400);

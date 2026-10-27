@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, login, type KbTeam } from "./kickbase.ts";
+import { edgeCache, type Later } from "./http.ts";
 
 /**
  * The site's own Kickbase session (KICKBASE_EMAIL / KICKBASE_PASSWORD secrets), for data that is the same for
@@ -35,4 +36,26 @@ export async function serviceTable(token: string): Promise<KbTeam[]> {
   const teams = await clubTable(fetch, token);
   if (teams.length) g.__kbServiceTable = { at: Date.now(), teams };
   return teams;
+}
+
+/**
+ * Shared JSON for every viewer, cached at the edge for ttl(body) seconds: compute() runs on a miss. It may answer
+ * with its own Response (not cached); no body is a 503, a failure a 502.
+ */
+export async function sharedKickbase<T>(
+  key: string, later: Later, ttl: (body: T) => number, compute: () => Promise<T | Response | undefined>,
+): Promise<Response> {
+  const cache = edgeCache();
+  const hit = await cache?.match(key);
+  if (hit) return hit;
+  try {
+    const body = await compute();
+    if (body instanceof Response) return body;
+    if (!body) return Response.json({ error: "Keine Kickbase-Daten." }, { status: 503, headers: { "cache-control": "no-store" } });
+    const res = Response.json(body, { headers: { "cache-control": `public, max-age=${ttl(body)}` } });
+    if (cache) later(cache.put(key, res.clone()));
+    return res;
+  } catch {
+    return Response.json({ error: "Kickbase ist gerade nicht erreichbar." }, { status: 502, headers: { "cache-control": "no-store" } });
+  }
 }

@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { LigaInsiderAuthError, login } from "../../lib/ligainsider.ts";
+import { forbidden } from "../../lib/http.ts";
 import { isSameOrigin, rememberLiga, safeNext, setLigaSession } from "../../lib/session.ts";
 
 export const prerender = false;
@@ -11,7 +12,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     res.headers.set("Cache-Control", "private, no-store");
     return res;
   };
-  if (!isSameOrigin(request)) return new Response("Forbidden", { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  if (!isSameOrigin(request)) return forbidden();
   const form = await request.formData();
   const username = String(form.get("username") ?? "").trim();
   const password = String(form.get("password") ?? "");

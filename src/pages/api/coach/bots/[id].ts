@@ -1,10 +1,7 @@
 import type { APIRoute } from "astro";
-import { env } from "cloudflare:workers";
-import { isSameOrigin } from "../../../../lib/session.ts";
-import { coachSignedIn, json, NOT_SIGNED_IN } from "../../../../lib/coachApi.ts";
+import { coachGuard, json, modelConfig } from "../../../../lib/coachApi.ts";
 import { endJob, resetJob, startJob, writeBots } from "../../../../lib/coachBotJob.ts";
 import { startNow } from "../../../../lib/coachBots.ts";
-import { modelConfig } from "../../../../lib/coachApi.ts";
 
 export const prerender = false;
 
@@ -14,10 +11,8 @@ export const prerender = false;
  * busy). If the page is closed meanwhile, the cron finishes the job (coachBotJob.ts).
  */
 export const POST: APIRoute = async ({ request, cookies, params, url }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
-  const db = env.COMMENTS;
-  if (!db) return json({ error: "Gerade nicht erreichbar." }, 503);
-  if (!(await coachSignedIn(cookies))) return json(NOT_SIGNED_IN, 401);
+  const db = await coachGuard(request, cookies);
+  if (db instanceof Response) return db;
   const id = Number(params.id);
   // ?now=1: the planned ones come from now on instead of later.
   if (url.searchParams.get("now")) {
@@ -36,10 +31,9 @@ export const POST: APIRoute = async ({ request, cookies, params, url }) => {
 };
 
 /** GET /api/coach/bots/<id>/: how many bot comments are out and how many still planned. */
-export const GET: APIRoute = async ({ cookies, params }) => {
-  const db = env.COMMENTS;
-  if (!db) return json({ error: "Gerade nicht erreichbar." }, 503);
-  if (!(await coachSignedIn(cookies))) return json(NOT_SIGNED_IN, 401);
+export const GET: APIRoute = async ({ request, cookies, params }) => {
+  const db = await coachGuard(request, cookies);
+  if (db instanceof Response) return db;
   const now = new Date().toISOString();
   const r = await db.prepare("SELECT SUM(created_at <= ?) AS out, SUM(created_at > ?) AS planned FROM comments WHERE post_id = ? AND sender = 'bot'")
     .bind(now, now, Number(params.id)).first<{ out: number | null; planned: number | null }>();

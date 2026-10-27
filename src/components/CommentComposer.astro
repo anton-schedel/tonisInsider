@@ -1,0 +1,29 @@
+---
+import { FIELD } from "../lib/commentUi.ts";
+
+/** The Kommentar | Umfrage box of both comment sections; the script side is wireComposer (lib/commentUi.ts). */
+interface Props { textMax: number; questionMax: number; class?: string }
+const { textMax, questionMax, class: cls } = Astro.props;
+---
+<form data-composer class:list={["flex flex-col gap-2", cls]}>
+  <slot name="before" />
+  {/* Comment text or poll fields; switching grows or shrinks this box smoothly. */}
+  <div data-fields>
+    <textarea data-text rows="3" maxlength={textMax} placeholder="Was sagst du dazu?" class={FIELD}></textarea>
+    <div data-poll-fields class="hidden flex flex-col gap-2">
+      <input data-question maxlength={questionMax} placeholder="Frage der Umfrage…" class={FIELD} />
+      <div data-options class="flex flex-col gap-2"></div>
+      <button type="button" data-add class="press self-start text-sm font-medium text-accent">Weitere Antwort</button>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <div class="seg w-[196px]" role="group" aria-label="Art" data-seg>
+      <span class="seg-thumb" aria-hidden="true"></span>
+      <button type="button" data-mode="text" aria-pressed="true" class="press rounded-lg py-1.5 text-[13px] font-semibold">Kommentar</button>
+      <button type="button" data-mode="poll" aria-pressed="false" class="press rounded-lg py-1.5 text-[13px] font-semibold">Umfrage</button>
+    </div>
+    <span class="flex-1"></span>
+    <button type="submit" class="press rounded-full bg-fg px-4 py-2 text-sm font-semibold text-bg">Senden</button>
+  </div>
+  <slot />
+</form>

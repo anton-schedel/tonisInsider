@@ -185,11 +185,14 @@ describe("botNames", () => {
     const { playerNames } = await import("./coachBots.ts");
     const words = playerNames(lineup);
     expect(words).toEqual(expect.arrayContaining(["gerl", "loibl", "nguyen", "kowol"]));
-    const names = botNames(200, [...words, "max"]);
+    // Seeded, so the test doesn't fail now and then.
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const names = botNames(200, [...words, "max"], rnd);
     expect(names).toHaveLength(200);
     expect(names.filter((n) => words.some((w) => n.toLowerCase().includes(w)) || n.toLowerCase().includes("max"))).toEqual([]);
     expect(new Set(names).size).toBeGreaterThan(150);
-    const few = botNames(30).map((n) => n.replace(/[\d_. ].*$/, "").toLowerCase());
+    const few = botNames(30, [], rnd).map((n) => n.replace(/[\d_. ].*$/, "").toLowerCase());
     expect(new Set(few).size).toBeGreaterThan(25);
   });
 });

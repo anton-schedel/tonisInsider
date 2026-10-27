@@ -88,10 +88,11 @@ html {
 .prose-body img { display: block; width: 100%; height: auto; border-radius: 14px; margin: 0.2em 0 1.2em; }
 .prose-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
-/* Comments (rendered client-side by Comments.astro). */
-[data-comments-list] > .comment, [data-own-list] > .comment { padding: 14px 0; border-top: 1px solid var(--hairline); }
-[data-comments-list] > .comment:first-child, [data-own-list] > .comment:first-child { border-top: 0; padding-top: 0; }
-.poll-fill { background: var(--hairline); transition: width 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* Comments (rendered client-side by lib/commentUi.ts, for Comments.astro and OwnComments.astro). */
+[data-comment-list] > .comment { padding: 14px 0; border-top: 1px solid var(--hairline); }
+[data-comment-list] > .comment:first-child { border-top: 0; padding-top: 0; }
+/* The bar is full width and scaled, so a vote glides it on the compositor. */
+.poll-fill { background: var(--hairline); transform-origin: left; transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1); }
 .poll-fill.is-best { background: color-mix(in srgb, var(--fg) 16%, transparent); }
 .poll-choice {
   display: block; width: 100%; min-height: 44px; border: 0; cursor: pointer;
@@ -114,7 +115,8 @@ html {
   border: 1.5px solid var(--fg); border-radius: inherit;
 }
 .poll-check { font-weight: 700; }
-/* A comment or reply that is still being sent. */
+/* A comment or reply that is still being sent; once sent it fades to full. */
+.comment { transition: opacity 200ms ease; }
 .comment.is-pending { opacity: 0.55; }
 
 /* Photos fade in once loaded (the initials or grey box show until then). */
@@ -518,6 +520,7 @@ html:not([data-navigated]) .enter {
   .press, .press:active { transition: none; scale: none; }
   .press-row::before { transition: none; }
   .vote-btn.is-on .vote-chevron { animation: none; }
+  .poll-fill, .comment { transition: none; }
   .toast { transition: none; }
   .img-fade { transition: none; }
   .skeleton { animation: none; }

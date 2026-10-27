@@ -86,21 +86,10 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
   document.addEventListener("astro:page-load", async () => {
     const badges = document.querySelectorAll<HTMLElement>("[data-comment-count]");
     if (!badges.length) return;
-    // Our own posts: their count comes from our own comments.
-    for (const b of badges) {
-      const id = Number(b.dataset.commentCount);
-      if (id < 900_000_000) continue;
-      fetch(`/api/own-comments/${id}/`)
-        .then((r) => (r.ok ? (r.json() as Promise<{ total: number }>) : undefined))
-        .then((d) => {
-          if (!d) return;
-          b.querySelector("[data-n]")!.textContent = String(d.total);
-          b.classList.toggle("hidden", d.total === 0);
-        })
-        .catch(() => {});
-    }
+    // Our own posts: their count comes from our own comments, in the same answer.
+    const own = [...badges].map((b) => b.dataset.commentCount!).filter((id) => Number(id) >= 900_000_000);
     try {
-      const res = await fetch("/api/comment-counts/");
+      const res = await fetch(`/api/comment-counts/${own.length ? `?own=${[...new Set(own)].join(",")}` : ""}`);
       if (!res.ok) return;
       const counts = (await res.json()) as Record<string, number>;
       for (const b of badges) {
