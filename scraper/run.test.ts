@@ -108,11 +108,6 @@ describe("run", () => {
     expect(store.state().oddsFetchedAt).toBe(later.toISOString());
   });
 
-  it("only logs other odds failures (they retry at the next due time)", async () => {
-    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
-    expect(r.problems).toEqual([]);
-  });
-
   // NOW is 2026-10-07T09:00Z; this kickoff is 33.5 h later, inside the 40 h window.
   const ODDS_WITH_ID = JSON.stringify([{ ...JSON.parse(ODDS)[0], id: "e1", commence_time: "2026-10-07T18:30:00Z" }]);
   const SCORERS = JSON.stringify({
@@ -164,10 +159,13 @@ describe("run", () => {
     expect(store.state().scorers?.e1.players[0].name).toBe("Serhou Guirassy");
   });
 
-  it("keeps going when player odds fail, without printing the key", async () => {
-    const r = await run({ store, fetcher: fakeFetcher({ [oddsUrl("SECRET")]: ODDS_WITH_ID, [propsUrl("SECRET", "e1")]: 500 }).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
+  it.each([
+    ["the odds", { [oddsUrl("SECRET")]: 500 }, 0],
+    ["the player odds", { [oddsUrl("SECRET")]: ODDS_WITH_ID, [propsUrl("SECRET", "e1")]: 500 }, 1],
+  ])("only logs other failures of %s (they retry at the next due time) and keeps going", async (_, overrides, odds) => {
+    const r = await run({ store, fetcher: fakeFetcher(overrides).fetcher, publicDir, now: NOW, oddsApiKey: "SECRET" });
     expect(r.problems).toEqual([]);
-    expect(store.state().odds).toHaveLength(1);
+    expect(store.state().odds ?? []).toHaveLength(odds);
   });
 
   it("downloads each article's banner photo once and stores its local path", async () => {

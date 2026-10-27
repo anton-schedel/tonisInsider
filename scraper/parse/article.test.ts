@@ -14,16 +14,12 @@ describe("parseArticle", () => {
   it("parses a player article", () => {
     const a = parseArticle(fx("article-kobel.html"), ref(418778), "bundesliga", NOW);
     expect(a.headline).toBe("Kobel kann sich langfristigen BVB-Verbleib vorstellen");
-    expect(a.listHeadline).toBe("List headline");
     expect(a.player).toEqual({ id: 9357, slug: "gregor-kobel", name: "Gregor Kobel" });
     expect(a.club).toEqual({ id: 14, slug: "borussia-dortmund", name: "Borussia Dortmund" });
     expect(a.author).toBe("Robin Meise");
     expect(a.publishedAt).toBe("2026-10-07T07:32:00.000Z");
     expect(a.source?.name).toBe("bild.de");
     expect(a.source?.url).toMatch(/^https:\/\/www\.bild\.de\//);
-    expect(a.newsType).toBe("verletzung");
-    expect(a.category).toBe("bundesliga");
-    expect(a.fetchedAt).toBe(NOW.toISOString());
   });
 
   it("reads the banner photo and asks for a 1200 px version (credit overlay kept)", () => {

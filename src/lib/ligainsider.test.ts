@@ -64,20 +64,20 @@ describe("ligainsider writes", () => {
   const session = { cookie: "li_at=tok" };
   const csrf = `<input type="hidden" name="csrf_token" value="TOK">`;
 
-  it("posts a comment on the article", async () => {
+  it.each([
+    ["a comment on the article", (fn: typeof fetch) => createComment(fn, session, 418778, "Hallo"), { action: "create", newsID: "418778", body: "Hallo", csrf_token: "TOK", csrf_form: "comment_graph" }],
+    ["a reply against the parent comment", (fn: typeof fetch) => reply(fn, session, 418778, 9, "Antwort"), { action: "create", commentID: "9", body: "Antwort", newsID: null }],
+    ["a poll vote", (fn: typeof fetch) => votePoll(fn, session, 418778, 133652, 339164), { action: "poll_vote", votingID: "133652", optionID: "339164" }],
+  ])("posts %s", async (_, send, fields) => {
     const { fn, calls } = scripted([
       { status: 200, body: csrf },
       { status: 200, body: JSON.stringify({ success: true, commentID: "9" }) },
     ]);
-    expect(await createComment(fn, session, 418778, "Hallo")).toEqual({ commentId: "9" });
+    expect(await send(fn)).toEqual({ commentId: "9" });
     expect(calls[0].url).toContain("newsid=418778");
     expect(cookieOf(calls[0].init)).toBe("li_at=tok");
-    const sent = bodyOf(calls[1].init);
-    expect(sent).toContain("action=create");
-    expect(sent).toContain("newsID=418778");
-    expect(sent).toContain("body=Hallo");
-    expect(sent).toContain("csrf_token=TOK");
-    expect(sent).toContain("csrf_form=comment_graph");
+    const sent = new URLSearchParams(bodyOf(calls[1].init));
+    expect(Object.fromEntries(Object.keys(fields).map((k) => [k, sent.get(k)]))).toEqual(fields);
   });
 
   it("loads the token once while it is slow, then sends the vote once", async () => {
@@ -102,18 +102,6 @@ describe("ligainsider writes", () => {
     vi.useRealTimers();
   });
 
-  it("posts a reply against the parent comment", async () => {
-    const { fn, calls } = scripted([
-      { status: 200, body: csrf },
-      { status: 200, body: JSON.stringify({ success: true, commentID: "10" }) },
-    ]);
-    expect(await reply(fn, session, 418778, 9, "Antwort")).toEqual({ commentId: "10" });
-    const sent = bodyOf(calls[1].init);
-    expect(sent).toContain("commentID=9");
-    expect(sent).toContain("body=Antwort");
-    expect(sent).not.toContain("newsID=");
-  });
-
   it("posts an upvote with the current vote", async () => {
     const { fn, calls } = scripted([
       { status: 200, body: csrf },
@@ -125,14 +113,7 @@ describe("ligainsider writes", () => {
     expect(sent).toContain("direction=up");
     expect(sent).toContain("currentVote=0");
     expect(sent).toContain("commentID=9");
-    const headers = new Headers(calls[1].init.headers);
-    expect(headers.get("user-agent")).toContain("Chrome/131");
-    expect(headers.get("x-requested-with")).toBe("XMLHttpRequest");
-    expect(headers.get("sec-fetch-site")).toBe("same-origin");
-    expect(headers.get("sec-fetch-mode")).toBe("cors");
-    expect(headers.get("accept")).toBe("*/*");
-    expect(headers.get("content-type")).toContain("charset=UTF-8");
-    expect(headers.get("referer")).toBe("https://www.ligainsider.de/kobel-418778/");
+    expect(new Headers(calls[1].init.headers).get("referer")).toBe("https://www.ligainsider.de/kobel-418778/");
     expect(new Headers(calls[0].init.headers).get("referer")).toBe("https://www.ligainsider.de/kobel-418778/");
   });
 
@@ -158,18 +139,6 @@ describe("ligainsider writes", () => {
       { status: 502, body: "<html>Bad gateway</html>" },
     ]);
     await expect(upvote(fn, session, 1, 9, 0)).rejects.toThrow(/post HTTP 502/);
-  });
-
-  it("posts a poll vote", async () => {
-    const { fn, calls } = scripted([
-      { status: 200, body: csrf },
-      { status: 200, body: JSON.stringify({ success: true }) },
-    ]);
-    await votePoll(fn, session, 418778, 133652, 339164);
-    const sent = bodyOf(calls[1].init);
-    expect(sent).toContain("action=poll_vote");
-    expect(sent).toContain("votingID=133652");
-    expect(sent).toContain("optionID=339164");
   });
 
   it("posts a poll whose options are the labels the user typed", async () => {

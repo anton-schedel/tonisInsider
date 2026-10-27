@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "./store.ts";
-import { restoreFromSite, writeSnapshot, writeVersion, referencedImages } from "./snapshot.ts";
+import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Article } from "./types.ts";
 
@@ -39,38 +39,16 @@ describe("snapshot", () => {
     expect(existsSync(join(publicDir, "img/clubs/14.png"))).toBe(true);
   });
 
-  it("returns false when the site has no snapshot (404)", async () => {
+  it.each([
+    ["a missing snapshot (404) as none", async (url: string) => { throw new HttpError(404, url); }, false],
+    ["another failure by throwing, instead of starting fresh (would wipe history)", async (url: string) => { throw new HttpError(503, url); }, "HTTP 503"],
+    ["something that is not a snapshot by throwing", async () => "<!doctype html><p>Fehler</p>", ""],
+  ] as const)("treats %s", async (_, text, outcome) => {
     const dir = mkdtempSync(join(tmpdir(), "ti-"));
-    const fetcher: Fetcher = {
-      async text(url) { throw new HttpError(404, url); },
-      async binary(url) { throw new HttpError(404, url); },
-    };
-    expect(await restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"))).toBe(false);
-  });
-
-  it("throws instead of starting fresh when the site fails for another reason (would wipe history)", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "ti-"));
-    const fetcher: Fetcher = {
-      async text(url) { throw new HttpError(503, url); },
-      async binary(url) { throw new HttpError(503, url); },
-    };
-    await expect(restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"))).rejects.toThrow("HTTP 503");
-  });
-
-  it("throws when the site returns something that is not a snapshot", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "ti-"));
-    const fetcher: Fetcher = {
-      async text() { return "<!doctype html><p>Fehler</p>"; },
-      async binary() { return new Uint8Array(); },
-    };
-    await expect(restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"))).rejects.toThrow();
-  });
-
-  it("lists referenced images without duplicates", () => {
-    expect(referencedImages({ articles: [article, article], lineups: [] }).sort()).toEqual([
-      "/img/clubs/14.png",
-      "/img/players/9357.jpg",
-    ]);
+    const fetcher: Fetcher = { text, async binary() { return new Uint8Array(); } };
+    const restore = restoreFromSite(new Store(join(dir, "s")), fetcher, "https://ti.example", join(dir, "p"));
+    if (outcome === false) expect(await restore).toBe(false);
+    else await expect(restore).rejects.toThrow(outcome);
   });
 });
 

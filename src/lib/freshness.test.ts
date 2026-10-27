@@ -5,34 +5,21 @@ const page = { newest: 5, updated: "2026-10-07T12:00:00Z" };
 const ctx = { resumed: false, nearTop: false, path: "/" };
 
 describe("updateAction", () => {
-  it("does nothing while the page is current", () => {
-    expect(updateAction(page, { ...page }, ctx)).toBe("none");
-  });
-
-  it("offers new news with a notice instead of moving content under your finger", () => {
-    expect(updateAction(page, { newest: 6, updated: "2026-10-07T12:05:00Z" }, ctx)).toBe("notice");
-    expect(updateAction(page, { newest: 6, updated: "x" }, { ...ctx, resumed: true, nearTop: false })).toBe("notice");
-  });
-
-  it("refreshes quietly when you come back to the app and are at the top", () => {
-    expect(updateAction(page, { newest: 6, updated: "x" }, { ...ctx, resumed: true, nearTop: true })).toBe("refresh");
-    // Lineups or odds changed (no new article): same.
-    expect(updateAction(page, { newest: 5, updated: "x" }, { ...ctx, resumed: true, nearTop: true })).toBe("refresh");
-  });
-
-  it("ignores other updates while you are reading", () => {
-    expect(updateAction(page, { newest: 5, updated: "x" }, ctx)).toBe("none");
-  });
-
-  it("never reloads Mein Team by itself (it asks Kickbase), but still shows the notice", () => {
-    const mine = { ...ctx, path: "/mein-team/", resumed: true, nearTop: true };
-    expect(updateAction(page, { newest: 5, updated: "x" }, mine)).toBe("none");
-    expect(updateAction(page, { newest: 6, updated: "x" }, mine)).toBe("notice");
-  });
-
-  it("does nothing if either version is unknown", () => {
-    expect(updateAction({}, { newest: 6, updated: "x" }, { ...ctx, resumed: true, nearTop: true })).toBe("none");
-    expect(updateAction(page, {}, ctx)).toBe("none");
+  const back = { ...ctx, resumed: true, nearTop: true };
+  const mine = { ...back, path: "/mein-team/" };
+  it.each([
+    ["nothing while the page is current", page, page, ctx, "none"],
+    ["a notice for new news instead of moving content under your finger", page, { newest: 6, updated: "2026-10-07T12:05:00Z" }, ctx, "notice"],
+    ["a notice for new news when you come back away from the top", page, { newest: 6, updated: "x" }, { ...ctx, resumed: true }, "notice"],
+    ["a quiet refresh when you come back at the top", page, { newest: 6, updated: "x" }, back, "refresh"],
+    ["a quiet refresh for changed lineups or odds when you come back at the top", page, { newest: 5, updated: "x" }, back, "refresh"],
+    ["nothing for other updates while you are reading", page, { newest: 5, updated: "x" }, ctx, "none"],
+    ["no reload of Mein Team by itself (it asks Kickbase)", page, { newest: 5, updated: "x" }, mine, "none"],
+    ["still the notice on Mein Team", page, { newest: 6, updated: "x" }, mine, "notice"],
+    ["nothing if the page's version is unknown", {}, { newest: 6, updated: "x" }, back, "none"],
+    ["nothing if the new version is unknown", page, {}, ctx, "none"],
+  ])("gives %s", (_, now, next, c, expected) => {
+    expect(updateAction(now, next, c)).toBe(expected);
   });
 });
 

@@ -32,7 +32,7 @@ export function summarize(events: KbEvent[], names: Map<number, string>): Points
 }
 
 /** Shown from kickoff on: the player's Kickbase points (live while his match runs). Nothing before kickoff. */
-export type PointsLabel = { text: string; live: boolean; negative: boolean; tier?: PointsTier };
+export type PointsLabel = { text: string; live: boolean; tier?: PointsTier };
 
 /**
  * Colour steps for points (CSS classes .pts-*): red below 0, orange up to 99, light green 100–199, a darker
@@ -66,7 +66,7 @@ export function pointsLabel(live: KbLive | undefined): PointsLabel | undefined {
   // No points yet: 0 while the match runs, "–" once it's over (he didn't play).
   const text = live.points !== undefined ? String(live.points) : live.state === 1 ? "0" : "–";
   const tier = pointsTier(live.points);
-  return { text, live: live.state === 1, negative: (live.points ?? 0) < 0, ...(tier ? { tier } : {}) };
+  return { text, live: live.state === 1, ...(tier ? { tier } : {}) };
 }
 
 /** The live updates (Mein Team) poll while a match of the XI or bench has started and isn't over. */

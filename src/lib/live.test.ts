@@ -15,11 +15,8 @@ const goal = (h: number, a: number, minute: number, name: string) =>
   ({ scoreTeam1: h, scoreTeam2: a, matchMinute: minute, goalGetterName: name, isPenalty: false, isOwnGoal: false });
 
 describe("parseLive", () => {
-  it("starts at 0:0 without goals", () => {
+  it("takes the score from the latest goal, 0:0 without goals", () => {
     expect(parseLive([match()])[0]).toMatchObject({ score: [0, 0], finished: false, goals: [], kickoff: "2026-10-09T18:30:00.000Z" });
-  });
-
-  it("takes the score from the latest goal", () => {
     const [m] = parseLive([match({ goals: [goal(1, 0, 12, "S. Guirassy"), goal(1, 1, 30, "J. Stage")] })]);
     expect(m.score).toEqual([1, 1]);
     expect(m.goals[1]).toEqual({ minute: 30, name: "J. Stage", home: 1, away: 1, penalty: false, own: false });

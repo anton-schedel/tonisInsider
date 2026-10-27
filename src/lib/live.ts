@@ -16,8 +16,6 @@ type OldbMatch = {
 export type LiveGoal = { minute?: number; name: string; home: number; away: number; penalty: boolean; own: boolean };
 export type LiveMatch = { home: string; away: string; kickoff: string; finished: boolean; score: [number, number]; goals: LiveGoal[] };
 
-const key = (name: string) => name.trim().toLowerCase();
-
 /** OpenLigaDB's current matchday, reduced to what we show. The score is the latest goal or result, else 0:0. */
 export function parseLive(json: unknown): LiveMatch[] {
   if (!Array.isArray(json)) return [];

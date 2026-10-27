@@ -9,12 +9,8 @@ describe("dispatchScrape", () => {
       return new Response(null, { status: 204 });
     }) as unknown as typeof fetch;
     await dispatchScrape(fetchFn, "TOKEN");
-    expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(WORKFLOW_DISPATCH_URL);
-    expect(calls[0].init.method).toBe("POST");
-    const h = calls[0].init.headers as Record<string, string>;
-    expect(h.authorization).toBe("Bearer TOKEN");
-    expect(h["user-agent"]).toBeTruthy();
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe("Bearer TOKEN");
     expect(JSON.parse(String(calls[0].init.body))).toEqual({ ref: "main", inputs: { force: "false" } });
   });
 

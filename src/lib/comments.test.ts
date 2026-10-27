@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchComments, fetchMoreComments, hedged, MORE_URL, parseComments, parseThreadKey, TEAM_MORE_URL, threadKey, withoutViewer, type EdgeCache } from "./comments.ts";
+import { COUNTS_URL, commentCountsResponse, commentsResponse, commentsUrl, cursorFrom, fetchMoreComments, hedged, MORE_URL, parseComments, parseThreadKey, TEAM_MORE_URL, threadKey, withoutViewer, type EdgeCache } from "./comments.ts";
 
 const fixture = (name: string) => readFileSync(new URL(`../../scraper/__fixtures__/${name}`, import.meta.url), "utf8");
 
@@ -60,25 +60,6 @@ describe("parseComments", () => {
   });
 });
 
-describe("fetchComments", () => {
-  it("requests LigaInsider's comment fragment for the article", async () => {
-    const urls: string[] = [];
-    const fn = (async (url: string | URL | Request) => {
-      urls.push(String(url));
-      return new Response(fixture("comments-poll.html"));
-    }) as typeof fetch;
-    const r = await fetchComments(fn, 418776);
-    expect(urls).toEqual([commentsUrl(418776)]);
-    expect(commentsUrl(418776)).toBe("https://www.ligainsider.de/apiesi/desktop/newscomments/?newsid=418776");
-    expect(r.total).toBe(8);
-  });
-
-  it("throws when LigaInsider answers with an error", async () => {
-    const fn = (async () => new Response("nope", { status: 503 })) as typeof fetch;
-    await expect(fetchComments(fn, 1)).rejects.toThrow("HTTP 503");
-  });
-});
-
 describe("threads", () => {
   it("keys articles by id and lineup pages by match and team", () => {
     const team = { tmid: 185708, optauuid: "5ju4n8wsoc85fnut62uav3i8k", teamid: 14 };
@@ -87,20 +68,10 @@ describe("threads", () => {
     expect(parseThreadKey("418776")).toBe(418776);
     expect(parseThreadKey("t185708-5ju4n8wsoc85fnut62uav3i8k-14")).toEqual(team);
     for (const bad of ["t1-x-1", "t1-ABCDEFGHIJ-1", "t1-abcdefghij-1/..", "", "1234567890"]) expect(parseThreadKey(bad)).toBeUndefined();
+    expect(commentsUrl(418776)).toBe("https://www.ligainsider.de/apiesi/desktop/newscomments/?newsid=418776");
     expect(commentsUrl(team)).toBe("https://www.ligainsider.de/apiesi/desktop/teamcomments/?showallcomments=false&tmid=185708&optauuid=5ju4n8wsoc85fnut62uav3i8k&teamid=14");
   });
 
-  it("loads more of a lineup page's comments from the team endpoint", async () => {
-    const calls: { url: string; body: string }[] = [];
-    const fn = (async (url: string, init?: RequestInit) => {
-      calls.push({ url, body: String(init?.body) });
-      return new Response("<ul></ul>");
-    }) as unknown as typeof fetch;
-    await fetchMoreComments(fn, { tmid: 185708, optauuid: "5ju4n8wsoc85fnut62uav3i8k", teamid: 14 }, { offset: 15, goffset: 15, moffset: 0, cursor: 7887429 });
-    expect(calls[0].url).toBe(TEAM_MORE_URL);
-    expect(new URLSearchParams(calls[0].body).get("tmid")).toBe("185708");
-    expect(new URLSearchParams(calls[0].body).get("gtdid")).toBe("185708");
-  });
 });
 
 describe("commentsResponse", () => {
@@ -204,13 +175,10 @@ describe("hedged", () => {
     vi.useRealTimers();
   });
 
-  it("doesn't start a second try when the first is quick", async () => {
-    let n = 0;
-    expect(await hedged(async () => (n++, "ok"), 2500, 15_000)).toBe("ok");
-    expect(n).toBe(1);
-  });
-
   it("retries at once when the first try fails, and fails when both do", async () => {
+    let quick = 0;
+    expect(await hedged(async () => (quick++, "ok"), 2500, 15_000)).toBe("ok");
+    expect(quick).toBe(1); // a quick first try gets no second
     let n = 0;
     expect(await hedged(async () => { if (n++ === 0) throw new Error("x"); return "second"; }, 2500, 15_000)).toBe("second");
     await expect(hedged(async () => { throw new Error("down"); }, 2500, 15_000)).rejects.toThrow("down");
@@ -247,27 +215,27 @@ describe("commentCountsResponse", () => {
 });
 
 describe("more comments", () => {
-  it("reads where the next batch starts", () => {
+  it("reads where the next batch starts, also in a further batch", () => {
     const first = parseComments(fixture("comments-long.html"));
     expect(first.comments).toHaveLength(15);
     expect(first.more).toEqual({ offset: 15, goffset: 15, moffset: 0, cursor: 7851373 });
-  });
-
-  it("parses a further batch and its own next cursor", () => {
     const next = parseComments(fixture("comments-more.html"));
     expect(next.comments.length).toBeGreaterThan(0);
     expect(next.more?.offset).toBeGreaterThan(15);
   });
 
-  it("posts the cursor like LigaInsider's own list, newest first", async () => {
+  it.each([
+    ["an article, like LigaInsider's own list", 418926, MORE_URL, { offset: "15", commentsbefore: "7851373", tmid: "418926", sort: "newest" }],
+    ["a lineup page, from the team endpoint", { tmid: 185708, optauuid: "5ju4n8wsoc85fnut62uav3i8k", teamid: 14 }, TEAM_MORE_URL, { tmid: "185708", gtdid: "185708" }],
+  ] as const)("posts the cursor for %s", async (_, thread, url, fields) => {
     let sent: { url: string; body: string } | undefined;
     const fetchFn = (async (url: string, init: RequestInit) => {
       sent = { url, body: String(init.body) };
       return new Response(fixture("comments-more.html"));
     }) as unknown as typeof fetch;
-    await fetchMoreComments(fetchFn, 418926, { offset: 15, goffset: 15, moffset: 0, cursor: 7851373 });
-    expect(sent?.url).toBe(MORE_URL);
-    expect(Object.fromEntries(new URLSearchParams(sent!.body))).toMatchObject({ offset: "15", commentsbefore: "7851373", tmid: "418926", sort: "newest" });
+    await fetchMoreComments(fetchFn, thread, { offset: 15, goffset: 15, moffset: 0, cursor: 7851373 });
+    expect(sent?.url).toBe(url);
+    expect(Object.fromEntries(new URLSearchParams(sent!.body))).toMatchObject(fields);
   });
 
   it("accepts only numeric cursors from the query", () => {

@@ -82,27 +82,6 @@ export function calibrate(players: ScorerPlayer[], matchGoals: number, starters?
   return new Map(players.map((p) => [p.name, chance(events(p.p) * scale)]));
 }
 
-/** For a fixture: a lookup from LigaInsider player to their chance to score, in whole percent. */
-export function goalChances(
-  f: Fixture, odds: OddsEvent[] | undefined, scorers: Record<string, ScorerMatch> | undefined,
-): (player: Pick<Ref, "name" | "slug">) => number | undefined {
-  const none = () => undefined;
-  const result = findEvent(f, odds);
-  const match = result?.event.id ? scorers?.[result.event.id] : undefined;
-  if (!result || !match?.players.length) return none;
-  const xg = expectedGoals(result.event.chances);
-  const names = match.players.map((p) => p.name);
-  // The predicted starters of both teams, in the bookmakers' spelling.
-  const starters = new Set(
-    [f.home, f.away].flatMap((l) => l?.lines.flat() ?? []).flatMap((p) => findScorer(p, names) ?? []),
-  );
-  const chances = calibrate(match.players, xg.home + xg.away, starters);
-  return (player) => {
-    const name = findScorer(player, names);
-    return name === undefined ? undefined : Math.round(chances.get(name)! * 100);
-  };
-}
-
 /** Odds-based outlook for one player, in whole percent. */
 export type PlayerInsight = {
   /** Scores. */

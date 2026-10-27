@@ -28,15 +28,13 @@ describe("parseOdds", () => {
     expect(parseOdds([event([flipped])])[0].chances).toEqual({ home: 60, draw: 22, away: 18 });
   });
 
-  it("skips events without usable h2h odds and ignores broken bookmakers", () => {
+  it("skips events without usable h2h odds and ignores broken bookmakers and unexpected responses", () => {
     const broken = { key: "x", markets: [{ key: "h2h", outcomes: [{ name: "Borussia Dortmund", price: 0 }] }] };
     expect(parseOdds([event([]), event([broken])])).toEqual([]);
     expect(parseOdds([event([broken, book("a", 1.6, 4.3, 5.2)])])[0].books).toBe(1);
-  });
-
-  it("returns nothing for an unexpected response", () => {
     expect(parseOdds({ message: "quota" })).toEqual([]);
   });
+
 });
 
 describe("odds schedule", () => {

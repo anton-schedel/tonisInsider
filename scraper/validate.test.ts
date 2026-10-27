@@ -25,9 +25,9 @@ describe("validateArticle", () => {
 });
 
 describe("validateLineup", () => {
-  it("accepts 1 + 10 players", () => expect(validateLineup(lineup([1, 4, 4, 2]))).toEqual([]));
-  it("rejects 10 players", () => expect(validateLineup(lineup([1, 4, 4, 1]))).toEqual(["expected 11 players, got 10"]));
-  it("rejects two goalkeepers in the first line", () => {
-    expect(validateLineup(lineup([2, 4, 3, 2]))).toEqual(["first line must be exactly one goalkeeper"]);
-  });
+  it.each([
+    ["accepts 1 + 10 players", [1, 4, 4, 2], []],
+    ["rejects 10 players", [1, 4, 4, 1], ["expected 11 players, got 10"]],
+    ["rejects two goalkeepers in the first line", [2, 4, 3, 2], ["first line must be exactly one goalkeeper"]],
+  ])("%s", (_, sizes, problems) => expect(validateLineup(lineup(sizes))).toEqual(problems));
 });

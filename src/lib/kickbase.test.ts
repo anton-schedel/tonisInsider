@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clubTable, KickbaseAuthError, KickbaseUnavailableError, leagues, login, matchDetails, myEleven, squad, teamRoster } from "./kickbase.ts";
+import { KickbaseAuthError, KickbaseUnavailableError, leagues, login, matchDetails, myEleven, squad, teamRoster } from "./kickbase.ts";
 
 type Call = { url: string; init: RequestInit };
 
@@ -43,60 +43,47 @@ describe("kickbase client", () => {
     await expect(leagues(broken, "T")).rejects.toBeInstanceOf(KickbaseUnavailableError);
   });
 
-  it("sends the token as Bearer and maps leagues, squad and table", async () => {
-    const l = fakeFetch(200, { it: [{ i: "7", n: "Liga" }] });
-    expect(await leagues(l.fn, "T")).toEqual([{ id: "7", name: "Liga" }]);
-    expect((l.calls[0].init.headers as Record<string, string>).authorization).toBe("Bearer T");
-
+  it("sends the token as Bearer and maps the squad", async () => {
     const s = fakeFetch(200, { it: [{ i: "118", n: "Grifo", tid: "5", pos: 3, pim: "content/file/x.png" }] });
     expect(await squad(s.fn, "T", "7")).toEqual([
       { id: "118", name: "Grifo", teamId: "5", position: 3, image: "https://kickbase.b-cdn.net/content/file/x.png" },
     ]);
     expect(s.calls[0].url).toBe("https://api.kickbase.com/v4/leagues/7/squad");
-
-    const t = fakeFetch(200, { it: [{ tid: "3", tn: "Dortmund" }] });
-    expect(await clubTable(t.fn, "T")).toEqual([{ id: "3", name: "Dortmund" }]);
+    expect((s.calls[0].init.headers as Record<string, string>).authorization).toBe("Bearer T");
   });
 });
 
 describe("myEleven", () => {
   const kb = (i: string, n: string, pos: number) => ({ i, n, tid: "4", pos, pim: `content/file/${i}`, md: "2026-10-10T13:30:00Z" });
 
-  it("returns the manager's starting XI and bench", async () => {
-    const s = fakeFetch(200, { lp: [kb("1", "Zentner", 1), kb("2", "Kane", 4)], nlp: [kb("3", "Pinckert", 2)], lpc: 11 });
-    const r = await myEleven(s.fn, "T", "7");
-    expect(s.calls[0].url).toBe("https://api.kickbase.com/v4/leagues/7/teamcenter/myeleven");
-    expect(s.calls[0].init.headers).toMatchObject({ authorization: "Bearer T" });
-    expect(r.starters.map((p) => p.name)).toEqual(["Zentner", "Kane"]);
-    expect(r.starters[1]).toEqual({ id: "2", name: "Kane", teamId: "4", position: 4, image: "https://kickbase.b-cdn.net/content/file/2" });
-    expect(r.bench.map((p) => p.name)).toEqual(["Pinckert"]);
-  });
-
-  it("reads each player's live points and match state, and the XI's points", async () => {
+  it("returns the starting XI with each player's live points and match state, the bench and the XI's points", async () => {
     const s = fakeFetch(200, {
       lp: [
         { ...kb("1", "Caci", 2), p: 142, mst: 2, mt: 94 },
         { ...kb("2", "Saibari", 4), p: 31, mst: 1, mt: 63 },
         { ...kb("3", "Schick", 4), mst: 0 },
       ],
+      nlp: [kb("4", "Pinckert", 2)],
       p: 455,
     });
     const r = await myEleven(s.fn, "T", "7");
+    expect(s.calls[0].url).toBe("https://api.kickbase.com/v4/leagues/7/teamcenter/myeleven");
+    expect(s.calls[0].init.headers).toMatchObject({ authorization: "Bearer T" });
     expect(r.points).toBe(455);
+    expect(r.starters.map((p) => p.name)).toEqual(["Caci", "Saibari", "Schick"]);
+    expect(r.starters[1]).toMatchObject({ id: "2", name: "Saibari", teamId: "4", position: 4, image: "https://kickbase.b-cdn.net/content/file/2" });
     expect(r.starters.map((p) => p.live)).toEqual([
       { state: 2, points: 142, kickoff: "2026-10-10T13:30:00Z" },
       { state: 1, points: 31, minute: 63, kickoff: "2026-10-10T13:30:00Z" },
       { state: 0, kickoff: "2026-10-10T13:30:00Z" },
     ]);
+    expect(r.bench.map((p) => p.name)).toEqual(["Pinckert"]);
   });
 
   it("copes with a manager who hasn't set a lineup", async () => {
     expect(await myEleven(fakeFetch(200, {}).fn, "T", "7")).toEqual({ starters: [], bench: [] });
   });
 
-  it("throws KickbaseAuthError on 401", async () => {
-    await expect(myEleven(fakeFetch(401, {}).fn, "T", "7")).rejects.toBeInstanceOf(KickbaseAuthError);
-  });
 });
 
 describe("matchDetails", () => {

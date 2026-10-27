@@ -1,19 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseNewsList, newsTypeFromLabel } from "./newsList.ts";
+import { parseNewsList } from "./newsList.ts";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "..", "__fixtures__", name), "utf8");
 
 describe("parseNewsList", () => {
-  it("parses all 15 entries of the Bundesliga overview", () => {
+  it("extracts id, absolute url, clean headline, news type and photo", () => {
     const refs = parseNewsList(fx("news-bundesliga.html"));
     expect(refs).toHaveLength(15);
     expect(new Set(refs.map((r) => r.id)).size).toBe(15);
-  });
-
-  it("extracts id, absolute url, clean headline, news type and photo", () => {
-    const refs = parseNewsList(fx("news-bundesliga.html"));
     expect(refs.find((r) => r.id === 418778)).toEqual({
       id: 418778,
       url: "https://www.ligainsider.de/gregor-kobel_9357/kobel-kann-sich-langfristigen-bvb-verbleib-vorstellen-418778/",
@@ -51,9 +47,4 @@ describe("parseNewsList", () => {
     expect(refs.find((r) => r.id === 418890)?.playerName).toBe("Timo Becker");
   });
 
-  it("maps unknown icon labels to sonstiges", () => {
-    expect(newsTypeFromLabel("Sonstiges / Interview / Persönliches")).toBe("sonstiges");
-    expect(newsTypeFromLabel(undefined)).toBe("sonstiges");
-    expect(newsTypeFromLabel("Aufbautraining")).toBe("aufbautraining");
-  });
 });

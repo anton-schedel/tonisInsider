@@ -2,14 +2,14 @@
 import { threadKey, type Thread } from "../lib/comments.ts";
 
 /** thread: the article id, or a club's lineup page (its match and team); url: the same page on LigaInsider. */
-interface Props { thread: Thread; url: string; title?: string }
-const { thread, url, title = "Kommentare" } = Astro.props;
+interface Props { thread: Thread; url: string }
+const { thread, url } = Astro.props;
 const field = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
 <!-- Loaded live from LigaInsider (via /api/comments/<thread key>/). Logged-in reads are personal and uncached. -->
 <section class="mt-10" data-comments={threadKey(thread)} data-li-page={url}>
   <h2 class="mb-4 flex items-baseline gap-2 text-[20px] font-bold tracking-[-0.02em]">
-    {title} <span class="text-[15px] font-semibold text-muted" data-comments-count></span>
+    Kommentare <span class="text-[15px] font-semibold text-muted" data-comments-count></span>
   </h2>
 
   <div data-li-box class="mb-6 hidden">

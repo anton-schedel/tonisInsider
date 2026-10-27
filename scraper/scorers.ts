@@ -43,7 +43,7 @@ export type ScorerMatch = {
   fullAt?: string;
   /** Anytime goalscorer. */
   players: ScorerPlayer[];
-  /** At least one assist; missing for matches fetched before assists were part of the set. */
+  /** Assist odds (sometimes empty at first: they come later than the other markets). */
   assists?: ScorerPlayer[];
   /** Last request for the assists (they sometimes come later than the other markets). */
   assistsAt?: string;
@@ -174,7 +174,7 @@ export function scorersToFetch(events: OddsEvent[], have: Record<string, ScorerM
     }
     // The late refresh: once the match is within 6 h and the last fetch was before that.
     if (kickoff - t <= REFRESH_HOURS * HOUR && last < kickoff - REFRESH_HOURS * HOUR) out.push({ id: e.id!, kind: "goals" });
-    const assistsDue = !got.assists || (!got.assists.length && t - Date.parse(got.assistsAt ?? got.fullAt) >= RETRY_HOURS * HOUR);
+    const assistsDue = !got.assists?.length && t - Date.parse(got.assistsAt ?? got.fullAt) >= RETRY_HOURS * HOUR;
     if (assistsDue) out.push({ id: e.id!, kind: "assists" });
   }
   return out;

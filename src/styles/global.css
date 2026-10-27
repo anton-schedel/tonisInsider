@@ -16,8 +16,8 @@
   --glass-edge: rgba(0, 0, 0, 0.07); --glass-sheen: rgba(255, 255, 255, 0.5);
   --glass-lens: rgba(0, 0, 0, 0.06); --glass-lens-rim: rgba(255, 255, 255, 0.85);
   --red-bg: #ffebe9; --red-fg: #d70015;
-  --yellow-bg: #fff4d6; --yellow-fg: #a05a00; --yellow-dot: #ffcc00;
-  --green-bg: #e3f7e8; --green-fg: #248a3d; --green-dot: #30d158;
+  --yellow-fg: #a05a00; --yellow-dot: #ffcc00;
+  --green-dot: #30d158;
   /* TuS Schnöselmob's gold (its crest), only on the coach's page. */
   --gold: #9c7a2b;
   color-scheme: light;
@@ -30,8 +30,8 @@
   --glass-edge: rgba(255, 255, 255, 0.09); --glass-sheen: rgba(255, 255, 255, 0.07);
   --glass-lens: rgba(255, 255, 255, 0.1); --glass-lens-rim: rgba(255, 255, 255, 0.2);
   --red-bg: rgba(255, 69, 58, 0.16); --red-fg: #ff6961;
-  --yellow-bg: rgba(255, 214, 10, 0.14); --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
-  --green-bg: rgba(48, 209, 88, 0.16); --green-fg: #30d158; --green-dot: #30d158;
+  --yellow-fg: #ffd60a; --yellow-dot: #ffd60a;
+  --green-dot: #30d158;
   --gold: #d4b05c;
   color-scheme: dark;
 }
@@ -53,13 +53,10 @@
 @property --glass-lens-rim { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --red-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --red-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
-@property --yellow-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --yellow-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --yellow-dot { syntax: "<color>"; inherits: true; initial-value: transparent; }
-@property --green-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
-@property --green-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --green-dot { syntax: "<color>"; inherits: true; initial-value: transparent; }
-:root { transition: --bg 280ms ease, --surface 280ms ease, --surface-raised 280ms ease, --fg 280ms ease, --muted 280ms ease, --hairline 280ms ease, --tabbar 280ms ease, --glass-rim 280ms ease, --glass-rim-low 280ms ease, --glass-edge 280ms ease, --glass-sheen 280ms ease, --glass-lens 280ms ease, --glass-lens-rim 280ms ease, --red-bg 280ms ease, --red-fg 280ms ease, --yellow-bg 280ms ease, --yellow-fg 280ms ease, --yellow-dot 280ms ease, --green-bg 280ms ease, --green-fg 280ms ease, --green-dot 280ms ease; }
+:root { transition: --bg 280ms ease, --surface 280ms ease, --surface-raised 280ms ease, --fg 280ms ease, --muted 280ms ease, --hairline 280ms ease, --tabbar 280ms ease, --glass-rim 280ms ease, --glass-rim-low 280ms ease, --glass-edge 280ms ease, --glass-sheen 280ms ease, --glass-lens 280ms ease, --glass-lens-rim 280ms ease, --red-bg 280ms ease, --red-fg 280ms ease, --yellow-fg 280ms ease, --yellow-dot 280ms ease, --green-dot 280ms ease; }
 @media (prefers-reduced-motion: reduce) { :root { transition: none; } }
 
 /* The logo's navy text needs its light version on dark backgrounds. */
@@ -247,7 +244,6 @@ html:has(.player-card[open]) { overflow: hidden; }
 .fut-caption .kb-points-dot { display: inline-block; margin-left: 6px; vertical-align: 1px; background: #ff453a; animation: kb-live 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .fut-caption .kb-points-dot { animation: none; } }
 .fut-points-row b { min-width: 3ch; text-align: right; font-weight: 700; }
-.fut-points-row b.is-negative { color: var(--red-fg); }
 
 @media (min-width: 640px) {
   .player-card { inset: 0; margin: auto; border-radius: 24px; height: fit-content; }

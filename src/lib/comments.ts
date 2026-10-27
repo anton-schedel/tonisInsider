@@ -132,7 +132,7 @@ const num = (s: string | undefined) => {
 };
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 /** Text of a comment body: markup dropped, <br> kept as line breaks. */
-function bodyText($: CheerioAPI, p: ReturnType<CheerioAPI>) {
+function bodyText(p: ReturnType<CheerioAPI>) {
   p.find("br").replaceWith("\n");
   return p.text().split("\n").map(clean).filter(Boolean).join("\n");
 }
@@ -149,7 +149,7 @@ function parseOne($: CheerioAPI, li: Element): Comment {
     id: num(el.attr("data-comment-id")),
     user: clean(scope.find('[class$="__username"]').first().text()),
     date: Number.isNaN(date.getTime()) ? "" : date.toISOString(),
-    text: bodyText($, scope.find('p[class$="__text"]').first()),
+    text: bodyText(scope.find('p[class$="__text"]').first()),
     score: num(scope.find("[data-score-display]").first().text()),
     vote: num(el.attr("data-vote-state")),
     ...(pollEl.length

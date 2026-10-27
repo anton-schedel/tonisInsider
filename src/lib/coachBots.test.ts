@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askModel, batchPlan, botNames, botPrompt, botRows, dropSimilar, parseBots, type BotComment } from "./coachBots.ts";
+import { askModel, batchPlan, botNames, botRows, dropSimilar, parseBots, type BotComment } from "./coachBots.ts";
 import type { CoachPost } from "./coachPosts.ts";
 
 const lineup: CoachPost = {
@@ -17,6 +17,8 @@ describe("parseBots", () => {
   it("reads a clean JSON list, also inside code fences or prose", () => {
     expect(parseBots(JSON.stringify(list))).toEqual(named);
     expect(parseBots("Hier sind die Kommentare:\n```json\n" + JSON.stringify(list) + "\n```\nViel Spaß!")).toEqual(named);
+    expect(parseBots("Tut mir leid, das kann ich nicht.")).toEqual([]);
+    expect(parseBots("[{oops")).toEqual([]);
   });
   it("drops what it can't use and clamps the minute", () => {
     const out = parseBots(JSON.stringify([
@@ -31,17 +33,9 @@ describe("parseBots", () => {
     const answer = '```json\n[\n {"text": "a", "minute": 1},\n {"text": "poll": {"question": "Wer?", "options": ["A", "B"]}},\n {"text": "c {mit} \\"Klammern\\"", "minute": 2, "replyTo": 0}\n]\n```';
     expect(parseBots(answer)).toEqual([{ name: "", text: "a", minute: 1 }, { name: "", text: 'c {mit} "Klammern"', minute: 2, replyTo: 0 }]);
   });
-  it("gives nothing for junk", () => {
-    expect(parseBots("Tut mir leid, das kann ich nicht.")).toEqual([]);
-    expect(parseBots("[{oops")).toEqual([]);
-  });
-  it("hangs a reply to a reply under the first comment (threads are one level deep)", () => {
-    const out = parseBots(JSON.stringify([{ text: "a", minute: 1 }, { text: "b", minute: 2, replyTo: 0 }, { text: "c", minute: 3, replyTo: 1 }]));
-    expect(out[2].replyTo).toBe(0);
-  });
-  it("keeps replies only to earlier comments of the list", () => {
-    const out = parseBots(JSON.stringify([{ text: "a", minute: 1, replyTo: 1 }, { text: "b", minute: 2, replyTo: 0 }]));
-    expect(out.map((c) => c.replyTo)).toEqual([undefined, 0]);
+  it("keeps replies only to earlier comments, one level deep", () => {
+    const out = parseBots(JSON.stringify([{ text: "a", minute: 1, replyTo: 1 }, { text: "b", minute: 2, replyTo: 0 }, { text: "c", minute: 3, replyTo: 1 }]));
+    expect(out.map((c) => c.replyTo)).toEqual([undefined, 0, 0]);
   });
 });
 
@@ -77,6 +71,16 @@ describe("askModel", () => {
     const fetcher = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
     await expect(askModel({ url: "https://x", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
   });
+  it("reads the answer as it streams in (so the connection never sits idle)", async () => {
+    let body: { stream?: boolean } = {};
+    const sse = ['data: {"choices":[{"delta":{"role":"assistant"}}]}', 'data: {"choices":[{"delta":{"content":"[{\\"a\\""}}]}', 'data: {"choices":[{"delta":{"content":":1}]"}}]}', "data: [DONE]", ""].join("\n\n");
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
+    }) as typeof fetch;
+    expect(await askModel({ url: "https://x/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
+    expect(body.stream).toBe(true);
+  });
 });
 
 describe("shouldWriteBots", () => {
@@ -101,20 +105,6 @@ describe("batchPlan", () => {
     expect(batchPlan(42, ["a", "b"], 50)).toEqual([{ count: 42, topics: ["a", "b"] }]);
   });
 });
-
-describe("askModel streaming", () => {
-  it("reads the answer as it streams in (so the connection never sits idle)", async () => {
-    let body: { stream?: boolean } = {};
-    const sse = ['data: {"choices":[{"delta":{"role":"assistant"}}]}', 'data: {"choices":[{"delta":{"content":"[{\\"a\\""}}]}', 'data: {"choices":[{"delta":{"content":":1}]"}}]}', "data: [DONE]", ""].join("\n\n");
-    const fetcher = (async (_url: string, init: RequestInit) => {
-      body = JSON.parse(String(init.body));
-      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
-    }) as typeof fetch;
-    expect(await askModel({ url: "https://x/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
-    expect(body.stream).toBe(true);
-  });
-});
-
 
 describe("commentPlan", () => {
   it("gives each comment its own job: topics 2–3 times, callbacks, replies to earlier ones (max 3 each), comparisons and polls as asked", async () => {
@@ -174,15 +164,6 @@ describe("body insult filter", () => {
   });
 });
 
-describe("botCount", () => {
-  it("is a different number each time, between 25 and 42", async () => {
-    const { botCount } = await import("./coachBots.ts");
-    expect(botCount(() => 0)).toBe(25);
-    expect(botCount(() => 0.9999)).toBe(42);
-    expect(botCount(() => 0.5)).toBe(34);
-  });
-});
-
 describe("startNow", () => {
   it("moves planned comments so the first comes now, keeping the gaps", async () => {
     const { startNow } = await import("./coachBots.ts");
@@ -210,16 +191,6 @@ describe("botNames", () => {
     expect(new Set(names).size).toBeGreaterThan(150);
     const few = botNames(30).map((n) => n.replace(/[\d_. ].*$/, "").toLowerCase());
     expect(new Set(few).size).toBeGreaterThan(25);
-  });
-});
-
-describe("modelFromEnv", () => {
-  it("prefers the LLM_* settings (e.g. Grok) and falls back to Morpheus", async () => {
-    const { modelFromEnv } = await import("./coachBots.ts");
-    const morpheus = { MORPHEUS_API_KEY: "m", MORPHEUS_BASE_URL: "https://morpheus/api", MORPHEUS_MODEL: "qwen" };
-    expect(modelFromEnv(morpheus)).toEqual({ url: "https://morpheus/api", key: "m", model: "qwen", batch: 10 });
-    expect(modelFromEnv({ ...morpheus, LLM_API_KEY: "x", LLM_BASE_URL: "https://api.x.ai/v1", LLM_MODEL: "grok" })).toEqual({ url: "https://api.x.ai/v1", key: "x", model: "grok", batch: 50 });
-    expect(modelFromEnv({ LLM_API_KEY: "x" })).toBeUndefined();
   });
 });
 

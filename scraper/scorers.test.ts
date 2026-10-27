@@ -16,22 +16,13 @@ describe("parseScorerOdds", () => {
     ],
   };
 
-  it("averages each player's implied chance to score over the bookmakers", () => {
+  it("averages each player's implied chance to score over the bookmakers, ignoring 'No' outcomes and broken prices", () => {
     const m = parseScorerOdds(body, NOW);
-    expect(m.home).toBe("Borussia Dortmund");
-    expect(m.fetchedAt).toBe(NOW.toISOString());
+    expect(m.players.map((p) => p.name).sort()).toEqual(["Maximilian Beier", "Serhou Guirassy"]);
     const g = m.players.find((p) => p.name === "Serhou Guirassy")!;
     expect(g.books).toBe(2);
     expect(g.p).toBeCloseTo((1 / 1.6 + 1 / 1.5) / 2, 4);
     expect(m.players.find((p) => p.name === "Maximilian Beier")?.books).toBe(1);
-  });
-
-  it("ignores 'No' outcomes and broken prices", () => {
-    const m = parseScorerOdds(body, NOW);
-    expect(m.players.map((p) => p.name).sort()).toEqual(["Maximilian Beier", "Serhou Guirassy"]);
-  });
-
-  it("copes with an empty response", () => {
     expect(parseScorerOdds({}, NOW).players).toEqual([]);
   });
 });
@@ -91,10 +82,7 @@ describe("scorersToFetch", () => {
     expect(scorersToFetch(all, askedAgain, new Date("2026-10-09T01:00:00Z"))).toEqual([]);
   });
 
-  it("gets the assists once for matches fetched before they were part of the set", () => {
-    const old = { fetchedAt: "2026-10-08T16:00:00Z", fullAt: "2026-10-08T16:00:00Z", players: [{}] } as never;
-    expect(scorersToFetch(all, { fri: old, sun: got("2026-10-08T16:00:00Z") }, new Date("2026-10-08T17:00:00Z"))).toEqual([{ id: "fri", kind: "assists" }]);
-  });
+
 
   it("skips matches that started", () => {
     const have = { sun: got("2026-10-08T16:00:00Z") };
@@ -157,17 +145,12 @@ describe("pruneScorers", () => {
 });
 
 describe("sameScorers", () => {
-  it("also notices changed clean sheets and cards", () => {
-    const a = { e1: { players: [], cleanSheet: { Augsburg: 0.30 } } } as never;
-    const b = { e1: { players: [], cleanSheet: { Augsburg: 0.34 } } } as never;
-    expect(sameScorers(a, b)).toBe(false);
-  });
-
-  it("compares rounded percentages only", () => {
+  it("compares rounded percentages only, also of clean sheets", () => {
     const a = { e1: { players: [{ name: "X", p: 0.501, books: 2 }] } } as never;
     const b = { e1: { players: [{ name: "X", p: 0.503, books: 3 }] } } as never;
     const c = { e1: { players: [{ name: "X", p: 0.52, books: 3 }] } } as never;
     expect(sameScorers(a, b)).toBe(true);
     expect(sameScorers(a, c)).toBe(false);
+    expect(sameScorers({ e1: { players: [], cleanSheet: { Augsburg: 0.30 } } } as never, { e1: { players: [], cleanSheet: { Augsburg: 0.34 } } } as never)).toBe(false);
   });
 });

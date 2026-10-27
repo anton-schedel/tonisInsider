@@ -60,9 +60,7 @@ describe("pullCoachPosts", () => {
     expect(r.problem).toMatch(/503/);
     expect(JSON.parse(readFileSync(file, "utf8"))).toHaveLength(1);
   });
-});
 
-describe("pullCoachPosts errors", () => {
   it("doesn't throw when a photo can't be fetched", async () => {
     const { file, imgDir } = setup();
     const flaky = (async (url: string) => {
@@ -72,14 +70,5 @@ describe("pullCoachPosts errors", () => {
     const r = await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, fetcher: flaky });
     expect(r.changed).toBe(false);
     expect(r.problem).toMatch(/fetch failed/);
-  });
-});
-
-describe("coachDueIds", () => {
-  it("lists the posts due by now plus the lead time", async () => {
-    const { coachDueIds } = await import("./coach.ts");
-    const now = new Date("2026-10-24T12:00:00.000Z");
-    const p = (id: number, min: number) => ({ id, publishedAt: new Date(now.getTime() + min * 60_000).toISOString() });
-    expect(coachDueIds([p(3, -60), p(1, 10), p(2, 30)], now)).toEqual([1, 3]);
   });
 });

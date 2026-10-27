@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { COACH_LEAD_MS } from "../src/lib/coachPosts.ts";
+import { dueCoach } from "../src/lib/coachPosts.ts";
 
 /** Posts the build includes now (due within the lead time): a new one entering means a rebuild. */
 export const coachDueIds = (posts: { id: number; publishedAt: string }[], now: Date) =>
-  posts.filter((p) => Date.parse(p.publishedAt) <= now.getTime() + COACH_LEAD_MS).map((p) => p.id).sort((a, b) => a - b);
+  dueCoach(posts, now).map((p) => p.id).sort((a, b) => a - b);
 
 /**
  * The coach's posts (/schnoeselmob/, stored in D1): fetched from the site's export each run into

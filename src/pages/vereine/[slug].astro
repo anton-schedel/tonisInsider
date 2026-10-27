@@ -78,8 +78,8 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       {news.slice(0, shown).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
     </div>
     {news.length > shown && (
-      <div data-more-news>
-        <div class="divide-y divide-hairline border-t border-hairline" hidden data-more-news-list>
+      <div>
+        <div class="divide-y divide-hairline border-t border-hairline" hidden>
           {news.slice(shown).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
         </div>
         <button type="button" class="press mt-2 w-full rounded-xl bg-surface py-3 text-[15px] font-semibold"

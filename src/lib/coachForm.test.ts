@@ -9,16 +9,15 @@ const base: FormValues = {
 };
 
 describe("toBody", () => {
-  it("turns a planned lineup into the API's body (local time → UTC)", () => {
+  it("turns a planned lineup into the API's body (local time → UTC), posts now when 'Jetzt' is picked, sends the mood unless it's the usual mix", () => {
     expect(toBody(base, NOW)).toEqual({
       type: "lineup",
       data: { headline: "Aufstellung des TuS Schnöselmob", lineup: { lines: [["Coach"], ["Gerl", "Dallwig", "Chatfield"], ["Loibl"]], bench: ["Enciu", "Schedel"] }, bots: { on: true } },
       publishedAt: new Date(2026, 9, 24, 19, 0).toISOString(),
       pinnedHours: 1,
     });
-  });
-  it("posts now when 'Jetzt' is picked", () => {
     expect(toBody({ ...base, when: "now" }, NOW).publishedAt).toBe(NOW.toISOString());
+    expect(toBody({ ...base, mood: "frech" }, NOW).data.bots).toEqual({ on: true, mood: "frech" });
   });
   it("sends a result with numbers and the photo of player news", () => {
     expect(toBody({ ...base, type: "result", opponent: "FC X", ours: "3", theirs: "1", home: false, text: "Gut." }, NOW).data)
@@ -34,12 +33,5 @@ describe("statusOf", () => {
   it("says when a planned post comes and since when one is out", () => {
     expect(statusOf("2026-10-24T17:00:00.000Z", NOW)).toEqual({ planned: true, label: "Geplant: Sa. 24.10., 19:00" });
     expect(statusOf("2026-10-24T10:00:00.000Z", NOW)).toEqual({ planned: false, label: "Online seit Sa. 24.10., 12:00" });
-  });
-});
-
-describe("mood", () => {
-  it("sends the mood unless it's the usual mix", () => {
-    expect(toBody({ ...base, mood: "frech" }, NOW).data.bots).toEqual({ on: true, mood: "frech" });
-    expect(toBody(base, NOW).data.bots).toEqual({ on: true });
   });
 });
