@@ -12,7 +12,7 @@ const lineup: CoachPost = {
 };
 
 describe("parseBots", () => {
-  const list = [{ name: "Schnösel4Life", text: "Endlich wieder Loibl vorne!", minute: 2 }, { name: "Kabinenfunk", text: "Genau", minute: 4, replyTo: 0 }];
+  const list = [{ name: "Schnösel4Life", text: "Endlich wieder Loibl vorne!", minute: 2 }, { name: "Kalle86", text: "Genau", minute: 4, replyTo: 0 }];
   it("reads a clean JSON list, also inside code fences or prose", () => {
     expect(parseBots(JSON.stringify(list))).toEqual(list);
     expect(parseBots("Hier sind die Kommentare:\n```json\n" + JSON.stringify(list) + "\n```\nViel Spaß!")).toEqual(list);
@@ -220,6 +220,18 @@ describe("bot polls and upvotes", () => {
     }
     expect(pollAllowance(2, 2)).toEqual([0, 0]);
     expect(pollAllowance(2, 1, () => 0.99).reduce((x, y) => x + y, 0)).toBe(1);
+  });
+});
+
+describe("worn comparisons and role names", () => {
+  it("drops Kahn/Starke comparisons and names that give the bot's part away", () => {
+    const out = parseBots(JSON.stringify([
+      { name: "Olli", text: "Waldeck mit einer Hand wie Oliver Kahn", minute: 1 },
+      { name: "Nörgelmax", text: "Hab ich doch gesagt", minute: 1 },
+      { name: "KabineKlaus", text: "Aus der Kabine hör ich was", minute: 1 },
+      { name: "Max B.", text: "Ein neuer Spieler im Tor, spannend", minute: 1 },
+    ]));
+    expect(out.map((o) => o.name)).toEqual(["Max B."]);
   });
 });
 

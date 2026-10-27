@@ -89,20 +89,25 @@ const COMPARE_FORMS = [
 ];
 
 /** Who comments. Each post gets a few at random, so the comments differ in what they say, not only in wording. */
+// Said as "jemand, der …": labels like "Nörgler" or "Kabinen-Insider" ended up in the bots' names (Nörgelmax, KabineKlaus).
 const VOICES = [
-  "Nörgler, der alles schon vorher wusste",
-  "Statistik-Fan mit (frei erfundenen, harmlosen) Zahlen aus der Saison",
-  "Kabinen-Insider, der angeblich mehr weiß",
-  "Witzbold mit einem schrägen Bild oder Wortspiel",
-  "Optimist, den nichts erschüttert",
-  "Taktik-Fuchs mit einer konkreten Idee zur Aufstellung",
+  "jemand, der alles schon vorher wusste",
+  "jemand mit (frei erfundenen, harmlosen) Zahlen aus der Saison",
+  "jemand, der angeblich mehr weiß als die anderen",
+  "jemand mit einem schrägen Bild oder Wortspiel",
+  "jemand, den nichts erschüttert",
+  "jemand mit einer konkreten Idee zur Aufstellung",
   "jemand, der nur kurz reagiert (ein Wort, ein Emoji, eine Frage)",
-  "Anhänger des Gegners, der stichelt",
-  "Veteran, der von früher erzählt",
+  "jemand vom Gegner, der stichelt",
+  "jemand, der seit Jahren dabei ist und von früher erzählt",
   "jemand, der vom Thema abschweift (Wetter, Platz, Trikots, drittes Halbzeit)",
-  "Fan, der dem Coach eine direkte Frage stellt",
-  "Dramatiker, der alles maßlos übertreibt",
+  "jemand, der dem Coach eine direkte Frage stellt",
+  "jemand, der alles maßlos übertreibt",
 ];
+
+/** The goalkeepers every bot compared everyone with; and names that give a bot's part away (KabineKlaus, StatistikSepp). */
+const WORN_PROS = /\b(?:kahn|tom starke|manuel neuer|neuer im tor|krake)\b/i;
+const ROLE_NAME = /n[öo]rgl|nörgel|kabine|statisti|drama|witz|taktik|optimist|veteran|haudegen|insider|pessimist/i;
 
 /** Comparisons for a post: none on some posts, one or two on the others, never one per ten like clockwork. */
 export function comparePlan(random: () => number = Math.random): { count: number; forms: string[]; voices: string[] } {
@@ -235,6 +240,7 @@ export function parseBots(answer: string, playerWords: string[] = []): BotCommen
     const n = typeof name === "string" ? name.trim() : "";
     const t = typeof text === "string" ? text.trim() : "";
     if (!n || !t || n.length > NAME_MAX || t.length > TEXT_MAX || BODY_INSULT.test(t) || BODY_INSULT.test(n)) return;
+    if (WORN_PROS.test(t) || ROLE_NAME.test(n)) return;
     // A bot posing as a teammate ("KevinN88: last time I was missing") isn't a joke anymore.
     if (playerWords.some((w) => n.toLowerCase().includes(w))) return;
     const m = typeof minute === "number" && Number.isFinite(minute) ? Math.min(MINUTES, Math.max(0, Math.round(minute))) : 0;
