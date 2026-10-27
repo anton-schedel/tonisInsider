@@ -1,6 +1,6 @@
 ---
 import type { KbLive } from "../lib/kickbase.ts";
-import { pointsLabel } from "../lib/livePoints.ts";
+import { pointsAria, pointsLabel } from "../lib/livePoints.ts";
 
 /**
  * A player's Kickbase points from kickoff on, with a red dot while his match runs. Always rendered (hidden
@@ -21,5 +21,5 @@ const label = pointsLabel(live);
   data-kb-points={id}
   data-kb-player={player}
   hidden={!label}
-  aria-label={label ? `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}` : undefined}
+  aria-label={label && pointsAria(label)}
 ><span class="kb-points-dot" aria-hidden="true"></span><span data-kb-text>{label?.text}</span></span>

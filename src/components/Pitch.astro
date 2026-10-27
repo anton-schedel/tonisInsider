@@ -1,11 +1,11 @@
 ---
 import type { Lineup, LineupPlayer, Ref } from "../../scraper/types.ts";
 import type { PlayerInsight } from "../lib/scorers.ts";
-import Avatar from "./Avatar.astro";
+import PitchFace from "./PitchFace.astro";
 import PitchField from "./PitchField.astro";
 import NewsBadge from "./NewsBadge.astro";
 import KbPoints from "./KbPoints.astro";
-import { AVATAR, slotStyle } from "../lib/pitch.ts";
+import { slotStyle } from "../lib/pitch.ts";
 import { cardAttr, hasFreshNews, matchLine, rowPosition, startStatus, type CardData, type CardNews } from "../lib/card.ts";
 
 interface Props {
@@ -30,6 +30,8 @@ const mainStatus = (p: LineupPlayer, pos: string) => {
   const { status, tone } = startStatus(p, confirmed);
   return card(p, pos, status, tone);
 };
+// The dot top right of the photo (until LigaInsider confirms the XI): green set to start, yellow doubtful.
+const dot = (p: LineupPlayer) => (p.status === "doubtful" ? "dot-yellow" : "dot-green");
 ---
 <PitchField>
   {lineup.lines.map((line, i) =>
@@ -41,36 +43,28 @@ const mainStatus = (p: LineupPlayer, pos: string) => {
             // Tap opens the player card; the ⇄ mark swaps to the alternative and back (handler in Base.astro).
             <div data-swap class="swap grid w-full">
               <button type="button" data-card={mainStatus(p, rowPosition(i, rows))} class="press swap-face flex flex-col items-center text-center">
-                <span class="relative">
-                  <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
+                <PitchFace photo={p.photo} name={p.name} note={`Alt: ${p.alternative.name}`} prediction>
                   {hasFreshNews(news(p.id)) && <NewsBadge />}
-                  {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
+                  {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class:list={["start-dot", dot(p)]} title={p.statusLabel ?? "Gesetzt"}></span>}
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.alternative.name} zeigen`}>⇄</span>
-                </span>
-                <KbPoints id={`li${p.id}`} />
-                <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
-                <span data-prediction class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">Alt: {p.alternative.name}</span>
+                  <KbPoints slot="points" id={`li${p.id}`} />
+                </PitchFace>
               </button>
               <button type="button" data-card={card(p.alternative, rowPosition(i, rows), `Alternative zu ${p.name}`, "yellow")} class="press swap-face swap-alt flex flex-col items-center text-center" aria-hidden="true" inert>
-                <span class="relative">
-                  <Avatar src={p.alternative.photo} name={p.alternative.name} size={AVATAR} class="shadow-md ring-2 ring-[var(--yellow-dot)]" />
+                <PitchFace photo={p.alternative.photo} name={p.alternative.name} alt note={`statt ${p.name}`} prediction>
                   {hasFreshNews(news(p.alternative.id)) && <NewsBadge />}
                   <span class="swap-hint" data-swap-hint role="button" aria-label={`${p.name} zeigen`}>⇄</span>
-                </span>
-                <KbPoints id={`li${p.alternative.id}`} />
-                <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.alternative.name}</span>
-                <span data-prediction class="line-clamp-1 text-[9.5px] leading-tight" style="color:var(--yellow-fg)">statt {p.name}</span>
+                  <KbPoints slot="points" id={`li${p.alternative.id}`} />
+                </PitchFace>
               </button>
             </div>
           ) : (
             <button type="button" data-card={mainStatus(p, rowPosition(i, rows))} class="press flex w-full flex-col items-center text-center">
-              <span class="relative">
-                <Avatar src={p.photo} name={p.name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
+              <PitchFace photo={p.photo} name={p.name}>
                 {hasFreshNews(news(p.id)) && <NewsBadge />}
-                {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:var(--${p.status === "doubtful" ? "yellow" : "green"}-dot)`} title={p.statusLabel ?? "Gesetzt"}></span>}
-              </span>
-              <KbPoints id={`li${p.id}`} />
-              <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{p.name}</span>
+                {confirmed ? <span class="s11-badge" title="Startelf bestätigt">S11</span> : <span class:list={["start-dot", dot(p)]} title={p.statusLabel ?? "Gesetzt"}></span>}
+                <KbPoints slot="points" id={`li${p.id}`} />
+              </PitchFace>
             </button>
           )}
         </div>
@@ -79,15 +73,15 @@ const mainStatus = (p: LineupPlayer, pos: string) => {
   )}
   <Fragment slot="legend">
     {confirmed ? (
-      <span class="flex items-center gap-1"><span class="s11-badge is-legend">S11</span>Startelf bestätigt</span>
+      <span class="legend-item"><span class="s11-badge is-legend">S11</span>Startelf bestätigt</span>
     ) : (
       <>
-        <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Gesetzt</span>
-        <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich</span>
+        <span class="legend-item"><i class="legend-dot dot-green"></i>Gesetzt</span>
+        <span class="legend-item"><i class="legend-dot dot-yellow"></i>Fraglich</span>
       </>
     )}
     {lineup.lines.flat().some((p) => hasFreshNews(news(p.id)) || (!!p.alternative && hasFreshNews(news(p.alternative.id)))) && (
-      <span class="flex items-center gap-1"><NewsBadge class="is-inline" />Neue News</span>
+      <span class="legend-item"><NewsBadge class="is-inline" />Neue News</span>
     )}
     <span>Tippen für Prognose</span>
   </Fragment>

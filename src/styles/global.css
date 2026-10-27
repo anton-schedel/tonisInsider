@@ -15,13 +15,21 @@
   --glass-rim: rgba(255, 255, 255, 0.95); --glass-rim-low: rgba(255, 255, 255, 0.4);
   --glass-edge: rgba(0, 0, 0, 0.07); --glass-sheen: rgba(255, 255, 255, 0.5);
   --glass-lens: rgba(0, 0, 0, 0.06); --glass-lens-rim: rgba(255, 255, 255, 0.85);
-  /* Pill tones (news types, status, start chances), read as var(--${tone}-bg/-fg): every tone has both. */
+  /* Pill tones (news types, status, start chances): .pill with .tone-red/-yellow/-green/-grey (toneClass). */
   --red-bg: #ffebe9; --red-fg: #d70015;
   --yellow-bg: #fff4d6; --yellow-fg: #a05a00; --yellow-dot: #ffcc00;
   --green-bg: #e3f7e8; --green-fg: #248a3d; --green-dot: #30d158;
   --grey-bg: #f0f0f2; --grey-fg: #6e6e73;
   /* TuS Schnöselmob's gold (its crest), only on the coach's page. */
   --gold: #9c7a2b;
+  /* The same in light and dark: the bright reds and yellow of live dots, match cards and marks on photos, and
+     the white badges that sit on photos. */
+  --red-bright: #ff453a; --red-card: #ff3b30; --yellow-bright: #ffd60a;
+  --live: var(--red-bright);
+  --on-photo-bg: #fff; --on-photo-fg: #1d1d1f;
+  /* Motion: glide (settles softly, for things that travel) and soft (a gentle ease-out for small changes). */
+  --ease-glide: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: light;
 }
 
@@ -64,7 +72,15 @@
 @property --green-dot { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --grey-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --grey-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
-:root { transition: --bg 280ms ease, --surface 280ms ease, --surface-raised 280ms ease, --fg 280ms ease, --muted 280ms ease, --hairline 280ms ease, --tabbar 280ms ease, --glass-rim 280ms ease, --glass-rim-low 280ms ease, --glass-edge 280ms ease, --glass-sheen 280ms ease, --glass-lens 280ms ease, --glass-lens-rim 280ms ease, --red-bg 280ms ease, --red-fg 280ms ease, --yellow-bg 280ms ease, --yellow-fg 280ms ease, --yellow-dot 280ms ease, --green-bg 280ms ease, --green-fg 280ms ease, --green-dot 280ms ease, --grey-bg 280ms ease, --grey-fg 280ms ease; }
+@property --gold { syntax: "<color>"; inherits: true; initial-value: transparent; }
+/* Registered too, so it is a colour that follows --fg's fade (it isn't faded itself). */
+@property --accent { syntax: "<color>"; inherits: true; initial-value: transparent; }
+:root {
+  transition-property: --bg, --surface, --surface-raised, --fg, --muted, --hairline, --tabbar, --glass-rim, --glass-rim-low,
+    --glass-edge, --glass-sheen, --glass-lens, --glass-lens-rim, --red-bg, --red-fg, --yellow-bg, --yellow-fg, --yellow-dot,
+    --green-bg, --green-fg, --green-dot, --grey-bg, --grey-fg, --gold;
+  transition-duration: 280ms;
+}
 @media (prefers-reduced-motion: reduce) { :root { transition: none; } }
 
 /* The logo's navy text needs its light version on dark backgrounds. */
@@ -100,7 +116,7 @@ html {
 [data-comment-list] > .comment { padding: 14px 0; border-top: 1px solid var(--hairline); }
 [data-comment-list] > .comment:first-child { border-top: 0; padding-top: 0; }
 /* The bar is full width and scaled, so a vote glides it on the compositor. */
-.poll-fill { background: var(--hairline); transform-origin: left; transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1); }
+.poll-fill { background: var(--hairline); transform-origin: left; transition: transform 280ms var(--ease-glide); }
 .poll-fill.is-best { background: color-mix(in srgb, var(--fg) 16%, transparent); }
 .poll-choice {
   display: block; width: 100%; min-height: 44px; border: 0; cursor: pointer;
@@ -146,7 +162,7 @@ html {
   border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
   color: var(--busy, var(--muted)); animation: spin 700ms linear infinite;
 }
-.bg-fg.is-busy { --busy: var(--bg); }
+.bg-fg.is-busy, .btn-primary.is-busy { --busy: var(--bg); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Error message above the tab bar (Comments.astro). */
@@ -160,17 +176,80 @@ html {
 }
 .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
 
+/* ---------- Shared pieces ----------
+   In the components layer: a utility on the same element (a margin, a width, another size) still wins. */
+@layer components {
+  /* Pills: news type, start chance, status. One shape, a soft background and the tone's text colour. */
+  .pill { border-radius: 9999px; padding: 2px 7px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+  .pill-sm { padding-block: 1px; }
+  .pill-lg { padding-block: 1px; font-size: 11.5px; }
+  .tone-red { background: var(--red-bg); color: var(--red-fg); }
+  .tone-yellow { background: var(--yellow-bg); color: var(--yellow-fg); }
+  .tone-green { background: var(--green-bg); color: var(--green-fg); }
+  .tone-grey { background: var(--grey-bg); color: var(--grey-fg); }
+
+  /* Buttons: .btn-primary (black / white), .btn-quiet (grey); .btn-pill the round one, .btn-sm smaller text. */
+  .btn { border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600; text-align: center; }
+  .btn-pill { border-radius: 9999px; padding: 10px 20px; }
+  .btn-sm { font-size: 14px; line-height: 20px; }
+  .btn-primary { background: var(--fg); color: var(--bg); }
+  .btn-quiet { background: var(--surface); }
+
+  /* Text fields; a page can give the focus ring its own colour (--field-ring) and corners (--field-radius). */
+  .field {
+    border-radius: var(--field-radius, 12px); background: var(--surface); padding: 12px 16px; font-size: 16px; outline: none;
+  }
+  .field:focus { box-shadow: 0 0 0 2px var(--field-ring, var(--accent)); }
+
+  /* A section's heading with a quiet count or note on the right (SectionHead.astro). */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .section-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .section-count { font-size: 15px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* A feed row's headline and the line under it (ArticleRow.astro, the coach's preview). */
+  .feed-title { display: block; margin-bottom: 4px; font-size: 17px; line-height: 1.375; font-weight: 600; letter-spacing: -0.015em; }
+  .feed-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+
+  /* A club crest on the corner of a player's photo. */
+  .crest-overlay { position: absolute; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)); }
+
+  /* Nothing to show; an error above a form. */
+  .empty-note { padding-block: 40px; text-align: center; color: var(--muted); }
+  .alert-error {
+    border-radius: 12px; padding: 12px 16px; font-size: 14px; line-height: 20px; font-weight: 500;
+    background: var(--red-bg); color: var(--red-fg);
+  }
+}
+
 /* Football pitch (PitchField.astro): the same grass in light and dark mode. Text on it is white,
    and the status notes use the bright colours that read on green. */
 .pitch {
   --pitch-line: rgba(255, 255, 255, 0.72);
-  --yellow-fg: #ffd60a; --red-fg: #ff6961; --muted: rgba(255, 255, 255, 0.7);
+  --yellow-fg: var(--yellow-bright); --red-fg: #ff6961; --muted: rgba(255, 255, 255, 0.7);
   color: #fff;
   background:
     radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.18)),
     repeating-linear-gradient(to bottom, #2f8c46 0 10%, #2a8040 10% 20%);
 }
-.pitch .line-clamp-2, .pitch .line-clamp-1 { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+.pitch .pitch-name, .pitch .pitch-note { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+/* A player on the pitch (PitchFace.astro): name under the photo, a short note under it (yellow, red for "Bank"). */
+.pitch-name {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  margin-top: 4px; font-size: 11px; line-height: 1.25; font-weight: 600; overflow-wrap: break-word;
+}
+.pitch-note {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+  font-size: 9.5px; line-height: 1.25; color: var(--yellow-fg);
+}
+.pitch-note.is-red { color: var(--red-fg); }
+/* Will he start? A dot top right of the photo; the legend under the pitch uses the same colours. */
+.start-dot { position: absolute; top: 0; right: 0; width: 14px; height: 14px; border-radius: 9999px; border: 2px solid var(--on-photo-bg); }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 9999px; }
+.dot-green { background: var(--green-dot); }
+.dot-yellow { background: var(--yellow-dot); }
+.dot-red { background: var(--red-fg); }
+.dot-muted { background: var(--muted); }
 
 /* Player card (PlayerCard.astro): a sheet from the bottom on phones, centred on wide screens. */
 .player-card {
@@ -179,7 +258,7 @@ html {
   background: var(--surface-raised); color: var(--fg);
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.2);
   opacity: 0; transform: translateY(24px);
-  transition: opacity 200ms ease, transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1), overlay 280ms allow-discrete, display 280ms allow-discrete;
+  transition: opacity 200ms ease, transform 280ms var(--ease-soft), overlay 280ms allow-discrete, display 280ms allow-discrete;
 }
 .player-card[open] { display: flex; flex-direction: column; opacity: 1; transform: none; }
 @starting-style { .player-card[open] { opacity: 0; transform: translateY(24px); } }
@@ -245,13 +324,12 @@ html:has(.player-card[open]) { overflow: hidden; }
   font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
 }
 .fut-news-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.fut-news-type { border-radius: 9999px; padding: 1px 7px; font-size: 10.5px; font-weight: 600; }
 .fut-stat b.is-warn { color: var(--yellow-fg); }
 /* The points breakdown (from kickoff on): action, how often, points. */
 .fut-points-row { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 6px 0; font-size: 14px; font-variant-numeric: tabular-nums; }
 .fut-points-more { margin-top: 2px; padding: 8px 0 2px; font-size: 13px; font-weight: 600; color: var(--muted); }
 /* "Punkte" with the red live dot while he plays, as on the pitch. */
-.fut-caption .kb-points-dot { display: inline-block; margin-left: 6px; vertical-align: 1px; background: #ff453a; animation: kb-live 1.6s ease-in-out infinite; }
+.fut-caption .kb-points-dot { display: inline-block; margin-left: 6px; vertical-align: 1px; background: var(--live); animation: kb-live 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .fut-caption .kb-points-dot { animation: none; } }
 .fut-points-row b { min-width: 3ch; text-align: right; font-weight: 700; }
 
@@ -304,7 +382,7 @@ nav.tabbar::before {
 nav.no-tab .tab-pill { opacity: 0; }
 /* Typing on a phone: the tab bar steps aside (iOS would otherwise float it above the keyboard while scrolling). */
 @media (pointer: coarse) {
-  nav.tabbar { transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease; }
+  nav.tabbar { transition: transform 240ms var(--ease-glide), opacity 180ms ease; }
   body:has(input:focus:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"]), textarea:focus, select:focus) nav.tabbar {
     transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none;
   }
@@ -328,10 +406,12 @@ nav.no-tab .tab-pill { opacity: 0; }
   border-radius: 8px; background: var(--surface-raised);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
   transform: translateX(calc(var(--i, 0) * 100%));
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 280ms var(--ease-glide);
   will-change: transform;
 }
 .seg > button { position: relative; z-index: 1; color: var(--muted); transition: color 180ms ease; }
+/* The usual size of a choice (a layer below the utilities, so a smaller control can set its own). */
+@layer components { .seg > button { padding: 8px 0; border-radius: 8px; font-size: 14px; font-weight: 600; } }
 .seg > button[aria-pressed="true"] { color: var(--fg); }
 
 /* The search field on the Scouting page. */
@@ -367,7 +447,7 @@ nav.no-tab .tab-pill { opacity: 0; }
 /* Page switches crossfade: on the tap the old page dims (.page-leaving, Base.astro), the new one starts at the
    opacity the old had at the swap (--from) and brightens. A fresh load starts at 0. */
 /* backwards, not both: once in, the animation lets go of opacity so the dimming transition can run. */
-.page-in { animation: page-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.page-in { animation: page-in 220ms var(--ease-soft) backwards; }
 /* Opacity only: moving the page under the glass bar would make it redraw its blur every frame. */
 @keyframes page-in { from { opacity: var(--from, 0); } }
 .page-leaving { opacity: 0.4; transition: opacity 160ms ease-out; }
@@ -387,7 +467,7 @@ nav.no-tab .tab-pill { opacity: 0; }
   padding: 9px 16px; border-radius: 9999px;
   background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-  animation: fade-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: fade-rise 220ms var(--ease-soft) both;
 }
 .news-notice[hidden] { display: none; }
 
@@ -400,7 +480,7 @@ nav.no-tab .tab-pill { opacity: 0; }
 /* Staggered entrance; the element sets --i (its index). Capped so long lists don't wait. */
 /* Only on a fresh page load, not on in-app navigation (the page fade already covers that). */
 html:not([data-navigated]) .enter {
-  animation: fade-up 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: fade-up 360ms var(--ease-soft) both;
   animation-delay: calc(min(var(--i, 0), 10) * 30ms);
 }
 
@@ -408,7 +488,7 @@ html:not([data-navigated]) .enter {
 .swap { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 .swap-face {
   grid-area: 1 / 1;
-  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease;
+  transition: transform 260ms var(--ease-soft), opacity 200ms ease;
 }
 .swap-alt, .swap[data-flipped] .swap-face:not(.swap-alt) { opacity: 0; transform: rotateY(90deg) scale(0.9); pointer-events: none; }
 .swap[data-flipped] .swap-alt { opacity: 1; transform: none; pointer-events: auto; }
@@ -417,7 +497,7 @@ html:not([data-navigated]) .enter {
   display: flex; align-items: center; justify-content: center;
   width: 18px; height: 18px; border-radius: 9999px;
   background: var(--yellow-dot); color: #000; font-size: 11px; font-weight: 700;
-  border: 2px solid #fff;
+  border: 2px solid var(--on-photo-bg);
 }
 /* Bigger tap target for the ⇄ mark than it looks. */
 [data-swap-hint]::before { content: ""; position: absolute; inset: -8px; }
@@ -427,21 +507,21 @@ html:not([data-navigated]) .enter {
 /* Match report grades (RatingsPitch.astro): grade bottom right of the photo, what happened top right. */
 .grade-badge {
   position: absolute; right: -8px; bottom: -3px;
-  min-width: 26px; padding: 1px 5px; border-radius: 9999px; border: 2px solid #fff;
+  min-width: 26px; padding: 1px 5px; border-radius: 9999px; border: 2px solid var(--on-photo-bg);
   font-size: 10.5px; font-weight: 800; line-height: 13px; text-align: center; font-variant-numeric: tabular-nums;
 }
 .grade-badge.is-none { background: rgba(0, 0, 0, 0.45); color: #fff; }
 .grade-marks { position: absolute; top: -4px; right: -6px; display: flex; gap: 2px; }
 .grade-mark {
   display: flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 9999px;
-  background: #fff; color: #1d1d1f; font-size: 10px; font-weight: 800; line-height: 1;
+  background: var(--on-photo-bg); color: var(--on-photo-fg); font-size: 10px; font-weight: 800; line-height: 1;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
-.grade-mark.is-own { background: #ff453a; }
+.grade-mark.is-own { background: var(--red-bright); }
 .grade-card { width: 10px; height: 14px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
-.grade-card.is-yellow { background: #ffd60a; }
-.grade-card.is-red { background: #ff3b30; }
-.grade-card.is-yellow-red { background: linear-gradient(135deg, #ffd60a 50%, #ff3b30 50%); }
+.grade-card.is-yellow { background: var(--yellow-bright); }
+.grade-card.is-red { background: var(--red-card); }
+.grade-card.is-yellow-red { background: linear-gradient(135deg, var(--yellow-bright) 50%, var(--red-card) 50%); }
 .grade-mark.is-legend, .grade-card.is-legend { position: static; width: 14px; height: 14px; font-size: 8.5px; box-shadow: none; }
 .grade-card.is-legend { width: 9px; height: 12px; }
 
@@ -449,7 +529,7 @@ html:not([data-navigated]) .enter {
 .news-badge {
   position: absolute; right: -6px; bottom: -2px;
   display: flex; align-items: center; justify-content: center; width: 19px; height: 19px; border-radius: 9999px;
-  background: #fff; color: #1d1d1f; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  background: var(--on-photo-bg); color: var(--on-photo-fg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 .news-badge svg { width: 11px; height: 11px; }
 .news-badge.is-inline { position: static; width: 18px; height: 18px; background: var(--surface); color: var(--fg); box-shadow: none; }
@@ -457,7 +537,7 @@ html:not([data-navigated]) .enter {
 /* Confirmed starting XI: replaces the green dot on a pitch photo (Pitch.astro, MyPitch.astro). */
 .s11-badge {
   position: absolute; top: -3px; right: -8px;
-  padding: 0 4px; border-radius: 9999px; border: 2px solid #fff;
+  padding: 0 4px; border-radius: 9999px; border: 2px solid var(--on-photo-bg);
   background: var(--green-dot); color: #fff;
   font-size: 9px; font-weight: 800; line-height: 13px; letter-spacing: 0.01em;
 }
@@ -466,7 +546,7 @@ html:not([data-navigated]) .enter {
 /* Kickbase points (Mein Team, club pages, player card): red below 0, orange to 99, light green 100–199, darker
    green 200–399, gold from 400. Coloured digits on dark like Kickbase: --pts for digits on dark (pitch chips,
    dark mode), --pts-ink a darker shade for light backgrounds. */
-.pts-neg { --pts: #ff453a; --pts-ink: #d70015; }
+.pts-neg { --pts: var(--red-bright); --pts-ink: #d70015; }
 .pts-low { --pts: #ff9f0a; --pts-ink: #b85c00; }
 .pts-mid { --pts: #9cdd49; --pts-ink: #4f8a12; }
 .pts-high { --pts: #1fc46f; --pts-ink: #0b8a4c; }
@@ -501,7 +581,7 @@ html:not([data-navigated]) .enter {
    Uses the separate `scale` property, so it never fights an element's own transform (flips, sheets).
    Pressing is near-instant; letting go eases back. */
 .press {
-  transition: scale 200ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 150ms ease, color 150ms ease;
+  transition: scale 200ms var(--ease-soft), background-color 150ms ease, color 150ms ease;
   -webkit-user-select: none;
   user-select: none;
 }

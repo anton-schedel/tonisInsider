@@ -69,6 +69,19 @@ export function pointsLabel(live: KbLive | undefined): PointsLabel | undefined {
   return { text, live: live.state === 1, ...(tier ? { tier } : {}) };
 }
 
+/** What a screen reader says for a points chip. */
+export const pointsAria = (label: PointsLabel) => `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`;
+
+/** Fills a points chip (KbPoints.astro) with its label, or hides it when there is none. */
+export function applyPoints(el: HTMLElement, label: PointsLabel | undefined) {
+  el.hidden = !label;
+  if (!label) return;
+  el.querySelector("[data-kb-text]")!.textContent = label.text;
+  el.classList.toggle("is-live", label.live);
+  setTier(el, label.tier);
+  el.setAttribute("aria-label", pointsAria(label));
+}
+
 /** The live updates (Mein Team) poll while a match of the XI or bench has started and isn't over. */
 export function anyRunning(lives: (KbLive | undefined)[], now: number): boolean {
   return lives.some((l) => l && (l.state === 1 || (l.state === 0 && l.kickoff !== undefined && Date.parse(l.kickoff) <= now)));

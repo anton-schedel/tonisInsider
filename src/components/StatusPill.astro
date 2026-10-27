@@ -1,13 +1,8 @@
 ---
 import type { NewsType } from "../../scraper/types.ts";
-import { NEWS_TYPE } from "../lib/newsTypes.ts";
+import { NEWS_TYPE, toneClass } from "../lib/newsTypes.ts";
 
 interface Props { type: NewsType }
 const style = NEWS_TYPE[Astro.props.type];
 ---
-{style && (
-  <span
-    class="rounded-full px-[7px] py-[2px] text-[10.5px] font-semibold"
-    style={`background:var(--${style.tone}-bg);color:var(--${style.tone}-fg)`}
-  >{style.label}</span>
-)}
+{style && <span class:list={["pill", toneClass(style.tone)]}>{style.label}</span>}

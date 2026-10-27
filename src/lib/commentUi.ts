@@ -7,7 +7,7 @@ import { wholePercents } from "./ownVotes.ts";
  * Each component keeps its own transport.
  */
 
-export const FIELD = "w-full rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
+export const FIELD = "field w-full";
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const MAX_ANSWERS = 6;
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;

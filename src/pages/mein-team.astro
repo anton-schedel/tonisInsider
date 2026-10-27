@@ -3,6 +3,7 @@ import Base from "../layouts/Base.astro";
 import MyPlayerRow from "../components/MyPlayerRow.astro";
 import MyPitch from "../components/MyPitch.astro";
 import PlayerCard from "../components/PlayerCard.astro";
+import SectionHead from "../components/SectionHead.astro";
 import { env } from "cloudflare:workers";
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbPlayer, type KbTeam } from "../lib/kickbase.ts";
 import { articlePlayer, mapClubs, matchSquad, pitchLines, type MyPlayer } from "../lib/match.ts";
@@ -172,10 +173,10 @@ let index = 0;
     <div class="py-10 text-center">
       <p class="text-[17px] font-semibold">{signedOut === "expired" ? "Deine Kickbase-Sitzung ist abgelaufen." : "Dein Kickbase-Team auf einen Blick."}</p>
       <p class="mx-auto mt-2 max-w-[320px] text-[15px] text-muted">Melde dich mit Kickbase an: Hier siehst du dann deine Spieler, ob sie spielen, und ihre Punkte live.</p>
-      <a href="/einstellungen/#kickbase" class="press mt-5 inline-block rounded-full bg-fg px-5 py-2.5 text-[15px] font-semibold text-bg">Mit Kickbase anmelden</a>
+      <a href="/einstellungen/#kickbase" class="press btn btn-primary btn-pill mt-5 inline-block">Mit Kickbase anmelden</a>
     </div>
   )}
-  {error && <p class="mb-4 rounded-xl px-4 py-3 text-sm font-medium" style="background:var(--red-bg);color:var(--red-fg)">{error}</p>}
+  {error && <p class="alert-error mb-4">{error}</p>}
 
   {leagues.length > 1 && (
     <nav class="mb-4 flex overflow-x-auto rounded-[10px] bg-surface p-[2px] text-[13px] font-semibold">
@@ -186,24 +187,23 @@ let index = 0;
     </nav>
   )}
 
-  {!error && league && players.length === 0 && <p class="py-10 text-center text-muted">Keine Spieler in dieser Liga.</p>}
-  {!error && !signedOut && !league && <p class="py-10 text-center text-muted">Du bist in keiner Kickbase-Liga.</p>}
+  {!error && league && players.length === 0 && <p class="empty-note">Keine Spieler in dieser Liga.</p>}
+  {!error && !signedOut && !league && <p class="empty-note">Du bist in keiner Kickbase-Liga.</p>}
 
   {starterCount > 0 ? (
     <>
       <section>
-        <div class="mb-3 flex items-baseline justify-between gap-3">
-          <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
-          <span class="flex items-baseline gap-2 text-[15px] font-semibold text-muted tabular-nums">
+        <SectionHead title="Aufstellung" class="mb-3">
+          <span class="flex items-baseline gap-2">
             {pitch.formation}
             <span data-kb-total hidden={!started || points === undefined} class="text-fg">· <span data-kb-total-n>{points}</span> Pkt.</span>
           </span>
-        </div>
+        </SectionHead>
         <MyPitch lines={pitch.lines} cards={cards} fresh={fresh} />
       </section>
       {benchPlayers.length > 0 && (
         <section class="mt-5">
-          <h2 class="mb-1 text-[22px] font-bold tracking-[-0.02em]">Bank</h2>
+          <SectionHead title="Bank" class="mb-1" />
           <div class="divide-y divide-hairline">
             {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} fresh={fresh.has(p.kickbase.id)} />)}
           </div>
@@ -230,7 +230,7 @@ let index = 0;
 
   {!signedOut && (
     <form method="post" action="/api/logout/" class="mt-8" data-astro-reload>
-      <button type="submit" class="press w-full rounded-xl bg-surface py-3 text-sm font-semibold" style="color:var(--red-fg)">Abmelden</button>
+      <button type="submit" class="press btn btn-quiet btn-sm w-full text-[var(--red-fg)]">Abmelden</button>
     </form>
   )}
   <PlayerCard />
@@ -238,20 +238,14 @@ let index = 0;
 
 <script>
   import type { KbLive } from "../lib/kickbase.ts";
-  import { anyRunning, pointsLabel, setTier } from "../lib/livePoints.ts";
+  import { anyRunning, applyPoints, pointsLabel } from "../lib/livePoints.ts";
 
   const POLL_MS = 30_000;
   let timer = 0;
 
   function draw(data: { points?: number; players: Record<string, KbLive> }) {
     for (const el of document.querySelectorAll<HTMLElement>("[data-kb-points]")) {
-      const label = pointsLabel(data.players[el.dataset.kbPoints!]);
-      el.hidden = !label;
-      if (!label) continue;
-      el.querySelector("[data-kb-text]")!.textContent = label.text;
-      el.classList.toggle("is-live", label.live);
-      setTier(el, label.tier);
-      el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
+      applyPoints(el, pointsLabel(data.players[el.dataset.kbPoints!]));
     }
     const total = document.querySelector<HTMLElement>("[data-kb-total]");
     if (total && data.points !== undefined) {
