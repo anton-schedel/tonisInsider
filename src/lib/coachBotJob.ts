@@ -1,7 +1,7 @@
 import type { D1 } from "cloudflare:workers";
 import { insertComment, removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
-import { askModel, batchPlan, botCount, botNames, botPrompt, comparePlan, storiesOf, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { applyPlan, askModel, batchPlan, botCount, botNames, botPrompt, commentPlan, comparePlan, storiesOf, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -73,24 +73,22 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
   const { results: before } = await db
     .prepare("SELECT body FROM comments WHERE sender = 'bot' AND post_id != ? ORDER BY RANDOM() LIMIT 20").bind(post.id).all<{ body: string }>();
   const earlier = before.map((c) => c.body);
+  // Each batch gets its plan: what each of its comments is about.
+  const slots = plan.map((b, i) => commentPlan(b.count, { topics: b.topics, stories, compare: comparisons[i], forms: compare.forms, polls: allowed[i] }));
   const answers = await Promise.allSettled(plan.map((b, i) => askModel(cfg, botPrompt(post, recent, {
-    ...b, existing: existingTexts, polls: allowed[i], batch: pool + i, compare: comparisons[i], forms: compare.forms, voices: compare.voices, earlier, stories,
+    ...b, plan: slots[i], existing: existingTexts, batch: pool + i, earlier,
   }))));
   let bots: BotComment[] = [];
-  for (const a of answers) {
-    if (a.status !== "fulfilled") continue;
+  answers.forEach((a, i) => {
+    if (a.status !== "fulfilled") return;
     const offset = bots.length;
-    const i = answers.indexOf(a);
-    // A batch that wrote more polls than it was allowed keeps only that many.
-    let polls = allowed[i];
-    bots.push(...parseBots(a.value).map((b) => {
-      const c = b.poll && polls-- <= 0 ? { ...b, poll: undefined } : b;
-      return c.replyTo !== undefined ? { ...c, replyTo: c.replyTo + offset } : c;
-    }));
-  }
+    bots.push(...applyPlan(parseBots(a.value), slots[i]).map((c) => c.replyTo !== undefined ? { ...c, replyTo: c.replyTo + offset } : c));
+  });
   bots = dropSimilar(bots);
   const names = botNames(bots.length, playerNames(post));
   bots = bots.map((b, i) => ({ ...b, name: names[i] }));
+  // The same person now and then, but never answering themselves.
+  bots.forEach((b, i) => { if (b.replyTo !== undefined && bots[b.replyTo].name === b.name) bots[i] = { ...b, name: botNames(1, [...playerNames(post), ...names.map((n) => n.toLowerCase())])[0] }; });
   if (bots.length < Math.min(5, more ?? 5)) return { error: "Bot-Kommentare konnten nicht erstellt werden.", status: 502 };
 
   // A post that's already out gets its new comments from now on (after the model's minutes), not in the past.

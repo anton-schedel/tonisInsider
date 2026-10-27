@@ -8,7 +8,8 @@ import { kickoffDay } from "./format.ts";
  */
 export type BotPoll = { question: string; options: string[]; votes: number[] };
 /** name: given by botNames (the model named everyone after their comment: PizzaAugenzeuge, Trainerfrage). */
-export type BotComment = { name: string; text: string; minute: number; replyTo?: number; upvotes?: number; poll?: BotPoll };
+/** at: the comment's number in the model's answer (its slot in the plan). */
+export type BotComment = { name: string; text: string; minute: number; replyTo?: number; upvotes?: number; poll?: BotPoll; at?: number };
 
 export const BOT_COUNT = 30;
 /** Not always the same number, else it's plain they're bots: 25 to 42 per post. */
@@ -48,6 +49,13 @@ export const SEASON = [
   "14.10.: 1:7 gegen AS Tralkörper – nach der Pause vom Pressing überrollt, Ehrentreffer Ellenberger",
 ];
 
+/**
+ * The hand-written results the coach's result posts don't have yet: the 0:2 against Förderbedarf was in both, and
+ * the bots wrote about "den zwei 0:2 gegen Förderbedarf".
+ */
+export const seasonBefore = (recent: string[]) =>
+  SEASON.filter((line) => !recent.some((r) => { const opponent = r.split(" gegen ")[1]; return !!opponent && line.includes(opponent); }));
+
 const MOOD_HINT: Record<keyof typeof BOT_MOODS, string> = {
   gemischt: "Mal besorgt, mal hoffnungsvoll, mal witzig, wie echte Fans eben.",
   froehlich: "Gute Laune, Vorfreude, Lob, viel Spaß.",
@@ -86,10 +94,10 @@ export function batchPlan(count: number, topics: string[], size = 10): { count: 
 }
 
 /** polls: how many polls this batch may write (pollAllowance). */
-/** compare: how many compare a player with a pro; forms: how they put it; earlier: bot comments under other posts. */
+/** plan: what each comment is about (commentPlan); earlier: bot comments under other posts; stories: storiesOf. */
 export type PromptOptions = {
   count?: number; topics?: string[]; existing?: string[]; polls?: number; batch?: number;
-  compare?: number; forms?: string[]; voices?: string[]; earlier?: string[]; stories?: string[];
+  compare?: number; forms?: string[]; earlier?: string[]; stories?: string[]; plan?: Slot[];
 };
 
 /** Each parallel batch draws its comparisons from another pool, else they all pick the same pro (Kahn, Neuer). */
@@ -177,11 +185,81 @@ export function botNames(n: number, playerWords: string[] = [], random: () => nu
 }
 
 /** Comparisons for a post: none on some posts, one or two on the others, never one per ten like clockwork. */
-export function comparePlan(random: () => number = Math.random): { count: number; forms: string[]; voices: string[] } {
+export function comparePlan(random: () => number = Math.random): { count: number; forms: string[] } {
   const r = random();
   const count = r < 0.3 ? 0 : r < 0.8 ? 1 : 2;
-  const pick = <T,>(list: T[], n: number) => [...list].sort(() => random() - 0.5).slice(0, n);
-  return { count, forms: pick(COMPARE_FORMS, 2), voices: pick(VOICES, 6) };
+  return { count, forms: shuffle(COMPARE_FORMS, random).slice(0, 2) };
+}
+
+const shuffle = <T,>(list: T[], random: () => number) => list.map((v) => [random(), v] as const).sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+
+const LENGTHS = ["ein paar Wörter", "ein Satz", "ein Satz", "ein Satz", "ein bis zwei Sätze", "zwei Sätze"];
+/** A bare emoji or word now and then; one in seven was too many. */
+const length = (random: () => number) => (random() < 0.04 ? "nur ein Wort oder Emoji" : LENGTHS[Math.floor(random() * LENGTHS.length) % LENGTHS.length]);
+
+/** One comment to write: who, how long, about what; replyTo is another slot's index. */
+export type Slot = { voice: string; length: string; about: string; minute: number; replyTo?: number; compare?: string; poll?: boolean };
+
+/**
+ * What each comment is about, dealt out in code. Told "only 2–3 per topic, a few callbacks", the model still wrote
+ * seven "ohne Gerl wird's wie beim 1:7" under one post; with a plan each comment has its own job: the coach's
+ * topics 2–3 times each, a few callbacks to older stories, the results a couple of times, something off-topic, the
+ * rest the post itself, each in another voice; about a quarter answer another comment (at most 3 under one).
+ */
+export function commentPlan(
+  n: number,
+  input: { topics?: string[]; stories?: string[]; compare?: number; forms?: string[]; polls?: number },
+  random: () => number = Math.random,
+): Slot[] {
+  const int = (min: number, max: number) => min + Math.floor(random() * (max - min + 1));
+  const replies = n >= 6 ? Math.round(n * (0.18 + random() * 0.12)) : 0;
+  const room = n - replies;
+  const special = [
+    ...(input.topics ?? []).flatMap((t) => Array.from({ length: int(2, 3) }, () => `Thema: ${t}`)),
+    ...shuffle(input.stories ?? [], random).slice(0, Math.max(1, Math.round(room / 7))).map((t) => `Anspielung auf: ${t}`),
+    ...Array.from({ length: room >= 12 ? int(2, 3) : 1 }, () => "die letzten Ergebnisse"),
+    ...Array.from({ length: room >= 12 ? int(1, 2) : 0 }, () => "etwas abseits vom Thema (Training, Platz, Kabine, Trikots, das Bier danach)"),
+  ].slice(0, Math.ceil(room * 0.6));
+  const abouts = shuffle([...special, ...Array.from({ length: room - special.length }, () => "den Beitrag: eine Einzelheit oder Seite, die sonst keiner aufgreift")], random);
+  const voices = shuffle(VOICES, random);
+  const slots: Slot[] = abouts.map((about, i) => ({ voice: voices[i % voices.length], length: length(random), about, minute: 0 }));
+  // Comparisons and polls go to comments about the post itself.
+  const own = shuffle(slots.filter((s) => s.about.startsWith("den Beitrag")), random);
+  own.slice(0, input.compare ?? 0).forEach((s, i) => { s.compare = (input.forms ?? COMPARE_FORMS)[i % (input.forms ?? COMPARE_FORMS).length]; });
+  own.slice(input.compare ?? 0, (input.compare ?? 0) + (input.polls ?? 0)).forEach((s) => { s.poll = true; s.length = "eine kurze Frage"; });
+  const under = new Map<Slot, number>();
+  for (let r = 0; r < replies; r++) {
+    const targets = slots.filter((s) => s.replyTo === undefined && !s.about.startsWith("antwortet") && (under.get(s) ?? 0) < 3);
+    if (!targets.length) break;
+    const target = targets[int(0, targets.length - 1)];
+    under.set(target, (under.get(target) ?? 0) + 1);
+    const reply: Slot & { to?: Slot } = { voice: voices[(slots.length + r) % voices.length], length: LENGTHS[int(0, 3)], about: "antwortet", minute: 0, to: target };
+    // Right under it (or nearly): replies far down the list lost track of what they answered.
+    const at = slots.indexOf(target) + 1;
+    slots.splice(Math.min(slots.length, at + int(0, 1)), 0, reply);
+  }
+  return slots.map((s, i) => {
+    const { to, ...slot } = s as Slot & { to?: Slot };
+    const minute = Math.min(MINUTES, Math.round((i / Math.max(1, slots.length - 1)) * MINUTES));
+    if (!to) return { ...slot, minute };
+    const t = slots.indexOf(to);
+    return { ...slot, minute, replyTo: t, about: `antwortet direkt auf Nr. ${t} und geht auf genau das ein, was dort steht (stimmt zu, widerspricht, legt nach oder nimmt es auf die Schippe)` };
+  });
+}
+
+/** The model's comments put in their slots: time and thread from the plan, a poll only where one was planned. */
+export function applyPlan(bots: BotComment[], plan: Slot[]): BotComment[] {
+  const out: BotComment[] = [];
+  const index = new Map<number, number>();
+  for (const b of bots) {
+    const slot = b.at !== undefined ? plan[b.at] : undefined;
+    const { replyTo: _, at: __, poll, ...rest } = b;
+    if (!slot) { out.push({ ...rest, ...(poll ? { poll } : {}) }); continue; }
+    index.set(b.at!, out.length);
+    const parent = slot.replyTo !== undefined ? index.get(slot.replyTo) : undefined;
+    out.push({ ...rest, minute: slot.minute, ...(parent !== undefined ? { replyTo: parent } : {}), ...(poll && slot.poll ? { poll } : {}) });
+  }
+  return out;
 }
 
 /** n things dealt out at random over the batches (polls, comparisons). */
@@ -197,10 +275,9 @@ export function pollAllowance(batches: number, existingPolls: number, random: ()
 }
 
 export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions = {}): { system: string; user: string } {
-  const count = opts.count ?? BOT_COUNT;
-  const compare = opts.compare ?? 0;
-  const polls = opts.polls ?? 0;
   const d = post.data;
+  const plan = opts.plan ?? commentPlan(opts.count ?? BOT_COUNT, { topics: opts.topics ?? topicsOf(d.bots?.context), stories: opts.stories, compare: opts.compare, forms: opts.forms, polls: opts.polls });
+  const compare = plan.some((s) => s.compare);
   const about: string[] = [`Überschrift: ${d.headline}`];
   if (post.type === "lineup" && d.lineup) {
     about.unshift("Art: Aufstellung für das nächste Spiel");
@@ -218,51 +295,41 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
 
   const system = [
     `Du schreibst Kommentare unter Beiträge über den ${CLUB.name}, eine Freizeit-Fußballmannschaft aus München.`,
-    "Die Kommentatoren sind Fans, Freunde und Mitspieler: locker, kurz, umgangssprachlich, manchmal mit Emoji, wie in einem Fußballforum.",
-    "Sie reagieren auf genau diesen Beitrag und die Lage der Mannschaft: Sorgen, Hoffnung, Fragen, Tipps, Sprüche.",
+    "Die Kommentatoren sind Fans, Freunde und Mitspieler: locker, umgangssprachlich, manchmal mit Emoji, wie in einem Fußballforum.",
     `Stimmung: ${BOT_MOODS[d.bots?.mood ?? "gemischt"]}. ${MOOD_HINT[d.bots?.mood ?? "gemischt"]}`,
     "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
     "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche); Spieler beim Namen, wie er in den Infos steht (keine erfundenen Vornamen), keine erfundenen Statistiken.",
-    "Jeder Kommentar sagt etwas Eigenes: keine zwei mit derselben Aussage, demselben Witz oder demselben Anfang.",
-    "Unterschiedlich lang (meist 1 bis 2 Sätze, manche nur ein paar Wörter), höchstens ein Drittel antwortet auf einen früheren Kommentar, höchstens 3 Antworten unter demselben.",
+    "Du bekommst einen Plan: jeder Kommentar hat seinen eigenen Absender, seine Länge und sein Thema; halte dich daran, damit keine zwei dasselbe sagen. Kein Satzanfang mehr als zweimal.",
+    "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend.",
     ...(compare
       ? [
-        `${compare === 1 ? "Genau 1 Kommentar vergleicht" : `Genau ${compare} Kommentare vergleichen`} einen unserer Spieler mit einem bekannten Profi, die anderen nicht.`,
         // The bots compared everyone to goalkeepers (Neuer, Kahn, Starke), and always the same way.
-        `Der Profi passt zur Position (Torhüter mit Torhütern, Stürmer mit Stürmern usw.) und kommt aus diesem Bereich: ${PRO_POOLS[(opts.batch ?? 0) % PRO_POOLS.length]}; kein Neuer, Kahn oder Starke.`,
-        `Mit dem echten Namen eines Spielers aus dem Beitrag (keine Platzhalter), ${(opts.forms ?? COMPARE_FORMS.slice(0, 2)).join(" oder ")}. Die Wörter „erinnert“ und „wie ein junger“ kommen darin nicht vor, und kein „– nur mit/ohne …“ am Ende.`,
+        `Vergleiche mit Profis nur, wo der Plan es sagt: der Profi passt zur Position (Torhüter mit Torhütern, Stürmer mit Stürmern usw.) und kommt aus diesem Bereich: ${PRO_POOLS[(opts.batch ?? 0) % PRO_POOLS.length]}; kein Neuer, Kahn oder Starke; mit dem echten Namen unseres Spielers; nie „erinnert mich an“, „wie ein junger“ oder „– nur mit/ohne …“ am Ende.`,
       ]
       : ["Keine Vergleiche mit Profis."]),
-    ...(opts.voices?.length ? [`Unter den Kommentatoren sind diesmal u. a.: ${opts.voices.join("; ")}. Jeder hat seinen eigenen Blick, kein Satzanfang kommt mehr als zweimal vor.`] : []),
-    "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend.",
     "Jeder Kommentar bekommt \"upvotes\": wie viele Daumen hoch er bekommt (0 bis 40, ungleich verteilt: viele 0 bis 5, gute Sprüche mehr).",
-    polls
-      ? `Genau ${polls === 1 ? "1 Kommentar ist eine Umfrage" : `${polls} Kommentare sind Umfragen`}: "poll": {"question": kurze Frage zum Beitrag, "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort (zusammen 6 bis 30)}, also z. B. {"text": "Spielt Julian?", "minute": 5, "upvotes": 3, "poll": {"question": "Spielt Julian?", "options": ["Ja", "Nein"], "votes": [12, 5]}}.`
+    plan.some((s) => s.poll)
+      ? `Umfragen nur, wo der Plan es sagt: {"nr": 4, "text": "Spielt Julian?", "upvotes": 3, "poll": {"question": "Spielt Julian?", "options": 2 bis 4 kurze Antworten, "votes": Stimmen je Antwort, zusammen 6 bis 30}}.`
       : "Keine Umfragen.",
-    `Antworte nur mit einem JSON-Array mit ${count} Objekten: {"text": string, "minute": Zahl 0 bis ${MINUTES}, "upvotes": Zahl, "replyTo": Index eines früheren Kommentars (optional), "poll": nur bei Umfragen}.`,
+    `Antworte nur mit einem JSON-Array mit ${plan.length} Objekten in der Reihenfolge des Plans: {"nr": Nummer im Plan, "text": string, "upvotes": Zahl, "poll": nur bei Umfragen}.`,
   ].join(" ");
 
-  // Each thing the coach wants them to know is one topic; only a few comments take each up, else all 30 sound alike.
-  const topics = opts.topics ?? topicsOf(d.bots?.context);
   const user = [
     "Beitrag:",
     ...about,
     "",
-    "Letzte Ergebnisse (neueste zuerst; höchstens 5 Kommentare erwähnen sie, die anderen reden über diesen Beitrag):",
-    ...[...recent, ...SEASON].map((r) => `- ${r}`),
-    ...(topics.length
-      ? ["", "Was einige Kommentatoren wissen (Jedes Thema greifen nur 2 bis 3 Kommentare auf, verteilt über die Liste; die meisten Kommentare reden über den Beitrag selbst):", ...topics.map((t) => `- ${t}`)]
-      : []),
-    ...(opts.stories?.length
-      ? ["", "Was bisher bei uns los war (neueste zuerst; ein paar Kommentare spielen darauf an, z. B. wer zuletzt gespielt hat oder eine alte Geschichte, die meisten nicht):", ...opts.stories.map((t) => `- ${t}`)]
-      : []),
+    "Letzte Ergebnisse (neueste zuerst):",
+    ...[...recent, ...seasonBefore(recent)].map((r) => `- ${r}`),
     ...(opts.earlier?.length
       ? ["", "So klangen die Bots unter früheren Beiträgen; klingt anders (andere Wörter, andere Witze, anderer Satzbau):", ...opts.earlier.map((c) => `- ${c}`)]
       : []),
     ...(opts.existing?.length
-      ? ["", "Diese Kommentare stehen schon da (nicht wiederholen; ihr dürft darauf eingehen). Die neuen kommen später dazu und reagieren auf den Beitrag, wie er jetzt ist (z. B. ein Update im Text):", ...opts.existing.map((c) => `- ${c}`)]
+      ? ["", "Diese Kommentare stehen schon da (nicht wiederholen). Die neuen kommen später dazu und reagieren auf den Beitrag, wie er jetzt ist (z. B. ein Update im Text):", ...opts.existing.map((c) => `- ${c}`)]
       : []),
+    "",
+    "Plan (Nr. – wer – wie lang – worüber):",
+    ...plan.map((s, i) => `${i}. ${s.voice} – ${s.length} – ${s.about}${s.compare ? ` – vergleicht dabei einen unserer Spieler mit einem Profi, ${s.compare}` : ""}${s.poll ? " – als Umfrage" : ""}`),
   ].join("\n");
   return { system, user };
 }
@@ -326,7 +393,7 @@ export function parseBots(answer: string): BotComment[] {
   const kept = new Map<number, number>();
   raw.forEach((c, i) => {
     if (!c || typeof c !== "object") return;
-    const { text, minute, replyTo, upvotes, poll } = c as Record<string, unknown>;
+    const { text, minute, replyTo, upvotes, poll, nr } = c as Record<string, unknown>;
     const t = typeof text === "string" ? text.trim() : "";
     if (!t || t.length > TEXT_MAX || BODY_INSULT.test(t) || WORN_PROS.test(t)) return;
     const m = typeof minute === "number" && Number.isFinite(minute) ? Math.min(MINUTES, Math.max(0, Math.round(minute))) : 0;
@@ -336,7 +403,8 @@ export function parseBots(answer: string): BotComment[] {
     kept.set(i, out.length);
     const up = typeof upvotes === "number" && Number.isFinite(upvotes) ? Math.min(40, Math.max(0, Math.round(upvotes))) : undefined;
     const p = parsePoll(poll);
-    out.push({ name: "", text: t, minute: m, ...(parent !== undefined ? { replyTo: parent } : {}), ...(up !== undefined ? { upvotes: up } : {}), ...(p ? { poll: p } : {}) });
+    const at = typeof nr === "number" && Number.isInteger(nr) ? nr : undefined;
+    out.push({ name: "", ...(at !== undefined ? { at } : {}), text: t, minute: m, ...(parent !== undefined ? { replyTo: parent } : {}), ...(up !== undefined ? { upvotes: up } : {}), ...(p ? { poll: p } : {}) });
   });
   return out;
 }

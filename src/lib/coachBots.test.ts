@@ -45,6 +45,120 @@ describe("parseBots", () => {
   });
 });
 
+describe("botRows", () => {
+  it("dates them after the post and replies after their parent", () => {
+    const bots: BotComment[] = [{ name: "A", text: "a", minute: 5 }, { name: "B", text: "b", minute: 1, replyTo: 0 }, { name: "C", text: "c", minute: 0 }];
+    const rows = botRows("2026-10-28T18:00:00.000Z", bots);
+    const at = (n: string) => Date.parse(rows.find((r) => r.name === n)!.createdAt);
+    const start = Date.parse("2026-10-28T18:00:00.000Z");
+    expect(at("C")).toBeGreaterThanOrEqual(start);
+    expect(at("A")).toBeGreaterThanOrEqual(start + 5 * 60_000);
+    expect(at("B")).toBeGreaterThan(at("A"));
+    expect(rows.find((r) => r.name === "B")!.replyTo).toBe(0);
+    expect(rows.every((r) => Date.parse(r.createdAt) < start + 20 * 60_000)).toBe(true);
+  });
+});
+
+describe("askModel", () => {
+  it("sends an OpenAI-style chat request and returns the answer", async () => {
+    let sent: { url: string; body: { model: string; messages: { role: string }[] }; auth: string | null } | undefined;
+    const fetcher = (async (url: string, init: RequestInit) => {
+      sent = { url, body: JSON.parse(String(init.body)), auth: new Headers(init.headers).get("authorization") };
+      return Response.json({ choices: [{ message: { content: "[]" } }] });
+    }) as typeof fetch;
+    const answer = await askModel({ url: "https://llm.example/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher);
+    expect(answer).toBe("[]");
+    expect(sent?.url).toBe("https://llm.example/api/chat/completions");
+    expect(sent?.auth).toBe("Bearer k");
+    expect(sent?.body.model).toBe("m");
+    expect(sent?.body.messages.map((m) => m.role)).toEqual(["system", "user"]);
+  });
+  it("fails on an error status", async () => {
+    const fetcher = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
+    await expect(askModel({ url: "https://x", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).rejects.toThrow();
+  });
+});
+
+describe("shouldWriteBots", () => {
+  it("writes them for a post that isn't out yet, never adds more to one that is", async () => {
+    const { shouldWriteBots } = await import("./coachBots.ts");
+    const now = new Date("2026-10-28T17:00:00.000Z");
+    expect(shouldWriteBots(lineup, now, 0)).toBe("write");
+    expect(shouldWriteBots(lineup, now, 30)).toBe("write");
+    const out = { ...lineup, publishedAt: "2026-10-28T16:00:00.000Z" };
+    expect(shouldWriteBots(out, now, 30)).toBe("keep");
+    expect(shouldWriteBots(out, now, 0)).toBe("write");
+    expect(shouldWriteBots({ ...lineup, data: { ...lineup.data, bots: { on: false } } }, now, 30)).toBe("clear");
+  });
+});
+
+describe("batchPlan", () => {
+  it("splits the comments into batches of up to 10 and deals the topics out", () => {
+    expect(batchPlan(30, ["a", "b", "c", "d"])).toEqual([
+      { count: 10, topics: ["a", "d"] }, { count: 10, topics: ["b"] }, { count: 10, topics: ["c"] },
+    ]);
+    expect(batchPlan(25, [])).toEqual([{ count: 9, topics: [] }, { count: 8, topics: [] }, { count: 8, topics: [] }]);
+    expect(batchPlan(42, ["a", "b"], 50)).toEqual([{ count: 42, topics: ["a", "b"] }]);
+  });
+});
+
+describe("askModel streaming", () => {
+  it("reads the answer as it streams in (so the connection never sits idle)", async () => {
+    let body: { stream?: boolean } = {};
+    const sse = ['data: {"choices":[{"delta":{"role":"assistant"}}]}', 'data: {"choices":[{"delta":{"content":"[{\\"a\\""}}]}', 'data: {"choices":[{"delta":{"content":":1}]"}}]}', "data: [DONE]", ""].join("\n\n");
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      return new Response(sse, { headers: { "content-type": "text/event-stream" } });
+    }) as typeof fetch;
+    expect(await askModel({ url: "https://x/api", key: "k", model: "m", batch: 10 }, { system: "s", user: "u" }, fetcher)).toBe('[{"a":1}]');
+    expect(body.stream).toBe(true);
+  });
+});
+
+
+describe("commentPlan", () => {
+  it("gives each comment its own job: topics 2–3 times, callbacks, replies to earlier ones (max 3 each), comparisons and polls as asked", async () => {
+    const { commentPlan, applyPlan } = await import("./coachBots.ts");
+    for (let k = 0; k < 20; k++) {
+      const plan = commentPlan(32, { topics: ["Pizza im Cadu"], stories: ["Kowol auf Toilette", "Loibl nach 2 Uhr", "Torres feiert"], compare: 1, forms: ["als Spitzname"], polls: 1 });
+      expect(plan).toHaveLength(32);
+      const pizza = plan.filter((s) => s.about === "Thema: Pizza im Cadu").length;
+      expect(pizza).toBeGreaterThanOrEqual(2);
+      expect(pizza).toBeLessThanOrEqual(3);
+      expect(plan.some((s) => s.about.startsWith("Anspielung"))).toBe(true);
+      expect(plan.filter((s) => s.compare)).toHaveLength(1);
+      expect(plan.filter((s) => s.poll)).toHaveLength(1);
+      const replies = plan.flatMap((s, i) => (s.replyTo !== undefined ? [[i, s.replyTo] as const] : []));
+      expect(replies.length).toBeGreaterThan(3);
+      for (const [i, t] of replies) {
+        expect(t).toBeLessThan(i);
+        expect(plan[t].replyTo).toBeUndefined();
+      }
+      expect(Math.max(...Object.values(Object.groupBy(replies, ([, t]) => t)).map((r) => r!.length))).toBeLessThanOrEqual(3);
+      expect(plan.map((s) => s.minute)).toEqual([...plan.map((s) => s.minute)].sort((a, b) => a - b));
+    }
+    // The model's answer goes into the slots by "nr": a missing one doesn't shift the threads; a poll only where planned.
+    const plan = [
+      { voice: "a", length: "x", about: "den Beitrag", minute: 0 },
+      { voice: "b", length: "x", about: "den Beitrag", minute: 2 },
+      { voice: "c", length: "x", about: "antwortet", minute: 5, replyTo: 1 },
+    ];
+    const out = applyPlan(parseBots(JSON.stringify([
+      { nr: 0, text: "eins", poll: { question: "Wer?", options: ["A", "B"], votes: [1, 2] } },
+      { nr: 2, text: "drei" },
+    ])), plan);
+    expect(out).toEqual([{ name: "", text: "eins", minute: 0 }, { name: "", text: "drei", minute: 5 }]);
+  });
+});
+
+describe("seasonBefore", () => {
+  it("leaves out a hand-written result the coach posted too (else the bots count two 0:2)", async () => {
+    const { seasonBefore, SEASON } = await import("./coachBots.ts");
+    expect(seasonBefore(["22.10.: 0:2 gegen FC Förderbedarf"])).toEqual(SEASON.filter((l) => !l.includes("Förderbedarf")));
+    expect(seasonBefore([])).toEqual(SEASON);
+  });
+});
+
 describe("body insult filter", () => {
   it("drops comments that insult someone's body anyway", () => {
     const out = parseBots(JSON.stringify([
