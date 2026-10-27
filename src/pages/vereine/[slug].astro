@@ -4,6 +4,7 @@ import Pitch from "../../components/Pitch.astro";
 import FixtureCard from "../../components/FixtureCard.astro";
 import ArticleRow from "../../components/ArticleRow.astro";
 import PlayerCard from "../../components/PlayerCard.astro";
+import SectionHead from "../../components/SectionHead.astro";
 import Comments from "../../components/Comments.astro";
 import { articles, clubArticles, lineups, odds, scorers } from "../../lib/data.ts";
 import { confirmedClubs } from "../../lib/lineupNews.ts";
@@ -43,10 +44,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
   {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chances} />}
 
   <section class="mt-9">
-    <div class="mb-3 flex items-baseline justify-between">
-      <h2 class="text-[22px] font-bold tracking-[-0.02em]">Aufstellung</h2>
-      <span class="text-[15px] font-semibold text-muted tabular-nums">{lineup.formation}</span>
-    </div>
+    <SectionHead title="Aufstellung" class="mb-3">{lineup.formation}</SectionHead>
     <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} confirmed={confirmed} news={playerNews} />
     {/* From kickoff on: the players' Kickbase points (script below). */}
     {lineup.kickoff && <div hidden data-kb-club={lineup.club.slug} data-kickoff={lineup.kickoff}></div>}
@@ -69,10 +67,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
   </section>
 
   <section class="mt-7">
-    <div class="mb-1 flex items-baseline justify-between">
-      <h2 class="text-[22px] font-bold tracking-[-0.02em]">News</h2>
-      {news.length > 0 && <span class="text-[15px] font-semibold text-muted tabular-nums">{news.length}</span>}
-    </div>
+    <SectionHead title="News" class="mb-1">{news.length > 0 && news.length}</SectionHead>
     {news.length === 0 && <p class="py-4 text-sm text-muted">Keine weiteren News aus den letzten 7 Tagen. Die zu den Spielern oben stehen in ihrer Karte.</p>}
     {/* The newest few; the rest on tap, so the discussion below isn't far down (all of them when only one more). */}
     <div class="divide-y divide-hairline">
@@ -83,7 +78,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
         <div class="divide-y divide-hairline border-t border-hairline" hidden>
           {news.slice(shown).map((a, i) => <ArticleRow article={a} index={i} withDay />)}
         </div>
-        <button type="button" class="press mt-2 w-full rounded-xl bg-surface py-3 text-[15px] font-semibold" data-news-all>Alle {news.length} News zeigen</button>
+        <button type="button" class="press btn btn-quiet mt-2 w-full" data-news-all>Alle {news.length} News zeigen</button>
       </div>
     )}
   </section>
@@ -93,10 +88,9 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
 </Base>
 
 <script>
-  import { pointsLabel, setTier, type ClubPoints } from "../../lib/livePoints.ts";
+  import { applyPoints, pointsLabel, type ClubPoints } from "../../lib/livePoints.ts";
   import type { SlotPlay } from "../../lib/match.ts";
   import { revealIn } from "../../lib/commentUi.ts";
-  import { swapText } from "../../lib/swapText.ts";
 
   const POLL_MS = 30_000;
   /** Points matter from kickoff until the next matchday's lineup replaces this one; polled while it runs. */
@@ -114,8 +108,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
 
   function note(text: string) {
     const el = document.createElement("span");
-    el.className = "line-clamp-1 text-[9.5px] leading-tight";
-    el.style.color = "var(--yellow-fg)";
+    el.className = "pitch-note";
     el.dataset.subNote = "";
     el.textContent = text;
     return el;
@@ -146,7 +139,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     }
     if (!play.sub || slot.dataset.sub) return;
     const main = slot.querySelector<HTMLElement>(":scope > button")!;
-    const shownName = main.querySelector(".line-clamp-2")?.textContent ?? "";
+    const shownName = main.querySelector("[data-face-name]")?.textContent ?? "";
     // The one who came on: a copy of the face with his photo, name and points.
     const sub = main.cloneNode(true) as HTMLElement;
     const img = sub.querySelector("img");
@@ -156,7 +149,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       img.classList.replace("ring-white/80", "ring-[var(--yellow-dot)]");
     }
     sub.querySelectorAll(".s11-badge, .news-badge, [data-sub-note]").forEach((el) => el.remove());
-    sub.querySelector(".line-clamp-2")!.textContent = play.sub.name;
+    sub.querySelector("[data-face-name]")!.textContent = play.sub.name;
     const chip = sub.querySelector<HTMLElement>("[data-kb-points]")!;
     chip.dataset.kbPoints = `kb${play.sub.kb}`;
     chip.dataset.kbPlayer = play.sub.kb;
@@ -167,9 +160,9 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
         status: `Eingewechselt (${play.sub.minute}')`, tone: "yellow",
       });
     } catch {}
-    sub.querySelector(".relative")!.append(hint(`${shownName} zeigen`));
+    sub.querySelector("[data-face-pic]")!.append(hint(`${shownName} zeigen`));
     sub.append(note(`ab ${play.sub.minute}' für ${shownName}`));
-    main.querySelector(".relative")!.append(hint(`${play.sub.name} zeigen`));
+    main.querySelector("[data-face-pic]")!.append(hint(`${play.sub.name} zeigen`));
     main.append(note(`bis ${play.sub.minute}' · ${play.sub.name}`));
     const wrap = document.createElement("div");
     wrap.className = "swap grid w-full";
@@ -199,15 +192,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       const label = pointsLabel({ ...data.live, ...(points !== undefined ? { points } : {}) });
       const wasShown = doc === document && !el.hidden && !el.classList.contains("is-loading");
       el.classList.remove("is-loading");
-      el.hidden = !label;
-      if (!label) continue;
-      const text = el.querySelector("[data-kb-text]")!;
-      // A chip that was a placeholder or hidden just gets its number; a shown one that changes dips once.
-      if (wasShown) swapText(text, label.text);
-      else text.textContent = label.text;
-      el.classList.toggle("is-live", label.live);
-      setTier(el, label.tier);
-      el.setAttribute("aria-label", `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`);
+      applyPoints(el, label, wasShown);
     }
   }
 

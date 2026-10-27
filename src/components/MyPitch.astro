@@ -1,10 +1,10 @@
 ---
 import type { MyPlayer, StartStatus } from "../lib/match.ts";
-import Avatar from "./Avatar.astro";
+import PitchFace from "./PitchFace.astro";
 import PitchField from "./PitchField.astro";
 import NewsBadge from "./NewsBadge.astro";
 import KbPoints from "./KbPoints.astro";
-import { AVATAR, slotStyle } from "../lib/pitch.ts";
+import { slotStyle } from "../lib/pitch.ts";
 
 interface Props {
   lines: MyPlayer[][];
@@ -14,15 +14,15 @@ interface Props {
   fresh?: Set<string>;
 }
 const { lines, cards, fresh = new Set() } = Astro.props;
-// The dot answers "will my player start?" according to LigaInsider's predicted lineup.
-const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string }> = {
-  confirmed: { dot: "var(--green-dot)" },
-  start: { dot: "var(--green-dot)" },
-  contested: { dot: "var(--yellow-dot)" },
-  doubtful: { dot: "var(--yellow-dot)", note: "Fraglich", noteColor: "var(--yellow-fg)" },
-  alternative: { dot: "var(--yellow-dot)", note: "Alternative", noteColor: "var(--yellow-fg)" },
-  bench: { dot: "var(--red-fg)", note: "Bank", noteColor: "var(--red-fg)" },
-  unknown: { dot: "var(--muted)" },
+// The dot answers "will my player start?" according to LigaInsider's predicted lineup; "Bank" is the red note.
+const TONE: Record<StartStatus, { dot: string; note?: string }> = {
+  confirmed: { dot: "dot-green" },
+  start: { dot: "dot-green" },
+  contested: { dot: "dot-yellow" },
+  doubtful: { dot: "dot-yellow", note: "Fraglich" },
+  alternative: { dot: "dot-yellow", note: "Alternative" },
+  bench: { dot: "dot-red", note: "Bank" },
+  unknown: { dot: "dot-muted" },
 };
 ---
 <PitchField>
@@ -31,36 +31,32 @@ const TONE: Record<StartStatus, { dot: string; note?: string; noteColor?: string
       const tone = TONE[p.status];
       const name = p.ligainsider?.name ?? p.kickbase.name;
       const note = p.status === "contested" && p.rival ? `Alt: ${p.rival}` : p.status === "doubtful" && p.statusLabel ? p.statusLabel : tone.note;
-      const noteColor = p.status === "contested" ? "var(--yellow-fg)" : tone.noteColor;
       return (
-        <div class="absolute w-[24%]" style={slotStyle(i, lines.length, j, line.length)}>
+        <div class="absolute" style={slotStyle(i, lines.length, j, line.length)}>
           <button type="button" data-card={cards.get(p.kickbase.id)} class="press flex w-full flex-col items-center text-center">
-            <span class="relative">
-              <Avatar src={p.ligainsider?.photo ?? p.kickbase.image} name={name} size={AVATAR} class="shadow-md ring-2 ring-white/80" />
+            {/* Before kickoff the note: will he start? From kickoff on: his Kickbase points. */}
+            <PitchFace photo={p.ligainsider?.photo ?? p.kickbase.image} name={name} note={p.kickbase.live?.state ? undefined : note} noteRed={p.status === "bench"}>
               {p.status === "confirmed"
                 ? <span class="s11-badge" title="Startelf bestätigt">S11</span>
-                : <span class="absolute top-0 right-0 size-3.5 rounded-full border-2 border-white" style={`background:${tone.dot}`}></span>}
+                : <span class:list={["start-dot", tone.dot]}></span>}
               {p.rival && <span class="swap-hint is-top" aria-hidden="true">⇄</span>}
               {fresh.has(p.kickbase.id) && <NewsBadge />}
-              {p.club?.crest && <img src={p.club.crest} alt="" class="absolute -bottom-0.5 -left-1 size-[20px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />}
-            </span>
-            {/* Right under the photo, so every player's points are level, however long his name. */}
-            <KbPoints id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} />
-            <span class="mt-1 line-clamp-2 text-[11px] leading-tight font-semibold break-words">{name}</span>
-            {/* Before kickoff: will he start? From kickoff on: his Kickbase points. */}
-            {note && !p.kickbase.live?.state && <span class="line-clamp-1 text-[9.5px] leading-tight" style={`color:${noteColor}`}>{note}</span>}
+              {p.club?.crest && <img src={p.club.crest} alt="" class="crest-overlay -bottom-0.5 -left-1 size-[20px]" />}
+              {/* Right under the photo, so every player's points are level, however long his name. */}
+              <KbPoints slot="points" id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} />
+            </PitchFace>
           </button>
         </div>
       );
     }),
   )}
   <Fragment slot="legend">
-    {lines.some((line) => line.some((p) => p.status === "confirmed")) && <span class="flex items-center gap-1"><span class="s11-badge is-legend">S11</span>Startelf bestätigt</span>}
-    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--green-dot)"></i>Startelf</span>
-    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--yellow-dot)"></i>Fraglich oder Alternative</span>
-    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--red-fg)"></i>Nicht in der Startelf</span>
-    <span class="flex items-center gap-1"><i class="size-2 rounded-full" style="background:var(--muted)"></i>Keine Infos</span>
-    {lines.some((line) => line.some((p) => fresh.has(p.kickbase.id))) && <span class="flex items-center gap-1"><NewsBadge class="is-inline" />Neue News</span>}
+    {lines.some((line) => line.some((p) => p.status === "confirmed")) && <span class="legend-item"><span class="s11-badge is-legend">S11</span>Startelf bestätigt</span>}
+    <span class="legend-item"><i class="legend-dot dot-green"></i>Startelf</span>
+    <span class="legend-item"><i class="legend-dot dot-yellow"></i>Fraglich oder Alternative</span>
+    <span class="legend-item"><i class="legend-dot dot-red"></i>Nicht in der Startelf</span>
+    <span class="legend-item"><i class="legend-dot dot-muted"></i>Keine Infos</span>
+    {lines.some((line) => line.some((p) => fresh.has(p.kickbase.id))) && <span class="legend-item"><NewsBadge class="is-inline" />Neue News</span>}
     <span>Tippen für Prognose</span>
   </Fragment>
 </PitchField>

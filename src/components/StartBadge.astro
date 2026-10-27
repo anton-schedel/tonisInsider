@@ -1,12 +1,10 @@
 ---
 import type { StartStatus } from "../lib/match.ts";
 import { startLabel } from "../lib/card.ts";
+import { toneClass } from "../lib/newsTypes.ts";
 
 interface Props { status: StartStatus; label?: string; rival?: string }
 const { status, label, rival } = Astro.props;
 const s = startLabel(status, label, rival);
-const style = s.tone === "grey"
-  ? "background:var(--surface);color:var(--muted)"
-  : `background:var(--${s.tone}-bg);color:var(--${s.tone}-fg)`;
 ---
-<span class="rounded-full px-[7px] py-[2px] text-[10.5px] font-semibold whitespace-nowrap" style={style}>{s.text}</span>
+<span class:list={["pill", toneClass(s.tone)]}>{s.text}</span>

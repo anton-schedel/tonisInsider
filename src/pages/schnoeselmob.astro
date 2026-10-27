@@ -16,7 +16,7 @@ const signedIn = await coachSignedIn(Astro.cookies);
 let posts: CoachPost[] = [];
 if (signedIn && env.COMMENTS) posts = await listPosts(env.COMMENTS);
 const badges = Object.entries(NEWS_TYPE).flatMap(([id, t]) => (t ? [{ id, label: t.label }] : []));
-const field = "coach-field";
+const field = "field w-full";
 ---
 <Base title="Trainerbank" hideHeading tabbar={false}>
   {/* The club's crest, large and faint behind the page. */}
@@ -122,7 +122,7 @@ const field = "coach-field";
       <input name="at" type="datetime-local" class={`${field} mt-2.5`} data-at hidden />
       <label class="mt-3 flex items-center justify-between gap-3 text-[15px]">
         <span>Oben anheften</span>
-        <select name="pin" class="coach-select">
+        <span class="coach-select"><select name="pin">
           <option value="0">Nicht</option>
           <option value="1">1 Stunde</option>
           <option value="2">2 Stunden</option>
@@ -130,7 +130,7 @@ const field = "coach-field";
           <option value="6">6 Stunden</option>
           <option value="12">12 Stunden</option>
           <option value="24">1 Tag</option>
-        </select>
+        </select></span>
       </label>
 
       <h3 class="mt-7 mb-2 text-[15px] font-semibold">Kommentare</h3>
@@ -178,10 +178,9 @@ const field = "coach-field";
     opacity: 0.06;
   }
   :global(:root[data-theme="dark"]) .coach-watermark { opacity: 0.09; }
-  :global(.coach-field) {
-    width: 100%; border-radius: 14px; background: var(--color-surface); padding: 12px 16px; font-size: 16px; outline: none;
-  }
-  :global(.coach-field:focus), .coach-line input:focus, .coach-score input:focus { box-shadow: 0 0 0 2px var(--gold); }
+  /* Text fields (.field) with the club's gold ring and the page's rounder corners. */
+  [data-coach] { --field-ring: var(--gold); --field-radius: 14px; }
+  .coach-line input:focus, .coach-score input:focus { box-shadow: 0 0 0 2px var(--gold); }
   :global(.coach-primary) {
     border-radius: 14px; background: var(--gold); color: #fff; padding: 13px 18px; font-size: 16px; font-weight: 600;
   }
@@ -206,26 +205,30 @@ const field = "coach-field";
   .coach-photo img { width: 44px; height: 44px; border-radius: 999px; object-fit: cover; }
   .coach-photo:focus-within { box-shadow: 0 0 0 2px var(--gold); }
 
-  /* Our own chevron: browsers on laptops draw theirs flush against the edge. */
-  .coach-select {
+  /* Our own chevron (browsers on laptops draw theirs flush against the edge), in the muted text colour. */
+  .coach-select { position: relative; display: inline-flex; color: var(--color-muted); }
+  .coach-select select {
     appearance: none; -webkit-appearance: none; border-radius: 10px; padding: 7px 32px 7px 12px; font-size: 15px; cursor: pointer;
-    background: var(--color-surface) no-repeat right 11px center / 12px 12px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background: var(--color-surface); color: var(--color-fg);
   }
-  .coach-select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .coach-select::after {
+    content: ""; position: absolute; top: 50%; right: 11px; width: 12px; height: 12px; margin-top: -6px; pointer-events: none;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  .coach-select select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .coach-switch {
     appearance: none; position: relative; flex-shrink: 0; width: 51px; height: 31px; border-radius: 999px;
     background: var(--color-hairline); transition: background 200ms ease; cursor: pointer;
   }
   .coach-switch::after {
     content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 999px; background: #fff;
-    box-shadow: 0 2px 6px rgb(0 0 0 / 0.18); transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.18); transition: transform 220ms var(--ease-glide);
   }
   .coach-switch:checked { background: var(--gold); }
   .coach-switch:checked::after { transform: translateX(20px); }
   .coach-switch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-  [data-coach] .seg > button { padding: 8px 0; font-size: 14px; font-weight: 600; border-radius: 8px; }
   .coach-preview { border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline); pointer-events: none; }
   /* Save stays in reach at the bottom while the form scrolls. */
   .coach-savebar {

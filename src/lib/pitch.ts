@@ -10,5 +10,7 @@ export const AVATAR = 54;
 export function slotStyle(i: number, rows: number, j: number, n: number, opts: { mirror?: boolean } = {}): string {
   const top = rows <= 1 ? 50 : 84 - (i * 74) / (rows - 1);
   const left = (((opts.mirror ? n - 1 - j : j) + 1) * 100) / (n + 1);
-  return `top:${top}%;left:${left}%;transform:translate(-50%,-${AVATAR / 2}px)`;
+  // As wide as the gap to the next one allows: 24% slots in a back four overlapped and so did long names.
+  const width = Math.min(24, 100 / (n + 1) - 1);
+  return `top:${top}%;left:${left}%;width:${+width.toFixed(2)}%;transform:translate(-50%,-${AVATAR / 2}px)`;
 }

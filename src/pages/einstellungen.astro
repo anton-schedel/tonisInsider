@@ -11,18 +11,17 @@ const errors: Record<string, string> = {
   "li-unavailable": "LigaInsider ist gerade nicht erreichbar. Versuch es gleich nochmal.",
 };
 
-const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ring-2 focus:ring-[var(--accent)]";
 ---
 <Base title="Einstellungen" tab="einstellungen" logo>
-  <p id="login-error" class="mb-4 hidden rounded-xl px-4 py-3 text-sm font-medium" style="background:var(--red-bg);color:var(--red-fg)" data-errors={JSON.stringify(errors)}></p>
+  <p id="login-error" class="alert-error mb-4 hidden" data-errors={JSON.stringify(errors)}></p>
 
   <section class="mb-8">
     <h2 class="mb-3 text-[15px] font-semibold">Darstellung</h2>
     {/* Segmented control: the raised thumb glides to the choice (markTheme in Base.astro sets --i). */}
     <div class="seg" role="group" aria-label="Darstellung" data-theme-seg>
       <span class="seg-thumb" aria-hidden="true"></span>
-      <button type="button" data-theme-set="light" class="press rounded-lg py-2 text-[14px] font-semibold">Hell</button>
-      <button type="button" data-theme-set="dark" class="press rounded-lg py-2 text-[14px] font-semibold">Dunkel</button>
+      <button type="button" data-theme-set="light" class="press">Hell</button>
+      <button type="button" data-theme-set="dark" class="press">Dunkel</button>
     </div>
   </section>
 
@@ -32,14 +31,14 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
       <p class="text-[15px]">Angemeldet<span data-kb-as class="hidden"> als <b data-kb-name></b></span>.</p>
       <form method="post" action="/api/logout/" class="mt-3" data-astro-reload>
         <input type="hidden" name="next" value="/einstellungen/" />
-        <button type="submit" class="press rounded-xl bg-surface px-4 py-3 text-[15px] font-semibold">Abmelden</button>
+        <button type="submit" class="press btn btn-quiet">Abmelden</button>
       </form>
     </div>
     <form data-kb-form method="post" action="/api/login/" class="mt-3 flex flex-col gap-3" data-astro-reload>
       <p class="text-[15px] text-muted">Für dein Team, die Aufstellungen und die passenden News.</p>
-      <input name="email" type="email" required autocomplete="username" placeholder="Kickbase E-Mail" class={field} />
-      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class={field} />
-      <button type="submit" class="press mt-1 rounded-xl bg-fg py-3 text-[16px] font-semibold text-bg">Anmelden</button>
+      <input name="email" type="email" required autocomplete="username" placeholder="Kickbase E-Mail" class="field" />
+      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class="field" />
+      <button type="submit" class="press btn btn-primary mt-1 text-[16px]">Anmelden</button>
     </form>
   </section>
 
@@ -49,15 +48,15 @@ const field = "rounded-xl bg-surface px-4 py-3 text-[16px] outline-none focus:ri
       <p class="text-[15px]">Angemeldet als <b data-li-name></b>.</p>
       <form method="post" action="/api/li-logout/" class="mt-3" data-astro-reload>
         <input type="hidden" name="next" value="/einstellungen/" />
-        <button type="submit" class="press rounded-xl bg-surface px-4 py-3 text-[15px] font-semibold">Abmelden</button>
+        <button type="submit" class="press btn btn-quiet">Abmelden</button>
       </form>
     </div>
     <form data-li-form method="post" action="/api/li-login/" class="mt-3 flex flex-col gap-3" data-astro-reload>
       <p class="text-[15px] text-muted">Zum Kommentieren, Antworten, Hochvoten und für Umfragen.</p>
-      <input name="username" type="text" required autocomplete="username" placeholder="Benutzername oder E-Mail" class={field} />
-      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class={field} />
+      <input name="username" type="text" required autocomplete="username" placeholder="Benutzername oder E-Mail" class="field" />
+      <input name="password" type="password" required autocomplete="current-password" placeholder="Passwort" class="field" />
       <input type="hidden" name="next" value="/einstellungen/" data-li-next />
-      <button type="submit" class="press mt-1 rounded-xl bg-fg py-3 text-[16px] font-semibold text-bg">Anmelden</button>
+      <button type="submit" class="press btn btn-primary mt-1 text-[16px]">Anmelden</button>
     </form>
     <p class="mt-3 text-xs text-muted">Passwörter bleiben verschlüsselt nur in deinem Browser. Auf dem Server wird nichts gespeichert. Die beiden Konten sind unabhängig.</p>
   </section>

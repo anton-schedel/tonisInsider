@@ -2,7 +2,7 @@ import type { NewsType } from "../../scraper/types.ts";
 import type { BotMood, CoachPost, CoachType } from "./coachPosts.ts";
 import { CLUB } from "./coachPosts.ts";
 import { localInput, namesOf, statusOf, toBody, type FormValues } from "./coachForm.ts";
-import { NEWS_TYPE } from "./newsTypes.ts";
+import { NEWS_TYPE, toneClass } from "./newsTypes.ts";
 import { time } from "./format.ts";
 
 /** The coach's page (/schnoeselmob/): sign in, the list of posts, the editor with its preview. */
@@ -289,24 +289,30 @@ export function initCoach() {
     const v = values();
     const box = q("[data-preview]");
     const lineup = v.type === "lineup";
-    const row = el("div", "flex items-center py-3.5 " + (lineup ? "gap-2" : "gap-4"));
-    const pic = el("img", "shrink-0 rounded-full object-cover");
+    // Like ArticleRow: the crest as it is for a lineup or a post without photo; a photo round, the crest on its corner.
+    const row = el("div", "flex items-center " + (lineup ? "gap-2" : "gap-4"));
     const size = lineup ? 72 : 64;
-    pic.style.cssText = `width:${size}px;height:${size}px`;
-    pic.src = v.type === "player" && photoUrl ? photoUrl : CLUB.crest;
-    pic.alt = "";
-    const text = el("div", "min-w-0 flex-1");
-    text.append(el("div", "mb-1 text-[17px] leading-snug font-semibold tracking-[-0.015em]", v.headline.trim() || "Überschrift"));
-    const meta = el("div", "flex items-center gap-1.5 text-[13px] text-muted");
-    const pill = v.type === "player" ? NEWS_TYPE[v.badge] : undefined;
-    if (pill) {
-      const p = el("span", "rounded-full px-2 py-[1px] text-[13px] font-semibold", pill.label);
-      p.style.cssText = `background:var(--${pill.tone}-bg);color:var(--${pill.tone}-fg)`;
-      meta.append(p);
+    const photo = v.type === "player" && photoUrl;
+    const pic = el("span", "relative shrink-0");
+    const img = el("img", photo ? "rounded-full object-cover" : "object-contain");
+    img.style.cssText = `width:${size}px;height:${size}px`;
+    img.src = photo || CLUB.crest;
+    img.alt = "";
+    pic.append(img);
+    if (photo) {
+      const crest = el("img", "crest-overlay -right-1.5 -bottom-1 size-[26px]");
+      crest.src = CLUB.crest;
+      crest.alt = "";
+      pic.append(crest);
     }
+    const text = el("div", "min-w-0 flex-1");
+    text.append(el("div", "feed-title", v.headline.trim() || "Überschrift"));
+    const meta = el("div", "feed-meta");
+    const pill = v.type === "player" ? NEWS_TYPE[v.badge] : undefined;
+    if (pill) meta.append(el("span", `pill ${toneClass(pill.tone)}`, pill.label));
     const at = v.when === "now" || !v.at ? new Date() : new Date(v.at);
-    meta.append(el("span", "min-w-0 truncate", v.type === "player" && v.playerName.trim() ? v.playerName.trim() : CLUB.name));
-    meta.append(el("span", "-ml-0.5 shrink-0 tabular-nums", `· ${Number.isNaN(at.getTime()) ? "" : time(at.toISOString())}`));
+    meta.append(el("span", "min-w-[3.5em] truncate", v.type === "player" && v.playerName.trim() ? v.playerName.trim() : CLUB.name));
+    meta.append(el("span", "-ml-0.5 shrink-0 tabular-nums", `·\u00a0${Number.isNaN(at.getTime()) ? "" : time(at.toISOString())}`));
     text.append(meta);
     if (lineup) {
       const lines = v.lines.map(namesOf).filter((l) => l.length);
@@ -316,10 +322,11 @@ export function initCoach() {
       text.append(el("div", "mt-1 text-[15px] tabular-nums", home ? `${CLUB.name} – ${v.opponent.trim()} ${v.ours}:${v.theirs}` : `${v.opponent.trim()} – ${CLUB.name} ${v.theirs}:${v.ours}`));
     }
     row.append(pic, text);
-    const parts: HTMLElement[] = [row];
+    const item = el("div", "py-3.5");
+    item.append(row);
     const bench = namesOf(v.bench);
-    if (lineup && bench.length) parts.push(el("div", "-mt-1.5 pb-3.5 text-[13px] leading-snug text-muted", `Bank: ${bench.join(", ")}`));
-    box.replaceChildren(...parts);
+    if (lineup && bench.length) item.append(el("div", "mt-2 text-[13px] leading-snug text-muted", `Bank: ${bench.join(", ")}`));
+    box.replaceChildren(item);
   }
 
   // --- Wiring ----------------------------------------------------------------------------------------------

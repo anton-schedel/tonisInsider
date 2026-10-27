@@ -1,0 +1,9 @@
+---
+/** A section's heading (22 px, bold) with a quiet count or note on the right, given as the slot. */
+interface Props { title: string; class?: string }
+const { title, class: cls } = Astro.props;
+---
+<div class:list={["section-head", cls]}>
+  <h2>{title}</h2>
+  {Astro.slots.has("default") && <span class="section-count"><slot /></span>}
+</div>

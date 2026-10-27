@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import PlayerCard from "../components/PlayerCard.astro";
+import SectionHead from "../components/SectionHead.astro";
 import { allPlayers } from "../lib/players.ts";
 
 // Every squad player with his card, for the search and the scout list (rendered in the browser below).
@@ -22,10 +23,7 @@ const players = allPlayers();
   </section>
 
   <section data-scoutlist class="mt-7">
-    <div class="mb-1 flex items-baseline justify-between">
-      <h2 class="text-[22px] font-bold tracking-[-0.02em]">Scoutliste</h2>
-      <span class="text-[15px] font-semibold text-muted tabular-nums" data-scout-count></span>
-    </div>
+    <SectionHead title="Scoutliste" class="mb-1"><span data-scout-count></span></SectionHead>
     <ul class="divide-y divide-hairline" data-scout-list></ul>
     <div data-scout-empty hidden>
       <p class="pt-1 pb-2 text-[15px] leading-snug text-muted">Beobachte Spieler, die du nicht im Team hast: Ihre News landen hier, und der Tab zeigt dir, wenn es Neues gibt.</p>
@@ -44,7 +42,8 @@ const players = allPlayers();
   import type { PlayerEntry } from "../lib/players.ts";
   import { cachedScout, loadScout, markSeen, setScouted, unseen, type ScoutState } from "../lib/scoutClient.ts";
   import { fold, initials, when } from "../lib/format.ts";
-  import { NEWS_TYPE } from "../lib/newsTypes.ts";
+  import { NEWS_TYPE, toneClass } from "../lib/newsTypes.ts";
+  import { EASE_GLIDE } from "../lib/motion.ts";
 
   const LIMIT = 40;
   type Indexed = PlayerEntry & { key: string };
@@ -74,7 +73,7 @@ const players = allPlayers();
       const crest = document.createElement("img");
       crest.src = p.crest;
       crest.alt = "";
-      crest.className = "absolute -right-1.5 -bottom-1 size-[18px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]";
+      crest.className = "crest-overlay -right-1.5 -bottom-1 size-[18px]";
       wrap.append(box, crest);
       return wrap;
     }
@@ -110,8 +109,7 @@ const players = allPlayers();
       const line = h("span", `mt-0.5 flex items-center gap-1.5 text-xs ${opts.fresh ? "text-fg" : "text-muted"}`);
       const type = NEWS_TYPE[latest.type];
       if (type) {
-        const pill = h("span", "shrink-0 rounded-full px-[6px] py-[1px] text-[10px] font-semibold", type.label);
-        pill.style.cssText = `background:var(--${type.tone}-bg);color:var(--${type.tone}-fg)`;
+        const pill = h("span", `pill pill-sm shrink-0 ${toneClass(type.tone)}`, type.label);
         line.append(pill);
       }
       line.append(h("span", "min-w-0 truncate", latest.title), h("span", "ml-auto shrink-0 pl-1 tabular-nums text-muted", when(latest.at, new Date())));
@@ -264,7 +262,7 @@ const players = allPlayers();
       saving = saving.then(() => setScouted(id, true)).then(() => {
         const li = document.querySelector<HTMLElement>(`[data-scout-list] [data-player="${id}"]`);
         if (li && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-          li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+          li.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: EASE_GLIDE });
         }
       }).catch(() => {});
     });

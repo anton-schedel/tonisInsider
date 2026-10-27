@@ -1,0 +1,28 @@
+---
+import Avatar from "./Avatar.astro";
+import { AVATAR } from "../lib/pitch.ts";
+
+/**
+ * A player on the pitch (lineups, Mein Team, grades): photo with its badges (default slot), the points chip
+ * (slot "points"), name and a short note. The club page's live script finds the parts by data-face-*.
+ */
+interface Props {
+  photo?: string;
+  name: string;
+  /** An alternative or substitute: a yellow ring instead of the white one. */
+  alt?: boolean;
+  note?: string;
+  /** "Bank" is red, every other note yellow. */
+  noteRed?: boolean;
+  /** The note is a prediction ("Alt: …", "statt …"), hidden from kickoff on (club pages). */
+  prediction?: boolean;
+}
+const { photo, name, alt = false, note, noteRed = false, prediction = false } = Astro.props;
+---
+<span class="relative" data-face-pic>
+  <Avatar src={photo} name={name} size={AVATAR} class:list={["shadow-md ring-2", alt ? "ring-[var(--yellow-dot)]" : "ring-white/80"]} />
+  <slot />
+</span>
+<slot name="points" />
+<span class="pitch-name" data-face-name>{name}</span>
+{note && <span class:list={["pitch-note", noteRed && "is-red"]} data-prediction={prediction ? "" : undefined}>{note}</span>}

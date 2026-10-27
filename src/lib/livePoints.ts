@@ -1,4 +1,5 @@
 import type { KbEvent, KbLive } from "./kickbase.ts";
+import { swapText } from "./swapText.ts";
 import type { SlotPlay } from "./match.ts";
 
 /**
@@ -67,6 +68,24 @@ export function pointsLabel(live: KbLive | undefined): PointsLabel | undefined {
   const text = live.points !== undefined ? String(live.points) : live.state === 1 ? "0" : "–";
   const tier = pointsTier(live.points);
   return { text, live: live.state === 1, ...(tier ? { tier } : {}) };
+}
+
+/** What a screen reader says for a points chip. */
+export const pointsAria = (label: PointsLabel) => `${label.text} Kickbase-Punkte${label.live ? ", live" : ""}`;
+
+/**
+ * Fills a points chip (KbPoints.astro) with its label, or hides it when there is none. ease: the chip was
+ * showing a number, so a change dips once (swapText); one that just appears is set.
+ */
+export function applyPoints(el: HTMLElement, label: PointsLabel | undefined, ease = false) {
+  el.hidden = !label;
+  if (!label) return;
+  const text = el.querySelector("[data-kb-text]")!;
+  if (ease) swapText(text, label.text);
+  else text.textContent = label.text;
+  el.classList.toggle("is-live", label.live);
+  setTier(el, label.tier);
+  el.setAttribute("aria-label", pointsAria(label));
 }
 
 /** The live updates (Mein Team) poll while a match of the XI or bench has started and isn't over. */

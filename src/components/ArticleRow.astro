@@ -33,7 +33,7 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
 {/* Club, time and comments: the same line under every kind of post. */}
 {(() => {
   const meta = (
-    <span class="flex items-center gap-1.5 text-[13px] text-muted">
+    <span class="feed-meta">
       <StatusPill type={a.newsType} />
       {/* The name shortens on narrow rows; the time always stays visible. */}
       <span class="min-w-[3.5em] truncate">{a.player?.name ?? a.club?.name ?? by.name}</span>
@@ -54,7 +54,7 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
           {a.club ? <Crest src={a.club.crest} name={a.club.name} size={72} /> : <Avatar src={by.logo} name={by.name} size={72} />}
         </span>
         <span class="min-w-0 flex-1">
-          <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+          <span class="feed-title">{a.headline}</span>
           {meta}
           <span class="mt-2 block text-[15px] leading-snug">{lineup.xi}</span>
         </span>
@@ -70,11 +70,11 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
             ? <Crest src={a.club.crest} name={a.club.name} size={64} />
             : <Avatar src={by.logo} name={by.name} size={64} />}
         {face && a.club?.crest && (
-          <img src={a.club.crest} alt="" class="absolute -right-1.5 -bottom-1 size-[26px] object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" />
+          <img src={a.club.crest} alt="" class="crest-overlay -right-1.5 -bottom-1 size-[26px]" />
         )}
       </span>
       <span class="min-w-0 flex-1">
-        <span class="mb-1 block text-[17px] leading-snug font-semibold tracking-[-0.015em]">{a.headline}</span>
+        <span class="feed-title">{a.headline}</span>
         {meta}
       </span>
     </a>

@@ -23,7 +23,7 @@
             <div class="fut-meta">
               <img data-f="crest" alt="" class="fut-crest" hidden />
               <span data-f="pos" class="fut-pos"></span>
-              <span data-f="status" class="max-w-full truncate rounded-full px-[7px] py-[1px] text-[11.5px] font-semibold whitespace-nowrap" hidden></span>
+              <span data-f="status" class="pill pill-lg max-w-full truncate" hidden></span>
             </div>
           </div>
         </div>
@@ -49,12 +49,12 @@
   </div>
   {/* Always in reach: points and news scroll above it. */}
   <div class="player-card-foot">
-    <button type="button" data-scout-toggle class="scout-toggle press flex-1 rounded-xl bg-surface py-3 text-[15px] font-semibold" aria-pressed="false" hidden>
+    <button type="button" data-scout-toggle class="scout-toggle press btn btn-quiet flex-1 px-0" aria-pressed="false" hidden>
       <svg viewBox="0 0 24 24" class="size-[17px]" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
       <span data-scout-label>Scouten</span>
     </button>
-    <a data-f="href" class="press flex-1 rounded-xl bg-surface py-3 text-center text-[15px] font-semibold" hidden>Zum Verein</a>
-    <button type="button" data-card-close class="press flex-1 rounded-xl bg-fg py-3 text-[15px] font-semibold text-bg">Schließen</button>
+    <a data-f="href" class="press btn btn-quiet flex-1 px-0" hidden>Zum Verein</a>
+    <button type="button" data-card-close class="press btn btn-primary flex-1 px-0">Schließen</button>
   </div>
 </dialog>
 
@@ -62,7 +62,7 @@
   import type { CardData, CardNews } from "../lib/card.ts";
   import { actionTier, setTier, TIERS, type PlayerPoints, type PointsLine } from "../lib/livePoints.ts";
   import { initials, when } from "../lib/format.ts";
-  import { NEWS_TYPE } from "../lib/newsTypes.ts";
+  import { NEWS_TYPE, toneClass } from "../lib/newsTypes.ts";
   import { loadScout, setScouted } from "../lib/scoutClient.ts";
 
   /** The card's star: on the scout list or not (LigaInsider id in the card; none, no star). */
@@ -94,8 +94,7 @@
     const type = NEWS_TYPE[n.type];
     if (type) {
       const pill = document.createElement("span");
-      pill.className = "fut-news-type";
-      pill.style.cssText = `background:var(--${type.tone}-bg);color:var(--${type.tone}-fg)`;
+      pill.className = `pill pill-sm ${toneClass(type.tone)}`;
       pill.textContent = type.label;
       meta.append(pill);
     }
@@ -253,9 +252,7 @@
     const status = f("status");
     status.hidden = !d.status;
     status.textContent = d.status ?? "";
-    status.style.cssText = d.tone === "grey" || !d.tone
-      ? "background:var(--surface);color:var(--muted)"
-      : `background:var(--${d.tone}-bg);color:var(--${d.tone}-fg)`;
+    status.className = `pill pill-lg max-w-full truncate ${toneClass(d.tone)}`;
 
     // A row of stats like on a FIFA card: value, then the label.
     // Only stats with a value, and not the one already shown big.
