@@ -14,7 +14,9 @@ describe("dueJobs", () => {
     expect(dueJobs(jobs, NOW).map((j) => j.post_id)).toEqual([2, 1]);
   });
   it("leaves a job alone while the page may still be writing it", () => {
-    expect(dueJobs([job({ updated_at: "2026-10-22T20:26:00.000Z" })], NOW)).toEqual([]);
+    expect(dueJobs([job({ updated_at: "2026-10-22T20:29:00.000Z" })], NOW)).toEqual([]);
+    expect(dueJobs([job({ updated_at: "2026-10-22T20:26:00.000Z" })], NOW)).toHaveLength(1);
+    expect(dueJobs([job({ updated_at: "2026-10-22T20:26:00.000Z" })], NOW, 6 * 60_000)).toEqual([]);
   });
   it("gives up after three tries", () => {
     expect(dueJobs([job({ state: "failed", tries: 3 })], NOW)).toEqual([]);

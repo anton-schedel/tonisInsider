@@ -11,14 +11,18 @@ import { kickoffDay } from "./format.ts";
  */
 export type BotJob = { post_id: number; state: "pending" | "done" | "failed"; tries: number; updated_at: string };
 
-/** A job the page may still be writing isn't touched before this. */
-const STALE_MS = 6 * 60_000;
+/**
+ * A job that may still be running isn't touched before this: Grok writes a post's comments in under half a minute,
+ * so 2 minutes; Morpheus (the fallback) can take 5, and two runs of one post at once could double its comments.
+ */
+const STALE_MS = 2 * 60_000;
+const STALE_SLOW_MS = 6 * 60_000;
 const MAX_TRIES = 3;
 const PER_RUN = 2;
 
-export function dueJobs(jobs: BotJob[], now: Date): BotJob[] {
+export function dueJobs(jobs: BotJob[], now: Date, staleMs = STALE_MS): BotJob[] {
   return jobs
-    .filter((j) => j.state !== "done" && j.tries < MAX_TRIES && Date.parse(j.updated_at) <= now.getTime() - STALE_MS)
+    .filter((j) => j.state !== "done" && j.tries < MAX_TRIES && Date.parse(j.updated_at) <= now.getTime() - staleMs)
     .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
     .slice(0, PER_RUN);
 }
@@ -127,7 +131,7 @@ export const resetJob = (db: D1, postId: number) => db.prepare("DELETE FROM coac
 /** The cron's part: finish jobs the page left behind. */
 export async function runDueJobs(db: D1, cfg: ModelConfig | undefined): Promise<void> {
   const { results } = await db.prepare("SELECT post_id, state, tries, updated_at FROM coach_bots WHERE state != 'done'").bind().all<BotJob>();
-  for (const job of dueJobs(results, new Date())) {
+  for (const job of dueJobs(results, new Date(), cfg && cfg.batch < 50 ? STALE_SLOW_MS : STALE_MS)) {
     await startJob(db, job.post_id);
     const r = await writeBots(db, cfg, job.post_id);
     await endJob(db, job.post_id, "bots" in r);
