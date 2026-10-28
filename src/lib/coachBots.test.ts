@@ -149,6 +149,20 @@ describe("seasonBefore", () => {
   });
 });
 
+describe("catchUp", () => {
+  const rows = [{ id: 1, created_at: "2026-10-28T19:00:03Z" }, { id: 2, created_at: "2026-10-28T19:04:00Z" }];
+  it("starts the comments now when a post was brought forward (seen: lineup for 20:00 published at 19:06)", async () => {
+    const { catchUp } = await import("./coachBots.ts");
+    const now = new Date("2026-10-28T18:06:30Z");
+    const moved = catchUp(rows, "2026-10-28T18:06:08Z", now);
+    expect(moved.map((r) => r.created_at)).toEqual(["2026-10-28T18:06:35.000Z", "2026-10-28T18:10:32.000Z"]);
+    // Comments already coming, or planned right after the post, or the post not out yet: left alone.
+    expect(catchUp(rows, "2026-10-28T18:59:30Z", new Date("2026-10-28T19:00:00Z"))).toEqual([]);
+    expect(catchUp(rows, "2026-10-28T18:06:08Z", new Date("2026-10-28T19:01:00Z"))).toEqual([]);
+    expect(catchUp(rows, "2026-10-28T19:00:00Z", now)).toEqual([]);
+  });
+});
+
 describe("body insult filter", () => {
   it("drops comments that insult someone's body anyway", () => {
     const out = parseBots(JSON.stringify([

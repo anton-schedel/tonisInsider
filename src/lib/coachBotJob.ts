@@ -1,7 +1,7 @@
 import type { D1 } from "cloudflare:workers";
 import { insertComment, removeExtras } from "./ownCommentsDb.ts";
 import { getPost, listPosts } from "./coachDb.ts";
-import { applyPlan, askModel, batchPlan, botCount, botNames, botPrompt, commentPlan, comparePlan, storiesOf, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
+import { applyPlan, askModel, catchUp, batchPlan, botCount, botNames, botPrompt, commentPlan, comparePlan, storiesOf, dropSimilar, pollAllowance, spread, botRows, parseBots, playerNames, shouldWriteBots, topicsOf, type BotComment, type ModelConfig } from "./coachBots.ts";
 import { kickoffDay } from "./format.ts";
 
 /**
@@ -43,7 +43,12 @@ export async function writeBots(db: D1, cfg: ModelConfig | undefined, postId: nu
     await clear();
     return { bots: 0 };
   }
-  if (todo === "keep") return { bots: existing?.n ?? 0, kept: true };
+  if (todo === "keep") {
+    const { results: rows } = await db.prepare("SELECT id, created_at FROM comments WHERE post_id = ? AND sender = 'bot'").bind(post.id).all<{ id: number; created_at: string }>();
+    const moved = catchUp(rows, post.publishedAt, new Date());
+    if (moved.length) await db.batch(moved.map((r) => db.prepare("UPDATE comments SET created_at = ? WHERE id = ?").bind(r.created_at, r.id)));
+    return { bots: existing?.n ?? 0, kept: true };
+  }
   if (!cfg) return { error: "Bot-Kommentare sind noch nicht eingerichtet.", status: 503 };
 
   // The coach's earlier results, newest first, and the rest of the club's story.

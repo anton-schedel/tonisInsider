@@ -453,6 +453,18 @@ export function startNow(rows: { id: number; created_at: string }[], now: Date):
   return planned.map((r) => ({ id: r.id, created_at: new Date(Date.parse(r.created_at) - shift).toISOString() }));
 }
 
+/**
+ * A post brought forward keeps its comments (shouldWriteBots: "keep"), but they were written for the old time:
+ * scheduled for 20:00, saved as "now" at 19:06, it got its first comment at 20:00. When none is out yet and the
+ * first comes over a minute after the post, they start now (startNow).
+ */
+export function catchUp(rows: { id: number; created_at: string }[], publishedAt: string, now: Date): { id: number; created_at: string }[] {
+  if (!rows.length || Date.parse(publishedAt) > now.getTime()) return [];
+  const first = Math.min(...rows.map((r) => Date.parse(r.created_at)));
+  if (first <= now.getTime() || first - Date.parse(publishedAt) <= 60_000) return [];
+  return startNow(rows, now);
+}
+
 export type BotRow = { name: string; body: string; createdAt: string; replyTo?: number; upvotes?: number; poll?: BotPoll };
 
 /** When each comment appears: its minute after the post plus a few seconds, replies after their parent. */
