@@ -206,7 +206,6 @@ const field = "field w-full";
           {Object.entries(BOT_MOODS).map(([id, label]) => <button type="button" class="press coach-chip" data-mood={id}>{label[0].toUpperCase() + label.slice(1)}</button>)}
         </div>
         <textarea name="context" rows="2" placeholder="Was die Bots wissen sollen, z. B. „Zwei Stammspieler waren krank.“" class={`${field} mt-2.5 resize-y leading-snug`}></textarea>
-        <p class="mt-1.5 text-[13px] text-muted">Die Bots frotzeln über Fußball und die Geschichten hier, nie über Aussehen, Gewicht oder Herkunft.</p>
       </div>
 
       {/* The post's comments, so the coach can take one down. */}
