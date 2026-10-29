@@ -44,3 +44,6 @@ export const when = (iso: string, now: Date) => (now.getTime() - Date.parse(iso)
 const LETTERS: Record<string, string> = { ø: "o", æ: "ae", œ: "oe", ł: "l", đ: "d", ð: "d", þ: "th", ß: "ss", ı: "i" };
 export const fold = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[øæœłđðþßı]/g, (c) => LETTERS[c]);
+
+/** A name in a feed row's meta line keeps 3.5em when squeezed only if it's longer than that anyway. */
+export const nameMin = (name: string) => (name.length > 7 ? "min-w-[3.5em]" : "");

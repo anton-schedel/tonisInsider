@@ -3,7 +3,7 @@ import type { BotMood, CoachPost, CoachThumb, CoachType } from "./coachPosts.ts"
 import { CLUB, CLUB_BANNER, coachBody } from "./coachPosts.ts";
 import { localInput, namesOf, statusOf, toBody, type FormValues } from "./coachForm.ts";
 import { NEWS_TYPE, toneClass } from "./newsTypes.ts";
-import { fullDate, time } from "./format.ts";
+import { fullDate, nameMin, time } from "./format.ts";
 import { confirmedLineup } from "./lineupNews.ts";
 import { defaultCrop, fit, rounded, sameCrop, square, type Crop } from "./coachCrop.ts";
 import { EASE_GLIDE } from "./motion.ts";
@@ -485,7 +485,7 @@ export function initCoach() {
     title.classList.toggle("text-muted", !headline);
     q("[data-feed-meta]").replaceChildren(
       ...(pill ? [el("span", `pill ${toneClass(pill.tone)}`, pill.label)] : []),
-      el("span", "min-w-[3.5em] truncate", player ? name || "Spieler" : CLUB.name),
+      el("span", `truncate ${nameMin(player ? name || "Spieler" : CLUB.name)}`, player ? name || "Spieler" : CLUB.name),
       el("span", "-ml-0.5 shrink-0 tabular-nums", `· ${iso ? time(iso) : ""}`),
     );
     const xi = q("[data-feed-xi]");
