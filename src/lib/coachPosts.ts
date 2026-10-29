@@ -18,11 +18,12 @@ export type CoachPostData = {
   /**
    * The round picture in the feed (player news), cut in the editor: imageId the 256 px square, source the photo it
    * was cut from (the article photo or one of its own), x/y the cut's centre in that photo (0..1), zoom 1..4.
+   * preset: not cut but the player's team-photo avatar as it is (imageId the avatar, source his team photo).
    */
   thumb?: CoachThumb;
 };
 
-export type CoachThumb = { imageId: string; source: string; x: number; y: number; zoom: number };
+export type CoachThumb = { imageId: string; source: string; x: number; y: number; zoom: number; preset?: boolean };
 
 /** How the bot commenters feel about a post (the coach picks it). */
 export const BOT_MOODS = { gemischt: "gemischt", froehlich: "fröhlich", frech: "frech", wuetend: "wütend", traurig: "traurig" } as const;
@@ -164,7 +165,7 @@ export function validate(raw: unknown, now: Date): CoachInput | { error: string 
   const t = (d.thumb ?? {}) as Record<string, unknown>;
   const ids = [t.imageId, t.source].every((id) => typeof id === "string" && HEX16.test(id));
   if (type === "player" && ids && [t.x, t.y, t.zoom].every((n) => typeof n === "number" && Number.isFinite(n))) {
-    data.thumb = { imageId: t.imageId as string, source: t.source as string, x: clamp(t.x as number, 0, 1), y: clamp(t.y as number, 0, 1), zoom: clamp(t.zoom as number, 1, 4) };
+    data.thumb = { imageId: t.imageId as string, source: t.source as string, x: clamp(t.x as number, 0, 1), y: clamp(t.y as number, 0, 1), zoom: clamp(t.zoom as number, 1, 4), ...(t.preset === true ? { preset: true } : {}) };
   }
 
   const at = typeof r.publishedAt === "string" ? Date.parse(r.publishedAt) : NaN;

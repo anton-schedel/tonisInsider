@@ -74,6 +74,21 @@ describe("pullCoachPosts", () => {
     expect(JSON.parse(readFileSync(teamFile, "utf8"))["Kevin Nguyen"].photo).toBe("/img/custom/coach/fedcba9876543210.jpg");
   });
 
+  it("saves a team photo's avatar and names it in the map; a broken avatar id is left out", async () => {
+    const { file, imgDir } = setup();
+    const teamFile = join(file, "..", "team-photos.json");
+    const loibl = { player: "Luca Loibl", imageId: "0123456789abcdef", width: 1024, height: 1365, avatarId: "fedcba9876543210" };
+    const torres = { player: "Daniel Torres", imageId: "ab12cd34ef56ab78", width: 900, height: 1200, avatarId: "../../secret" };
+    const calls: string[] = [];
+    await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, teamFile, fetcher: fake([], calls, [loibl, torres]) });
+    expect(existsSync(join(imgDir, "fedcba9876543210.jpg"))).toBe(true);
+    expect(calls.filter((c) => c.includes("/images/"))).toHaveLength(3);
+    expect(JSON.parse(readFileSync(teamFile, "utf8"))).toEqual({
+      "Luca Loibl": { photo: "/img/custom/coach/0123456789abcdef.jpg", width: 1024, height: 1365, avatar: "/img/custom/coach/fedcba9876543210.jpg" },
+      "Daniel Torres": { photo: "/img/custom/coach/ab12cd34ef56ab78.jpg", width: 900, height: 1200 },
+    });
+  });
+
   it("keeps the last posts when the export fails", async () => {
     const { file, imgDir } = setup();
     mkdirSync(join(file, ".."), { recursive: true });

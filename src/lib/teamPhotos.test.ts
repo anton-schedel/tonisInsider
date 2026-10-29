@@ -13,6 +13,12 @@ describe("validateTeamPhoto", () => {
     expect(validateTeamPhoto({ player: "Luca Loibl", imageId: "ab12" })).toHaveProperty("error");
     expect(validateTeamPhoto(null)).toHaveProperty("error");
   });
+  it("takes an avatar id when given, and refuses a broken one", () => {
+    const AV = "0123456789abcdef";
+    expect(validateTeamPhoto({ player: "Luca Loibl", imageId: ID, avatarId: AV })).toEqual({ player: "Luca Loibl", imageId: ID, avatarId: AV });
+    expect(validateTeamPhoto({ player: "Luca Loibl", imageId: ID, avatarId: "../x" })).toHaveProperty("error");
+    expect(validateTeamPhoto({ player: "Luca Loibl", imageId: ID, avatarId: null })).toHaveProperty("error");
+  });
 });
 
 describe("findTeamPhoto", () => {
@@ -46,6 +52,13 @@ describe("ownPosts (content/posts/ with team photos)", () => {
     expect(a.player).toEqual({ id: 900_000_101, slug: "kevin-nguyen", name: "Kevin Nguyen", photo: `/img/custom/coach/${ID}.jpg` });
     expect(a.banner).toBe(`/img/custom/coach/${ID}.jpg`);
     expect(a.bannerSize).toEqual({ width: 1024, height: 1024 });
+  });
+
+  it("shows his avatar as his picture, the full photo stays the banner", () => {
+    const AV = "/img/custom/coach/0123456789abcdef.jpg";
+    const [a] = ownPosts([post()], { "Kevin Nguyen": { photo: `/img/custom/coach/${ID}.jpg`, width: 1024, height: 1024, avatar: AV } }, NOW);
+    expect(a.player?.photo).toBe(AV);
+    expect(a.banner).toBe(`/img/custom/coach/${ID}.jpg`);
   });
 
   it("keeps a banner the post brings itself", () => {

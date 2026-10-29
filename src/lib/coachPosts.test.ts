@@ -104,6 +104,18 @@ describe("validate", () => {
     expect(thumb(good, result)).toBeUndefined(); // only player news shows a picture in the feed
   });
 
+  it("keeps a team-photo avatar as the feed picture, marked preset only when it is one", () => {
+    const thumb = (t: unknown) => {
+      const v = validate({ ...player, data: { ...player.data, thumb: t } }, NOW);
+      return "data" in v ? v.data.thumb : "error";
+    };
+    const avatar = { imageId: "0123456789abcdef", source: "ab12cd34ef56ab78", x: 0.5, y: 0.5, zoom: 1, preset: true };
+    expect(thumb(avatar)).toEqual(avatar);
+    expect(thumb({ ...avatar, preset: "yes" })).not.toHaveProperty("preset");
+    expect(thumb({ ...avatar, preset: false })).not.toHaveProperty("preset");
+    expect(thumb({ ...avatar, imageId: "x" })).toBeUndefined();
+  });
+
   it("keeps the bot settings, with a known mood only", () => {
     const v = validate({ ...lineup, data: { ...lineup.data, bots: { on: true, context: "  Zwei Stammspieler fehlten. " } } }, NOW);
     expect("data" in v && v.data.bots).toEqual({ on: true, context: "Zwei Stammspieler fehlten." });

@@ -10,8 +10,8 @@ export const coachDueIds = (posts: { id: number; publishedAt: string }[], now: D
 /**
  * The coach's posts (/schnoeselmob/, stored in D1): fetched from the site's export each run into
  * store/coach-posts.json, with their photos and the feed's round cuts (data.thumb) in public/img/custom/coach/.
- * The team photos go there too, named in teamFile (store/team-photos.json, player → photo) for the hand-written
- * own posts. A change (new, edited or deleted post or team photo) means a rebuild; a failed fetch keeps the last ones.
+ * The team photos and their avatars go there too, named in teamFile (store/team-photos.json, player → photo) for the
+ * hand-written own posts. A change (new, edited or deleted post or team photo) means a rebuild; a failed fetch keeps the last ones.
  */
 export async function pullCoachPosts(o: { site: string; token: string; file: string; imgDir: string; teamFile?: string; fetcher?: typeof fetch }): Promise<{ changed: boolean; problem?: string }> {
   const fetcher = o.fetcher ?? fetch;
@@ -26,13 +26,17 @@ export async function pullCoachPosts(o: { site: string; token: string; file: str
     const body = (await res.json()) as { posts: typeof posts; teamPhotos?: TeamPhoto[] };
     posts = body.posts;
     if (!Array.isArray(posts)) throw new Error("no posts in the export");
-    if (Array.isArray(body.teamPhotos)) team = body.teamPhotos.filter((t) => typeof t?.player === "string" && HEX16.test(t.imageId));
+    if (Array.isArray(body.teamPhotos)) {
+      // A broken avatar id is dropped (the photo stays), never fetched as a path.
+      team = body.teamPhotos.filter((t) => typeof t?.player === "string" && HEX16.test(t.imageId))
+        .map(({ avatarId, ...t }) => (typeof avatarId === "string" && HEX16.test(avatarId) ? { ...t, avatarId } : t));
+    }
   } catch (err) {
     return { changed: false, problem: `coach posts: ${(err as Error).message}` };
   }
 
   mkdirSync(o.imgDir, { recursive: true });
-  const ids = [...posts.flatMap((p) => [p.image?.id, p.data?.thumb?.imageId]), ...(team ?? []).map((t) => t.imageId)]
+  const ids = [...posts.flatMap((p) => [p.image?.id, p.data?.thumb?.imageId]), ...(team ?? []).flatMap((t) => [t.imageId, t.avatarId])]
     .filter((id): id is string => typeof id === "string" && HEX16.test(id));
   for (const id of new Set(ids)) {
     const path = join(o.imgDir, `${id}.jpg`);
@@ -53,9 +57,9 @@ export async function pullCoachPosts(o: { site: string; token: string; file: str
 
 const HEX16 = /^[0-9a-f]{16}$/;
 
-/** What the site builds with (src/lib/data.ts): player → the photo's path and size. */
+/** What the site builds with (src/lib/data.ts): player → the photo's path and size, and the avatar's path. */
 export const teamMap = (team: TeamPhoto[]): TeamPhotoMap =>
-  Object.fromEntries(team.map((t) => [t.player, { photo: imagePath(t.imageId), width: t.width, height: t.height }]));
+  Object.fromEntries(team.map((t) => [t.player, { photo: imagePath(t.imageId), width: t.width, height: t.height, ...(t.avatarId ? { avatar: imagePath(t.avatarId) } : {}) }]));
 
 function writeIfChanged(file: string, next: string): boolean {
   if (existsSync(file) && readFileSync(file, "utf8") === next) return false;

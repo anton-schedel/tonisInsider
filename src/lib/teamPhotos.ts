@@ -6,22 +6,28 @@ import { CLUB_BANNER } from "./coachPosts.ts";
  * instead of uploading it again, and used by the hand-written own posts (content/posts/, via "teamPhoto").
  * No Worker or Node imports: the editor's bundle uses it too.
  */
-export type TeamPhoto = { player: string; imageId: string; width: number; height: number };
+export type TeamPhoto = {
+  player: string; imageId: string; width: number; height: number;
+  /** His LigaInsider-style picture (cut out on our crest, scripts/team-avatar.py): the feed's circle as it is. */
+  avatarId?: string;
+};
 
-/** store/team-photos.json (written by the scrape run): player → the photo as built into the site. */
-export type TeamPhotoMap = Record<string, { photo: string; width: number; height: number }>;
+/** store/team-photos.json (written by the scrape run): player → the photo (and avatar) as built into the site. */
+export type TeamPhotoMap = Record<string, { photo: string; width: number; height: number; avatar?: string }>;
 
 const HEX16 = /^[0-9a-f]{16}$/;
 const tidy = (s: string) => s.trim().replace(/\s+/g, " ");
 const norm = (s: string) => tidy(s).toLocaleLowerCase("de");
 
 /** PUT /api/coach/team-photos/'s body, checked (that the image exists is the route's job). */
-export function validateTeamPhoto(raw: unknown): { player: string; imageId: string } | { error: string } {
+export function validateTeamPhoto(raw: unknown): { player: string; imageId: string; avatarId?: string } | { error: string } {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const player = typeof r.player === "string" ? tidy(r.player) : "";
   if (player.length < 2 || player.length > 40) return { error: "Der Name braucht 2 bis 40 Zeichen." };
   if (typeof r.imageId !== "string" || !HEX16.test(r.imageId)) return { error: "Ungültige Anfrage." };
-  return { player, imageId: r.imageId };
+  if (r.avatarId === undefined) return { player, imageId: r.imageId };
+  if (typeof r.avatarId !== "string" || !HEX16.test(r.avatarId)) return { error: "Ungültige Anfrage." };
+  return { player, imageId: r.imageId, avatarId: r.avatarId };
 }
 
 /**
@@ -41,15 +47,15 @@ export function findTeamPhoto<T extends { player: string }>(name: string, photos
 export type OwnPostJson = Article & { player?: Article["player"] & { teamPhoto?: string } };
 
 /**
- * Resolves "player": { …, "teamPhoto": "Kevin Nguyen" }: his team photo as the player's picture and, unless the
- * post brings its own, as the banner. Without one stored (yet) the post shows no photo (the crest) and the club's
+ * Resolves "player": { …, "teamPhoto": "Kevin Nguyen" }: his avatar (else his team photo) as the player's picture
+ * and, unless the post brings its own, the full photo as the banner. Without one stored (yet) the post shows no photo (the crest) and the club's
  * banner, never a broken image.
  */
 export function withTeamPhoto(a: OwnPostJson, photos: TeamPhotoMap): Article {
   if (!a.player || a.player.teamPhoto === undefined) return a;
   const { teamPhoto, ...player } = a.player;
   const found = findTeamPhoto(teamPhoto, Object.entries(photos).map(([name, p]) => ({ player: name, ...p })));
-  const out: Article = { ...a, player: found ? { ...player, photo: found.photo } : player };
+  const out: Article = { ...a, player: found ? { ...player, photo: found.avatar ?? found.photo } : player };
   if (a.banner === undefined) {
     out.banner = found?.photo ?? CLUB_BANNER;
     if (found) out.bannerSize = { width: found.width, height: found.height };

@@ -106,6 +106,8 @@ export function initCoach() {
   let thumbSrc: { id: string; url: string } | undefined;
   let crop: Crop | undefined;
   let savedThumb: CoachThumb | undefined;
+  /** The player's team-photo avatar as the feed picture (nothing cut or uploaded), while it belongs to the photo. */
+  let preset: { id: string; source: string } | undefined;
   /** The photo being framed, once loaded: its size, and what the canvas draws when saving. */
   let face: { id: string; url: string; img: HTMLImageElement; ready: Promise<unknown> } | undefined;
   /** The photo came from the typed name (it follows the name); one the coach picked or uploaded stays. */
@@ -254,6 +256,8 @@ export function initCoach() {
 
   const setPhoto = (id: string | undefined, url?: string) => {
     imageId = id;
+    // The avatar was made from one photo: another one (or none) means placing the circle again.
+    if (preset && preset.source !== id) preset = undefined;
     photoUrl = url ?? (id ? imageUrl(id) : undefined);
     const img = q<HTMLImageElement>("[data-photo-preview]");
     img.hidden = !photoUrl;
@@ -292,11 +296,16 @@ export function initCoach() {
     teamRow.querySelectorAll<HTMLElement>("[data-team-id]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.teamId === imageId)));
     teamSave();
   }
-  /** As if the photo had just been uploaded (the feed circle starts from the head again); tapped again, no photo. */
+  /**
+   * As if the photo had just been uploaded (the feed circle starts from the head again); tapped again, no photo.
+   * With an avatar, that is the feed picture as it is (a picture of its own gives way to it).
+   */
   function pickTeam(t: TeamPhoto, auto = false) {
     autoPicked = auto;
+    const off = !auto && imageId === t.imageId;
+    if (!off && t.avatarId) { preset = { id: t.avatarId, source: t.imageId }; thumbSrc = undefined; }
     if (!thumbSrc) crop = undefined;
-    setPhoto(!auto && imageId === t.imageId ? undefined : t.imageId);
+    setPhoto(off ? undefined : t.imageId);
   }
   /** "Als Teamfoto für … merken": after uploading a new photo with the player's name typed (an existing one by that name is replaced). */
   function teamSave() {
@@ -310,6 +319,7 @@ export function initCoach() {
 
   // --- The feed picture ------------------------------------------------------------------------------------
   const source = () => thumbSrc ?? (imageId && photoUrl ? { id: imageId, url: photoUrl } : undefined);
+  const presetOn = () => (preset && !thumbSrc && preset.source === imageId ? preset : undefined);
   const framing = (): Crop | undefined => {
     if (!face?.img.naturalWidth) return undefined;
     const { naturalWidth: w, naturalHeight: h } = face.img;
@@ -339,6 +349,10 @@ export function initCoach() {
   function loadFace() {
     const src = source();
     q("[data-thumb]").hidden = !src;
+    const p = presetOn();
+    q("[data-preset]").hidden = !p;
+    q("[data-crop-tools]").hidden = !!p;
+    if (p) q<HTMLImageElement>("[data-preset-img]").src = imageUrl(p.id);
     q("[data-thumb-reset]").hidden = !thumbSrc;
     q("[data-thumb-label]").textContent = thumbSrc ? "Anderes Bild für den Feed" : "Eigenes Bild für den Feed";
     if (!src) { face = undefined; return; }
@@ -356,8 +370,13 @@ export function initCoach() {
     }, () => {});
   }
 
-  /** What to save as data.thumb: the saved one if nothing changed, else the circle drawn at 256 px and uploaded (null: signed out). */
+  /**
+   * What to save as data.thumb: the avatar as it is, the saved one if nothing changed, else the circle drawn at 256 px
+   * and uploaded (null: signed out).
+   */
   async function feedThumb(): Promise<CoachThumb | undefined | null> {
+    const p = presetOn();
+    if (p) return { imageId: p.id, source: p.source, x: 0.5, y: 0.5, zoom: 1, preset: true };
     const f = face;
     if (!f || !source()) return undefined;
     await f.ready;
@@ -416,10 +435,11 @@ export function initCoach() {
       type = p.type;
       setHome(d.result?.home ?? true);
       setBadge(d.player?.newsType ?? "angeschlagen");
-      // The saved framing comes back; a picture of its own is loaded from its source.
+      // The saved framing comes back (or the avatar); a picture of its own is loaded from its source.
       savedThumb = d.thumb;
-      thumbSrc = d.thumb && d.thumb.source !== p.image?.id ? { id: d.thumb.source, url: imageUrl(d.thumb.source) } : undefined;
-      crop = d.thumb && { x: d.thumb.x, y: d.thumb.y, zoom: d.thumb.zoom };
+      preset = d.thumb?.preset ? { id: d.thumb.imageId, source: d.thumb.source } : undefined;
+      thumbSrc = d.thumb && !d.thumb.preset && d.thumb.source !== p.image?.id ? { id: d.thumb.source, url: imageUrl(d.thumb.source) } : undefined;
+      crop = d.thumb && !d.thumb.preset ? { x: d.thumb.x, y: d.thumb.y, zoom: d.thumb.zoom } : undefined;
       setPhoto(p.image?.id);
       setWhen(Date.parse(p.publishedAt) > now.getTime() ? "later" : "now");
     } else {
@@ -433,7 +453,7 @@ export function initCoach() {
       type = "lineup";
       setHome(true);
       setBadge("angeschlagen");
-      savedThumb = thumbSrc = crop = undefined;
+      savedThumb = thumbSrc = crop = preset = undefined;
       setPhoto(undefined);
       setMood("gemischt");
       q("[data-comments-box]").hidden = true;
@@ -453,15 +473,16 @@ export function initCoach() {
     // Like ArticleRow: the crest as it is for a lineup or a post without photo; a photo round, the crest on its corner.
     const row = el("div", "flex items-center " + (lineup ? "gap-2" : "gap-4"));
     const size = lineup ? 72 : 64;
-    const photo = v.type === "player" ? source()?.url : undefined;
+    const avatar = v.type === "player" ? presetOn() : undefined;
+    const photo = avatar ? imageUrl(avatar.id) : v.type === "player" ? source()?.url : undefined;
     const pic = el("span", "relative shrink-0");
     const img = el("img", photo ? "" : "object-contain");
     img.style.cssText = `width:${size}px;height:${size}px;object-fit:cover;object-position:50% 15%`;
     img.src = photo || CLUB.crest;
     img.alt = "";
     if (photo) {
-      // The circle as it will be cut (drawFace places the photo in it).
-      const circle = el("span", "coach-face relative block overflow-hidden rounded-full bg-surface");
+      // The circle as it will be cut (drawFace places the photo in it); the avatar fills it as it is.
+      const circle = el("span", `${avatar ? "" : "coach-face "}relative block overflow-hidden rounded-full bg-surface`);
       circle.style.cssText = `width:${size}px;height:${size}px`;
       circle.append(img);
       pic.append(circle);
@@ -494,7 +515,7 @@ export function initCoach() {
     const bench = namesOf(v.bench);
     if (lineup && bench.length) item.append(el("div", "mt-2 text-[13px] leading-snug text-muted", `Bank: ${bench.join(", ")}`));
     box.replaceChildren(item);
-    if (photo) drawFace();
+    if (photo && !avatar) drawFace();
   }
 
   // --- Wiring ----------------------------------------------------------------------------------------------
@@ -634,7 +655,7 @@ export function initCoach() {
       const id = await upload(blob, width, height);
       if (!id) return;
       thumbSrc = { id, url: URL.createObjectURL(blob) };
-      crop = undefined;
+      crop = preset = undefined;
       loadFace();
       preview();
     } catch (err) {
@@ -642,9 +663,17 @@ export function initCoach() {
     }
   });
   q("[data-thumb-reset]").addEventListener("click", () => {
-    // Back to the article photo, framed as last saved if that was cut from it.
+    // Back to the article photo, framed as last saved if that was cut from it (or its avatar, if that was saved).
     thumbSrc = undefined;
-    crop = savedThumb?.source === imageId ? savedThumb : undefined;
+    const back = savedThumb?.source === imageId ? savedThumb : undefined;
+    crop = back?.preset ? undefined : back;
+    if (back?.preset) preset = { id: back.imageId, source: back.source };
+    loadFace();
+    preview();
+  });
+  // Placing the circle on the full team photo, from the head as usual.
+  q("[data-preset-off]").addEventListener("click", () => {
+    preset = crop = undefined;
     loadFace();
     preview();
   });

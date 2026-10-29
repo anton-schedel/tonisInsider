@@ -6,14 +6,17 @@ import { validateTeamPhoto } from "../../../lib/teamPhotos.ts";
 
 export const prerender = false;
 
-/** GET /api/coach/team-photos/: { photos: [{ player, imageId, width, height }] }, by name. */
+/** GET /api/coach/team-photos/: { photos: [{ player, imageId, width, height, avatarId? }] }, by name. */
 export const GET: APIRoute = async ({ request, cookies }) => {
   const db = await coachGuard(request, cookies);
   if (db instanceof Response) return db;
   return json({ photos: await listTeamPhotos(db).catch(() => []) });
 };
 
-/** PUT /api/coach/team-photos/ { player, imageId }: sets (or replaces) a player's photo; answers with all of them. */
+/**
+ * PUT /api/coach/team-photos/ { player, imageId, avatarId? }: sets (or replaces) a player's photo and its avatar (one
+ * without keeps the avatar only for the same photo); answers with all of them.
+ */
 export const PUT: APIRoute = async ({ request, cookies }) => {
   const db = await coachGuard(request, cookies);
   if (db instanceof Response) return db;
@@ -21,7 +24,7 @@ export const PUT: APIRoute = async ({ request, cookies }) => {
   if (raw instanceof Response) return raw;
   const input = validateTeamPhoto(raw);
   if ("error" in input) return json(input, 400);
-  if (!(await saveTeamPhoto(db, input.player, input.imageId, new Date()))) return json({ error: "Foto nicht gefunden." }, 404);
+  if (!(await saveTeamPhoto(db, input.player, input.imageId, new Date(), input.avatarId))) return json({ error: "Foto nicht gefunden." }, 404);
   return json({ photos: await listTeamPhotos(db) });
 };
 

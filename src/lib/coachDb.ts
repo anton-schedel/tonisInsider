@@ -69,19 +69,40 @@ export async function exportPosts(db: D1): Promise<CoachPost[]> {
 
 // --- Team photos (src/lib/teamPhotos.ts) ----------------------------------------------------------------------
 
-/** Every team photo with its image's size, by name. */
+/** Every team photo with its image's size and its avatar if any, by name. */
 export async function listTeamPhotos(db: D1): Promise<TeamPhoto[]> {
-  const { results } = await db.prepare(`SELECT t.player, t.image_id AS imageId, i.width, i.height
-    FROM coach_team_photos t JOIN coach_images i ON i.id = t.image_id ORDER BY t.player COLLATE NOCASE`).bind().all<TeamPhoto>();
-  return results;
+  const from = "FROM coach_team_photos t JOIN coach_images i ON i.id = t.image_id ORDER BY t.player COLLATE NOCASE";
+  type Row = TeamPhoto & { avatarId: string | null };
+  const { results } = await db.prepare(`SELECT t.player, t.image_id AS imageId, i.width, i.height, t.avatar_id AS avatarId ${from}`).bind().all<Row>()
+    // Before migration 0007 there is no avatar column: the photos without (the coach's page must not fail on it).
+    .catch(async (err) => {
+      if (!noAvatarColumn(err)) throw err;
+      return db.prepare(`SELECT t.player, t.image_id AS imageId, i.width, i.height ${from}`).bind().all<Row>();
+    });
+  return results.map(({ avatarId, ...t }) => (avatarId ? { ...t, avatarId } : t));
 }
 
-/** Sets a player's photo (a new one replaces the old; the name is stored as last written). False: no such image. */
-export async function saveTeamPhoto(db: D1, player: string, imageId: string, now: Date): Promise<boolean> {
-  if (!(await db.prepare("SELECT 1 AS ok FROM coach_images WHERE id = ?").bind(imageId).first())) return false;
-  await db.prepare(`INSERT INTO coach_team_photos (player, image_id, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT (player) DO UPDATE SET player = excluded.player, image_id = excluded.image_id, updated_at = excluded.updated_at`)
-    .bind(player, imageId, now.toISOString()).run();
+const noAvatarColumn = (err: unknown) => /avatar_id/.test(String((err as Error)?.message ?? err));
+
+/**
+ * Sets a player's photo (a new one replaces the old; the name is stored as last written) and maybe its avatar.
+ * Without one given, the avatar stays only while the photo does: it was cut from that photo. False: no such image.
+ */
+export async function saveTeamPhoto(db: D1, player: string, imageId: string, now: Date, avatarId?: string): Promise<boolean> {
+  for (const id of avatarId ? [imageId, avatarId] : [imageId]) {
+    if (!(await db.prepare("SELECT 1 AS ok FROM coach_images WHERE id = ?").bind(id).first())) return false;
+  }
+  await db.prepare(`INSERT INTO coach_team_photos (player, image_id, avatar_id, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT (player) DO UPDATE SET player = excluded.player, image_id = excluded.image_id, updated_at = excluded.updated_at,
+      avatar_id = coalesce(excluded.avatar_id, CASE WHEN coach_team_photos.image_id = excluded.image_id THEN coach_team_photos.avatar_id END)`)
+    .bind(player, imageId, avatarId ?? null, now.toISOString()).run()
+    .catch(async (err) => {
+      // Before migration 0007: a photo without an avatar still saves.
+      if (avatarId || !noAvatarColumn(err)) throw err;
+      await db.prepare(`INSERT INTO coach_team_photos (player, image_id, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT (player) DO UPDATE SET player = excluded.player, image_id = excluded.image_id, updated_at = excluded.updated_at`)
+        .bind(player, imageId, now.toISOString()).run();
+    });
   return true;
 }
 
