@@ -16,7 +16,7 @@ Astro.response.headers.set("Cache-Control", "private, no-store");
 const signedIn = await coachSignedIn(Astro.cookies);
 let posts: CoachPost[] = [];
 let team: TeamPhoto[] = [];
-if (signedIn && env.COMMENTS) [posts, team] = await Promise.all([listPosts(env.COMMENTS), listTeamPhotos(env.COMMENTS)]);
+if (signedIn && env.COMMENTS) [posts, team] = await Promise.all([listPosts(env.COMMENTS), listTeamPhotos(env.COMMENTS).catch(() => [])]);  // no table before migration 0006: no row, the page still works
 const badges = Object.entries(NEWS_TYPE).flatMap(([id, t]) => (t ? [{ id, label: t.label }] : []));
 const field = "field w-full";
 ---

@@ -10,7 +10,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request, cookies }) => {
   const db = await coachGuard(request, cookies);
   if (db instanceof Response) return db;
-  return json({ photos: await listTeamPhotos(db) });
+  return json({ photos: await listTeamPhotos(db).catch(() => []) });
 };
 
 /** PUT /api/coach/team-photos/ { player, imageId }: sets (or replaces) a player's photo; answers with all of them. */
