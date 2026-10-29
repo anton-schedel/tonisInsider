@@ -1,22 +1,29 @@
 import type { NewsType } from "../../scraper/types.ts";
 import type { BotMood, CoachPost, CoachThumb, CoachType } from "./coachPosts.ts";
-import { CLUB, CLUB_BANNER } from "./coachPosts.ts";
+import { CLUB, CLUB_BANNER, coachBody } from "./coachPosts.ts";
 import { localInput, namesOf, statusOf, toBody, type FormValues } from "./coachForm.ts";
 import { NEWS_TYPE, toneClass } from "./newsTypes.ts";
-import { time } from "./format.ts";
+import { fullDate, time } from "./format.ts";
+import { confirmedLineup } from "./lineupNews.ts";
 import { defaultCrop, fit, rounded, sameCrop, square, type Crop } from "./coachCrop.ts";
 import { EASE_GLIDE } from "./motion.ts";
 import { findTeamPhoto, type TeamPhoto } from "./teamPhotos.ts";
+import {
+  articleChoice, byName, cropFeed, feedChoice, feedFromArticle, feedOf, fromPost, pickArticle, pickFeed, teamArticle, teamFeed,
+  type Feed, type Pic, type Pics,
+} from "./coachPics.ts";
 import { revealIn } from "./commentUi.ts";
 
 /** The coach's page (/schnoeselmob/): sign in, the list of posts, the editor with its preview. */
 
 const LINEUP_HEADLINE = "Aufstellung des TuS Schnöselmob";
+/** A lineup's address on the site (toArticle): what makes the feed show it as a confirmed lineup. */
+const LINEUP_URL = "/tus-schnoeselmob/aufstellung-des-tus-schnoeselmob-0/";
 const TYPE_LABEL: Record<CoachType, string> = { lineup: "Aufstellung", result: "Ergebnis", player: "Spielernews" };
 const imageUrl = (id: string) => `/api/coach/images/${id}/`;
 /** The feed picture's size as stored (the feed shows it at 64 px, 40 on the article; sharp on 3x screens). */
 const THUMB = 256;
-/** The circle in the framing box, and the feed's (64 px, like ArticleRow). */
+/** The circle in the framing box, and the feed's (64 px, like ArticleRow; the article header's is 40). */
 const RING = 160;
 const FACE = 64;
 
@@ -101,20 +108,19 @@ export function initCoach() {
   let home = true;
   let badge: NewsType = "angeschlagen";
   let mood: BotMood = "gemischt";
-  let imageId: string | undefined;
-  let photoUrl: string | undefined;
-  /** The feed picture: a photo of its own (else the article photo's), the framing (unset: defaultCrop), the one saved. */
-  let thumbSrc: { id: string; url: string } | undefined;
-  let crop: Crop | undefined;
+  /** The article's photo and the feed's picture, each with who chose it (coachPics). */
+  let pics: Pics = {};
+  /** The feed picture as saved (unchanged, it isn't cut and uploaded again). */
   let savedThumb: CoachThumb | undefined;
-  /** The player's team-photo avatar as the feed picture (nothing cut or uploaded), while it belongs to the photo. */
-  let preset: { id: string; source: string } | undefined;
-  /** The photo being framed, once loaded: its size, and what the canvas draws when saving. */
+  /** The photo the feed's circle is cut from, once loaded: its size, and what the canvas draws when saving. */
   let face: { id: string; url: string; img: HTMLImageElement; ready: Promise<unknown> } | undefined;
-  /** The photo came from the typed name (it follows the name); one the coach picked or uploaded stays. */
-  let autoPicked = false;
-  /** The photo uploaded in this editor, offered as the player's team photo. */
-  let uploaded: string | undefined;
+  /** Photos uploaded in this editor (offered as the player's team photo) and the pictures of their own, per spot. */
+  let uploadedArticle: string | undefined;
+  let uploadedFeed: string | undefined;
+  let ownArticle: Pic | undefined;
+  let ownFeed: Feed | undefined;
+  /** Crest pictures made here for a photo that is no team photo (yet). */
+  const made = new Map<string, string>();
   /** Set when the cookie ran out while saving: after signing in again, back to the form as it was. */
   let resume = false;
 
@@ -193,24 +199,25 @@ export function initCoach() {
     type = t;
     setSeg(q("[data-type-seg]"), "data-type", t);
     root.querySelectorAll<HTMLElement>("[data-for]").forEach((x) => (x.hidden = x.dataset.for !== t));
-    teamSave();
+    // The name's team photo only in player news (one it filled goes again with another type).
+    followName();
     // The lineup's usual headline comes and goes with the type, unless the coach wrote their own.
     const h = input("headline");
     if (t === "lineup" && !h.value.trim()) h.value = LINEUP_HEADLINE;
     else if (before === "lineup" && t !== "lineup" && h.value === LINEUP_HEADLINE) h.value = "";
-    preview();
+    render();
   };
   const setWhen = (w: "now" | "later") => {
     when = w;
     setSeg(q("[data-when-seg]"), "data-when", w);
     q("[data-at]").hidden = w === "now";
-    preview();
+    render();
   };
   const setHome = (h: boolean) => { home = h; setSeg(q("[data-home-seg]"), "data-home", h ? "1" : "0"); };
   const setBadge = (b: NewsType) => {
     badge = b;
     root.querySelectorAll<HTMLElement>("[data-badge]").forEach((c) => c.classList.toggle("is-on", c.dataset.badge === b));
-    preview();
+    render();
   };
   const setMood = (m: BotMood) => {
     mood = m;
@@ -255,199 +262,84 @@ export function initCoach() {
     q("[data-planned-text]").textContent = `${n} Bot-Kommentar${n === 1 ? "" : "e"} geplant`;
   }
 
-  const setPhoto = (id: string | undefined, url?: string) => {
-    imageId = id;
-    // The avatar was made from one photo: another one (or none) means placing the circle again.
-    if (preset && preset.source !== id) preset = undefined;
-    photoUrl = url ?? (id ? imageUrl(id) : undefined);
-    loadFace();
-    preview();
-    markTeam();
-  };
-
-  // --- Team photos ---------------------------------------------------------------------------------------
-  const teamRow = q("[data-team-row]");
+  // --- The pictures ------------------------------------------------------------------------------------------
   const calm = () => !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const PLUS = '<svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>';
-  /**
-   * The row of faces (a team photo shows its crest picture if it has one), then the photo uploaded here (while it is
-   * the post's), then + for a new one. A just saved one settles in.
-   */
-  function renderTeam(fresh?: string) {
-    const item = (label: string, src: string, round: boolean) => {
-      const b = el("button", "press coach-team-item");
-      b.type = "button";
-      const img = el("img");
-      img.src = src;
-      img.alt = "";
-      img.decoding = "async";
-      // A crest picture is framed already; a photo shows its top, where the head is.
-      if (!round) img.style.objectPosition = "50% 50%";
-      b.append(img, el("span", "", label));
-      return b;
-    };
-    const faces = team.map((t) => {
-      // The last name, as the lineups write them.
-      const b = item(t.player.split(" ").at(-1) ?? t.player, imageUrl(t.avatarId ?? t.imageId), !t.avatarId);
-      b.dataset.teamId = t.imageId;
-      b.setAttribute("aria-label", t.player);
-      b.title = t.player;
-      b.addEventListener("click", () => pickTeam(t));
-      if (t.imageId === fresh && calm()) b.animate([{ opacity: 0, transform: "scale(0.9)" }, { opacity: 1, transform: "none" }], { duration: 360, easing: EASE_GLIDE });
-      return b;
-    });
-    // The photo uploaded here (or saved with the post) that is no team photo: tapped, the post has none.
-    const own = item("Eigenes", "", true);
-    own.dataset.own = "";
-    own.setAttribute("aria-label", "Eigenes Foto");
-    own.hidden = true;
-    own.addEventListener("click", () => { autoPicked = false; setPhoto(undefined); });
-    const add = el("label", "press coach-team-item cursor-pointer");
-    add.title = "Foto hinzufügen";
-    const file = el("input", "sr-only");
-    file.type = "file";
-    file.accept = "image/*";
-    file.dataset.photo = "";
-    file.setAttribute("aria-label", "Foto hinzufügen");
-    const plus = el("span", "coach-team-add");
-    plus.innerHTML = PLUS;
-    add.append(file, plus, el("span", "", "Foto"));
-    teamRow.replaceChildren(...faces, own, add);
-    markTeam();
-  }
-  /** Scrolls the row sideways (only) so a face is in full view, e.g. the one just chosen. */
-  function rowShow(b: Element, smooth: boolean) {
-    const r = b.getBoundingClientRect();
-    const row = teamRow.getBoundingClientRect();
-    const dx = r.right > row.right - 16 ? r.right - row.right + 16 : r.left < row.left + 16 ? r.left - row.left - 16 : 0;
-    if (dx) teamRow.scrollBy({ left: dx, behavior: smooth && calm() ? "smooth" : "auto" });
-  }
-  let shown: Element | null = null;
-  function markTeam() {
-    teamRow.querySelectorAll<HTMLElement>("[data-team-id]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.teamId === imageId)));
-    const own = teamRow.querySelector<HTMLElement>("[data-own]");
-    const mine = !!imageId && !!photoUrl && !team.some((t) => t.imageId === imageId);
-    if (own) {
-      const img = own.querySelector("img")!;
-      if (mine && img.getAttribute("src") !== photoUrl) {
-        img.src = photoUrl!;
-        if (calm()) own.animate([{ opacity: 0, transform: "scale(0.9)" }, { opacity: 1, transform: "none" }], { duration: 360, easing: EASE_GLIDE });
-      }
-      own.hidden = !mine;
-      own.setAttribute("aria-pressed", String(mine));
-    }
-    const pressed = teamRow.querySelector('[aria-pressed="true"]');
-    if (pressed && pressed !== shown) rowShow(pressed, true);
-    shown = pressed;
-    teamSave();
-  }
-  /**
-   * As if the photo had just been uploaded (the feed circle starts from the head again); tapped again, no photo.
-   * With an avatar, that is the feed picture as it is (a picture of its own gives way to it).
-   */
-  function pickTeam(t: TeamPhoto, auto = false) {
-    autoPicked = auto;
-    const off = !auto && imageId === t.imageId;
-    if (!off && t.avatarId) { preset = { id: t.avatarId, source: t.imageId }; thumbSrc = undefined; }
-    if (!thumbSrc) crop = undefined;
-    setPhoto(off ? undefined : t.imageId);
-  }
-  /** "Als Teamfoto für … merken": after uploading a new photo with the player's name typed (an existing one by that name is replaced). */
-  function teamSave() {
-    const b = q<HTMLButtonElement>("[data-team-save]");
-    const name = input("playerName").value.trim().replace(/\s+/g, " ");
-    const player = findTeamPhoto(name, team)?.player ?? name;
-    const offer = type === "player" && !!imageId && imageId === uploaded && player.length >= 2 && player.length <= 40 && !team.some((t) => t.imageId === imageId);
-    b.hidden = !offer;
-    if (offer) { b.textContent = `Als Teamfoto für ${player} merken`; b.dataset.player = player; }
-  }
+  const lastName = (t: TeamPhoto) => t.player.split(" ").at(-1) ?? t.player;
+  const nameMatch = () => (type === "player" ? findTeamPhoto(input("playerName").value, team) : undefined);
+  /** The typed name's team photo goes where nothing was chosen (only in player news). */
+  const followName = () => { pics = byName(pics, nameMatch(), imageUrl); };
 
-  // --- The feed picture ------------------------------------------------------------------------------------
-  const source = () => thumbSrc ?? (imageId && photoUrl ? { id: imageId, url: photoUrl } : undefined);
-  const presetOn = () => (preset && !thumbSrc && preset.source === imageId ? preset : undefined);
-  /** Crest pictures made here for a photo that is no team photo (yet). */
-  const made = new Map<string, string>();
-  /** The crest picture there is for a photo: its team photo's, one made here, or the one the post was saved with. */
-  const avatarFor = (id?: string) => {
-    if (!id) return undefined;
-    const a = team.find((t) => t.imageId === id && t.avatarId)?.avatarId ?? made.get(id)
-      ?? (savedThumb?.preset && savedThumb.source === id ? savedThumb.imageId : undefined) ?? (preset?.source === id ? preset.id : undefined);
-    return a ? { id: a, source: id } : undefined;
-  };
+  /** The crest picture there is for a photo: its team photo's, or one made here. */
+  const avatarOf = (id: string) => team.find((t) => t.imageId === id)?.avatarId ?? made.get(id);
+  /** The feed's square of a photo: the one being framed, its framing (unset: the head), the photo once loaded. */
+  const cut = () => { const f = feedOf(pics); return f?.kind === "cut" ? f : undefined; };
   const framing = (): Crop | undefined => {
-    if (!face?.img.naturalWidth) return undefined;
+    const c = cut();
+    if (!c || !face?.img.naturalWidth || face.id !== c.src.id) return undefined;
     const { naturalWidth: w, naturalHeight: h } = face.img;
-    return crop ? fit(w, h, crop) : defaultCrop(w, h);
+    return c.crop ? fit(w, h, c.crop) : defaultCrop(w, h);
   };
   const stage = q("[data-crop]");
   const stageImg = q<HTMLImageElement>("[data-crop-img]");
 
-  /** The circle in the box and the feed's (the photo section's and the preview's), all from the same framing. */
+  /** The circles cut from the photo (the box's, the feed row's, the article header's), all from the same framing. */
   function drawFace() {
     const c = framing();
     if (!c || !face) return;
     const { naturalWidth: w, naturalHeight: h } = face.img;
-    place(stageImg, w, h, c, RING, stage.clientWidth, stage.clientHeight);
-    form.querySelectorAll<HTMLImageElement>(".coach-face img").forEach((img) => {
-      if (img.getAttribute("src") === face!.url) place(img, w, h, c, FACE);
+    if (stage.clientWidth) place(stageImg, w, h, c, RING, stage.clientWidth, stage.clientHeight);
+    form.querySelectorAll<HTMLImageElement>(".coach-face > img").forEach((img) => {
+      if (img.getAttribute("src") === face!.url) place(img, w, h, c, img.parentElement!.clientWidth || FACE);
     });
     q<HTMLInputElement>("[data-zoom]").value = String(c.zoom);
   }
   const setCrop = (c: Crop) => {
     if (!face?.img.naturalWidth) return;
-    crop = fit(face.img.naturalWidth, face.img.naturalHeight, c);
+    pics = cropFeed(pics, fit(face.img.naturalWidth, face.img.naturalHeight, c));
     drawFace();
   };
 
-  /** Shows the framing for the current photo (hidden without one), loading it first if it's a new one. */
+  /** Loads the photo the feed's circle is cut from (when it is a new one) and frames it. */
   function loadFace() {
-    const src = source();
-    const p = presetOn();
-    // The choice only when there is a crest picture to choose; placing the circle only when it is not that.
-    const avatar = avatarFor(imageId);
-    q("[data-feed-mode]").hidden = !avatar;
-    if (avatar) setSeg(q("[data-feed-mode]"), "data-mode", p ? "preset" : "crop");
-    q("[data-crop-tools]").hidden = !!p;
-    q("[data-thumb-reset]").hidden = !thumbSrc;
-    q("[data-avatar-make]").hidden = !imageId || !!avatar || !!thumbSrc;
-    q("[data-thumb-label]").textContent = thumbSrc ? "Anderes Bild für den Feed" : "Eigenes Bild für den Feed";
-    if (!src) { face = undefined; return; }
-    if (face?.url === src.url) return drawFace();
+    const c = cut();
+    if (!c) { face = undefined; return; }
+    if (face?.url === c.src.url) return drawFace();
     const img = new Image();
-    img.src = src.url;
-    const f = { ...src, img, ready: img.decode() };
+    img.src = c.src.url;
+    const f = { ...c.src, img, ready: img.decode() };
     face = f;
     f.ready.then(() => {
       if (face !== f) return;
-      stageImg.src = src.url;
+      stageImg.src = f.url;
       drawFace();
       // A new photo settles in; dragging after that is immediate.
-      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) stageImg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: EASE_GLIDE });
+      if (calm()) stageImg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: EASE_GLIDE });
     }, () => {});
   }
 
   /**
-   * What to save as data.thumb: the avatar as it is, the saved one if nothing changed, else the circle drawn at 256 px
-   * and uploaded (null: signed out).
+   * What to save as data.thumb (player news only): the crest picture as it is, the saved cut if nothing changed, else
+   * the circle drawn at 256 px and uploaded (null: signed out).
    */
   async function feedThumb(): Promise<CoachThumb | undefined | null> {
-    const p = presetOn();
-    if (p) return { imageId: p.id, source: p.source, x: 0.5, y: 0.5, zoom: 1, preset: true };
-    const f = face;
-    if (!f || !source()) return undefined;
-    await f.ready;
+    const f = feedOf(pics);
+    if (!f) return undefined;
+    if (f.kind === "preset") return { imageId: f.id, source: f.source, x: 0.5, y: 0.5, zoom: 1, preset: true };
+    loadFace();
+    const ff = face!;
+    await ff.ready;
     const c = rounded(framing()!);
-    if (savedThumb && savedThumb.source === f.id && sameCrop(savedThumb, c)) return savedThumb;
-    const s = square(f.img.naturalWidth, f.img.naturalHeight, c);
+    if (savedThumb && !savedThumb.preset && savedThumb.source === ff.id && sameCrop(savedThumb, c)) return savedThumb;
+    const sq = square(ff.img.naturalWidth, ff.img.naturalHeight, c);
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = THUMB;
     const ctx = canvas.getContext("2d")!;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(f.img, s.left, s.top, s.side, s.side, 0, 0, THUMB, THUMB);
+    ctx.drawImage(ff.img, sq.left, sq.top, sq.side, sq.side, 0, 0, THUMB, THUMB);
     const blob = await jpeg(canvas, 0.86);
     if (!blob) throw new Error("Bild konnte nicht gelesen werden.");
-    const imageId = await upload(blob, THUMB, THUMB);
-    return imageId ? { imageId, source: f.id, ...c } : null;
+    const id = await upload(blob, THUMB, THUMB);
+    return id ? { imageId: id, source: ff.id, ...c } : null;
   }
 
   /** Stores a JPEG (POST /api/coach/images/) and returns its id; undefined when signed out (the sign-in shows). */
@@ -463,11 +355,9 @@ export function initCoach() {
   function openEditor(p?: CoachPost) {
     editing = p;
     form.reset();
-    autoPicked = false;
-    uploaded = undefined;
+    closeSheet(false);
+    uploadedArticle = uploadedFeed = ownArticle = ownFeed = undefined;
     say("");
-    picsSay("");
-    setPanel(false, false);
     q("[data-delete]").hidden = !p;
     const now = new Date();
     if (p) {
@@ -493,12 +383,11 @@ export function initCoach() {
       type = p.type;
       setHome(d.result?.home ?? true);
       setBadge(d.player?.newsType ?? "angeschlagen");
-      // The saved framing comes back (or the avatar); a picture of its own is loaded from its source.
+      // The saved pictures count as chosen; one of their own comes back as a choice in its sheet.
       savedThumb = d.thumb;
-      preset = d.thumb?.preset ? { id: d.thumb.imageId, source: d.thumb.source } : undefined;
-      thumbSrc = d.thumb && !d.thumb.preset && d.thumb.source !== p.image?.id ? { id: d.thumb.source, url: imageUrl(d.thumb.source) } : undefined;
-      crop = d.thumb && !d.thumb.preset ? { x: d.thumb.x, y: d.thumb.y, zoom: d.thumb.zoom } : undefined;
-      setPhoto(p.image?.id);
+      pics = fromPost(p.image ? { id: p.image.id, url: imageUrl(p.image.id) } : undefined, p.type === "player" ? d.thumb : undefined, imageUrl);
+      if (articleChoice(pics, team) === "own") ownArticle = pics.article;
+      if (feedChoice(pics, team) === "own") ownFeed = pics.feed;
       setWhen(Date.parse(p.publishedAt) > now.getTime() ? "later" : "now");
     } else {
       // A new lineup starts from the last one: usually only a few names change.
@@ -511,87 +400,23 @@ export function initCoach() {
       type = "lineup";
       setHome(true);
       setBadge("angeschlagen");
-      savedThumb = thumbSrc = crop = preset = undefined;
-      setPhoto(undefined);
+      savedThumb = undefined;
+      pics = {};
       setMood("gemischt");
       q("[data-comments-box]").hidden = true;
       q("[data-planned]").hidden = true;
       setWhen("later");
     }
     setType(type);
-    // The Kommentare part only shows "edit" wording once there is something to replace.
     show("edit");
-    // The row from its start, the post's photo in view.
-    teamRow.scrollLeft = 0;
-    const pressed = teamRow.querySelector('[aria-pressed="true"]');
-    if (pressed) rowShow(pressed, false);
   }
 
-  // --- Preview: the same row as in the news feed ------------------------------------------------------------
-  function preview() {
-    const v = values();
-    q("[data-preview-part]").hidden = v.type === "player";
-    const box = q("[data-preview]");
-    const lineup = v.type === "lineup";
-    // Like ArticleRow: the crest as it is for a lineup or a post without photo; a photo round, the crest on its corner.
-    const row = el("div", "flex items-center " + (lineup ? "gap-2" : "gap-4"));
-    const size = lineup ? 72 : 64;
-    const avatar = v.type === "player" ? presetOn() : undefined;
-    const photo = avatar ? imageUrl(avatar.id) : v.type === "player" ? source()?.url : undefined;
-    const pic = el("span", "relative shrink-0");
-    const img = el("img", photo ? "" : "object-contain");
-    img.style.cssText = `width:${size}px;height:${size}px;object-fit:cover;object-position:50% 15%`;
-    img.src = photo || CLUB.crest;
-    img.alt = "";
-    if (photo) {
-      // The circle as it will be cut (drawFace places the photo in it); the avatar fills it as it is.
-      const circle = el("span", `${avatar ? "" : "coach-face "}relative block overflow-hidden rounded-full bg-surface`);
-      circle.style.cssText = `width:${size}px;height:${size}px`;
-      circle.append(img);
-      pic.append(circle);
-    } else pic.append(img);
-    if (photo) {
-      const crest = el("img", "crest-overlay -right-1.5 -bottom-1 size-[26px]");
-      crest.src = CLUB.crest;
-      crest.alt = "";
-      pic.append(crest);
-    }
-    const text = el("div", "min-w-0 flex-1");
-    text.append(el("div", "feed-title", v.headline.trim() || "Überschrift"));
-    const meta = el("div", "feed-meta");
-    const pill = v.type === "player" ? NEWS_TYPE[v.badge] : undefined;
-    if (pill) meta.append(el("span", `pill ${toneClass(pill.tone)}`, pill.label));
-    const at = v.when === "now" || !v.at ? new Date() : new Date(v.at);
-    meta.append(el("span", "min-w-[3.5em] truncate", v.type === "player" && v.playerName.trim() ? v.playerName.trim() : CLUB.name));
-    meta.append(el("span", "-ml-0.5 shrink-0 tabular-nums", `·\u00a0${Number.isNaN(at.getTime()) ? "" : time(at.toISOString())}`));
-    text.append(meta);
-    if (lineup) {
-      const lines = v.lines.map(namesOf).filter((l) => l.length);
-      if (lines.length) text.append(el("div", "mt-2 text-[15px] leading-snug", lines.map((l) => l.join(", ")).join(" – ")));
-    }
-    if (v.type === "result" && v.opponent.trim()) {
-      text.append(el("div", "mt-1 text-[15px] tabular-nums", home ? `${CLUB.name} – ${v.opponent.trim()} ${v.ours}:${v.theirs}` : `${v.opponent.trim()} – ${CLUB.name} ${v.theirs}:${v.ours}`));
-    }
-    row.append(pic, text);
-    const item = el("div", "py-3.5");
-    item.append(row);
-    const bench = namesOf(v.bench);
-    if (lineup && bench.length) item.append(el("div", "mt-2 text-[13px] leading-snug text-muted", `Bank: ${bench.join(", ")}`));
-    box.replaceChildren(item);
-    renderPics(v);
-    if (photo && !avatar) drawFace();
-  }
-
-  // --- The photo section: the feed's row and the article's banner as they will look ----------------------------
+  // --- Vorschau: the feed's row and the article as the readers will see them -------------------------------
+  const feedSpot = q<HTMLButtonElement>("[data-feed-spot]");
   const feedPic = q("[data-feed-pic]");
-  const banner = q("[data-banner]");
-  const panel = q("[data-feed-panel]");
-  const picsStatus = q("[data-pics-status]");
-  const picsSay = (text: string, kind: "" | "error" = "") => {
-    picsStatus.textContent = text;
-    picsStatus.classList.toggle("text-[var(--red-fg)]", kind === "error");
-    picsStatus.classList.toggle("text-muted", kind !== "error");
-  };
+  const headPic = q("[data-head-pic]");
+  const banner = q<HTMLButtonElement>("[data-banner]");
+  const bannerPics = q("[data-banner-pics]");
 
   /**
    * Puts a new picture over the old one once it has loaded and fades between them (200 ms), so a change shows
@@ -606,6 +431,7 @@ export function initCoach() {
     img.decode().catch(() => {}).then(() => {
       if (!layer.isConnected || box.lastElementChild !== layer) return;
       then?.(img);
+      drawFace();
       layer.style.opacity = "";
       if (!calm()) return old.forEach((o) => o.remove());
       layer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease" });
@@ -621,87 +447,345 @@ export function initCoach() {
     span.append(img);
     return span;
   };
+  /** A circle (the feed's 64 px, the article header's 40) as ArticleRow and the article page draw it. */
+  function circle(box: HTMLElement, f: Feed | undefined) {
+    const key = !f ? "crest" : f.kind === "preset" ? `p:${f.id}` : `c:${f.src.url}`;
+    if (box.dataset.key === key) return key;
+    box.dataset.key = key;
+    swapIn(box, !f ? layer(CLUB.crest, "is-crest") : f.kind === "preset" ? layer(imageUrl(f.id), "is-round") : layer(f.src.url, "is-round coach-face"));
+    return key;
+  }
 
-  /** What the photo section shows, from the editor's state (called with every change, cheap when nothing moved). */
-  function renderPics(v: FormValues) {
+  /** Everything the preview shows, from the form and the pictures (cheap when nothing moved). */
+  function render() {
+    clearTimeout(soon);
+    const v = values();
     const player = v.type === "player";
-    // The feed: like ArticleRow, the player's picture only in player news (and our crest without one, no circle).
-    q("[data-feed-part]").hidden = !player;
-    if (player) {
-      const title = q("[data-feed-title]");
-      title.textContent = v.headline.trim() || "Überschrift";
-      title.classList.toggle("text-muted", !v.headline.trim());
-      const meta = q("[data-feed-meta]");
-      const pill = NEWS_TYPE[v.badge];
-      const at = v.when === "now" || !v.at ? new Date() : new Date(v.at);
-      meta.replaceChildren(
-        ...(pill ? [el("span", `pill ${toneClass(pill.tone)}`, pill.label)] : []),
-        el("span", "min-w-[3.5em] truncate", v.playerName.trim() || "Spieler"),
-        el("span", "-ml-0.5 shrink-0 tabular-nums", `·\u00a0${Number.isNaN(at.getTime()) ? "" : time(at.toISOString())}`),
-      );
-      const p = presetOn();
-      const src = source();
-      const key = p ? `p:${p.id}` : src ? `c:${src.url}` : "crest";
-      if (feedPic.dataset.key !== key) {
-        feedPic.dataset.key = key;
-        swapIn(feedPic, p ? layer(imageUrl(p.id), "is-round") : src ? layer(src.url, "is-round coach-face") : layer(CLUB.crest, "is-crest"));
-      }
-      q("[data-feed-badge]").hidden = key === "crest";
-      // Changing the circle only with a photo to fill it.
-      q("[data-feed-edit-row]").hidden = !src || panelOpen;
-      if (!src) setPanel(false, false);
-    }
-    // The article: the photo at its own shape, else the club's banner (16:9), as the article page shows them.
-    const bannerKey = photoUrl ?? "club";
-    if (banner.dataset.key !== bannerKey) {
-      banner.dataset.key = bannerKey;
-      swapIn(banner, layer(photoUrl ?? CLUB_BANNER, ""), (img) => {
+    const at = v.when === "now" || !v.at ? new Date() : new Date(v.at);
+    const iso = Number.isNaN(at.getTime()) ? "" : at.toISOString();
+    const body = coachBody({ type: v.type, data: toBody(v, new Date()).data });
+    // A lineup with players is shown like the site's confirmed lineups: crest, XI and bench right in the row.
+    const lineup = v.type === "lineup" ? confirmedLineup({ url: LINEUP_URL, bodyHtml: body }) : undefined;
+    const headline = v.headline.trim();
+    const pill = player ? NEWS_TYPE[v.badge] : undefined;
+    const name = v.playerName.trim();
+    const f = player ? feedOf(pics) : undefined;
+
+    // The feed's row (ArticleRow): the player's circle only in player news, else our crest as it is.
+    q("[data-vs-row]").classList.toggle("gap-2", !!lineup);
+    q("[data-vs-row]").classList.toggle("gap-4", !lineup);
+    const size = lineup ? 72 : 64;
+    feedPic.style.width = feedPic.style.height = `${size}px`;
+    const key = circle(feedPic, f);
+    q("[data-feed-badge]").hidden = key === "crest";
+    feedSpot.disabled = !player;
+    feedSpot.setAttribute("aria-label", player ? "Bild im Feed ändern" : "Vereinswappen im Feed");
+    const title = q("[data-feed-title]");
+    title.textContent = headline || "Überschrift";
+    title.classList.toggle("text-muted", !headline);
+    q("[data-feed-meta]").replaceChildren(
+      ...(pill ? [el("span", `pill ${toneClass(pill.tone)}`, pill.label)] : []),
+      el("span", "min-w-[3.5em] truncate", player ? name || "Spieler" : CLUB.name),
+      el("span", "-ml-0.5 shrink-0 tabular-nums", `· ${iso ? time(iso) : ""}`),
+    );
+    const xi = q("[data-feed-xi]");
+    xi.hidden = !lineup;
+    xi.textContent = lineup?.xi ?? "";
+    const bench = q("[data-feed-bench]");
+    bench.hidden = !lineup?.bench;
+    bench.textContent = lineup?.bench ? `Bank: ${lineup.bench}` : "";
+
+    // The article page: its header (the feed's picture small, the player and the club), headline, time, photo, text.
+    circle(headPic, f);
+    const who = q("[data-head-name]");
+    who.hidden = !player;
+    who.textContent = name || "Spieler";
+    who.classList.toggle("text-muted", !name);
+    q("[data-head-pill]").replaceChildren(...(pill ? [el("span", `pill ${toneClass(pill.tone)}`, pill.label)] : []));
+    const h1 = q("[data-art-title]");
+    h1.textContent = headline || "Überschrift";
+    h1.classList.toggle("text-muted", !headline);
+    q("[data-art-meta]").textContent = `${iso ? `${fullDate(iso)} Uhr` : ""} · Quelle: TonInsider`;
+    // The coach's text, escaped by coachBody exactly as the site builds it.
+    q("[data-art-body]").innerHTML = body;
+    // The photo at its own shape, else the club's banner (16:9), as the article page shows them.
+    const photo = pics.article?.url;
+    if (banner.dataset.key !== (photo ?? "club")) {
+      banner.dataset.key = photo ?? "club";
+      swapIn(bannerPics, layer(photo ?? CLUB_BANNER, ""), (img) => {
         const from = banner.offsetHeight;
-        banner.style.aspectRatio = photoUrl && img.naturalWidth ? `${img.naturalWidth} / ${img.naturalHeight}` : "16 / 9";
+        banner.style.aspectRatio = photo && img.naturalWidth ? `${img.naturalWidth} / ${img.naturalHeight}` : "16 / 9";
         const to = banner.offsetHeight;
         if (from && from !== to && calm()) banner.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 280, easing: EASE_GLIDE });
       });
     }
-    const hint = q("[data-pics-hint]");
-    hint.hidden = !!imageId;
-    hint.textContent = team.length ? "Teamfoto antippen oder eigenes Foto hinzufügen" : "Mit + ein Foto hinzufügen";
+    q("[data-vs-hint]").textContent = player ? "Tippe auf ein Bild, um es zu ändern." : "Tippe auf das Foto, um es zu ändern.";
+
+    loadFace();
+    drawFace();
+    if (open) renderSheet(open);
+  }
+  /** Typing: the preview follows a moment later (one update per pause, not per key). */
+  let soon: ReturnType<typeof setTimeout> | undefined;
+  const later = () => { clearTimeout(soon); soon = setTimeout(render, 100); };
+
+  // --- The sheets: one per picture, slid up from it ---------------------------------------------------------
+  type Which = "feed" | "article";
+  const sheets: Record<Which, HTMLDialogElement> = { feed: q('[data-sheet="feed"]'), article: q('[data-sheet="article"]') };
+  let open: Which | undefined;
+  let opener: HTMLElement | undefined;
+  const sq = (w: Which, s: string) => sheets[w].querySelector<HTMLElement>(s)!;
+  const sheetSay = (w: Which, text: string, kind: "" | "error" = "") => {
+    const p = sq(w, "[data-sheet-status]");
+    p.textContent = text;
+    p.classList.toggle("text-[var(--red-fg)]", kind === "error");
+    p.classList.toggle("text-muted", kind !== "error");
+  };
+  const PLUS = '<svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>';
+
+  type Tile = { key: string; label: string; aria?: string; src?: string; pos?: string; pick?: () => void; file?: Which };
+  /** The choices of a sheet, in order: the feed's starts with the article photo, the article's ends with the club's banner. */
+  function tilesOf(w: Which): Tile[] {
+    const out: Tile[] = [];
+    if (w === "feed") {
+      if (pics.article) out.push({ key: "article", label: "Artikelfoto", aria: "Wie Artikelfoto", src: pics.article.url, pos: "50% 15%", pick: () => (pics = feedFromArticle(pics)) });
+      for (const t of team) {
+        out.push({ key: `team:${t.imageId}`, label: lastName(t), aria: t.player, src: imageUrl(t.avatarId ?? t.imageId), pos: t.avatarId ? "50% 50%" : "50% 15%", pick: () => (pics = pickFeed(pics, teamFeed(t, imageUrl))) });
+      }
+      const o = ownFeed;
+      if (o) out.push({ key: "own", label: "Eigenes", aria: "Eigenes Bild", src: o.kind === "preset" ? imageUrl(o.id) : o.src.url, pos: "50% 15%", pick: () => (pics = pickFeed(pics, o)) });
+      out.push({ key: "add", label: "Eigenes Foto", file: "feed" });
+    } else {
+      for (const t of team) out.push({ key: `team:${t.imageId}`, label: lastName(t), aria: t.player, src: imageUrl(t.imageId), pos: "50% 20%", pick: () => (pics = pickArticle(pics, teamArticle(t, imageUrl))) });
+      const o = ownArticle;
+      if (o) out.push({ key: "own", label: "Eigenes", aria: "Eigenes Foto", src: o.url, pos: "50% 20%", pick: () => (pics = pickArticle(pics, o)) });
+      out.push({ key: "add", label: "Eigenes Foto", file: "article" });
+      out.push({ key: "club", label: "Vereinsbanner", src: CLUB_BANNER, pos: "50% 50%", pick: () => (pics = pickArticle(pics, undefined)) });
+    }
+    return out;
   }
 
-  /** "Ändern": the feed picture's choice unfolds under the row (and folds back with "Fertig"). */
-  let panelOpen = false;
+  /** The sheet's tiles (rebuilt only when the choices themselves change), the current one in gold, its actions. */
+  function renderSheet(w: Which) {
+    const grid = sq(w, "[data-tiles]");
+    const tiles = tilesOf(w);
+    const sig = tiles.map((t) => `${t.key}=${t.src ?? ""}`).join("|");
+    if (grid.dataset.sig !== sig) {
+      const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>("[data-tile]")?.dataset.tile;
+      grid.dataset.sig = sig;
+      grid.replaceChildren(...tiles.map((t) => {
+        const pic = el("span", "coach-tile-pic");
+        if (t.src) {
+          const img = el("img");
+          img.src = t.src;
+          img.alt = "";
+          img.decoding = "async";
+          img.draggable = false;
+          img.style.objectPosition = t.pos ?? "50% 50%";
+          pic.append(img);
+        } else pic.innerHTML = PLUS;
+        if (t.file) {
+          // A label around the file input: a tap opens the photo picker directly (iOS).
+          const b = el("label", "press coach-tile cursor-pointer");
+          b.dataset.tile = t.key;
+          const file = el("input", "sr-only");
+          file.type = "file";
+          file.accept = "image/*";
+          file.dataset.file = t.file;
+          file.setAttribute("aria-label", t.label);
+          b.append(file, pic, el("span", "coach-tile-name", t.label));
+          return b;
+        }
+        const b = el("button", "press coach-tile");
+        b.type = "button";
+        b.dataset.tile = t.key;
+        if (t.aria) b.setAttribute("aria-label", t.aria);
+        b.append(pic, el("span", "coach-tile-name", t.label));
+        b.addEventListener("click", () => { t.pick?.(); render(); });
+        return b;
+      }));
+      if (focused) grid.querySelector<HTMLElement>(`[data-tile="${focused}"]`)?.focus({ preventScroll: true });
+    }
+    const current = w === "feed" ? feedChoice(pics, team) : articleChoice(pics, team);
+    grid.querySelectorAll<HTMLElement>("button[data-tile]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tile === current)));
+
+    // Remembering an uploaded photo as the player's team photo (in the sheet it was uploaded in).
+    const name = input("playerName").value.trim().replace(/\s+/g, " ");
+    const player = findTeamPhoto(name, team)?.player ?? name;
+    const c = cut();
+    const mine = w === "article" ? pics.article?.id === uploadedArticle && pics.article?.id : c?.src.id === uploadedFeed && c?.src.id;
+    const offer = type === "player" && !!mine && player.length >= 2 && player.length <= 40 && !team.some((t) => t.imageId === mine);
+    const merken = sq(w, "[data-merken]");
+    merken.hidden = !offer;
+    if (offer) { merken.textContent = `Als Teamfoto für ${player} merken`; merken.dataset.player = player; merken.dataset.id = mine; }
+    if (w === "feed") {
+      // Framing and the crest picture only for a square of a photo.
+      q("[data-crop-toggle]").hidden = !c;
+      q("[data-avatar-make]").hidden = !c || offer || !!avatarOf(c.src.id);
+      if (!c) setCropOpen(false, false);
+    }
+  }
+
+  /** "Zuschneiden": the framing box unfolds in the sheet (and folds back). */
+  let cropOpen = false;
   let folding: Animation | undefined;
-  function setPanel(open: boolean, animate = true) {
-    if (open === panelOpen) return;
-    panelOpen = open;
+  function setCropOpen(on: boolean, animate = true) {
+    if (on === cropOpen) return;
+    cropOpen = on;
     folding?.cancel();
-    q("[data-feed-edit]").setAttribute("aria-expanded", String(open));
-    q("[data-feed-edit-row]").hidden = open || !source();
-    if (open) {
-      panel.hidden = false;
-      if (animate) revealIn(panel);
+    const box = q("[data-crop-box]");
+    const toggle = q("[data-crop-toggle]");
+    toggle.setAttribute("aria-expanded", String(on));
+    if (on) {
+      box.hidden = false;
       drawFace();
+      if (animate) revealIn(box);
+      // The taller sheet: the circle in the preview stays in view above it.
+      setTimeout(keepInView, animate && calm() ? 300 : 0);
       return;
     }
-    if (!animate || !calm() || panel.hidden) { panel.hidden = true; return; }
-    panel.style.overflow = "clip";
-    const a = panel.animate([{ height: `${panel.offsetHeight}px`, opacity: 1 }, { height: "0px", opacity: 0 }], { duration: 280, easing: EASE_GLIDE });
+    if (!animate || !calm() || box.hidden) { box.hidden = true; return; }
+    box.style.overflow = "clip";
+    const a = box.animate([{ height: `${box.offsetHeight}px`, opacity: 1 }, { height: "0px", opacity: 0 }], { duration: 280, easing: EASE_GLIDE });
     folding = a;
-    a.onfinish = () => { panel.hidden = true; panel.style.removeProperty("overflow"); };
-    a.oncancel = () => panel.style.removeProperty("overflow");
+    a.onfinish = () => { box.hidden = true; box.style.removeProperty("overflow"); };
+    a.oncancel = () => box.style.removeProperty("overflow");
+  }
+
+  /** Slides a sheet up (280 ms, the house glide) and keeps the tapped picture in view above it. */
+  function openSheet(w: Which, from: HTMLElement) {
+    const d = sheets[w];
+    if (d.open) return;
+    open = w;
+    opener = from;
+    sheetSay(w, "");
+    setCropOpen(false, false);
+    renderSheet(w);
+    d.showModal();
+    if (calm()) d.animate([{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 280, easing: EASE_GLIDE });
+    keepInView();
+  }
+  /** Scrolls the page (behind the sheet) so the picture being changed shows above the sheet. */
+  function keepInView() {
+    const d = open && sheets[open];
+    if (!d || !opener) return;
+    const r = opener.getBoundingClientRect();
+    const room = innerHeight - d.offsetHeight - 16;
+    const dy = r.top < 16 ? r.top - 16 : r.bottom > room ? Math.min(r.bottom - room, r.top - 16) : 0;
+    if (dy) window.scrollBy({ top: dy, behavior: calm() ? "smooth" : "auto" });
+  }
+  /** Slides it back down, then closes it (the dialog's own close would make it vanish at once). */
+  function closeSheet(animate = true) {
+    const w = open;
+    if (!w) return;
+    const d = sheets[w];
+    const done = () => {
+      d.close();
+      d.classList.remove("is-closing");
+      d.style.removeProperty("transform");
+      if (open === w) open = undefined;
+    };
+    if (!d.open || d.classList.contains("is-closing")) return;
+    if (!animate || !calm()) { done(); if (animate) opener?.focus({ preventScroll: true }); return; }
+    d.classList.add("is-closing");
+    const a = d.animate([{ transform: getComputedStyle(d).transform === "none" ? "none" : getComputedStyle(d).transform }, { transform: "translateY(100%)" }], { duration: 240, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+    a.onfinish = () => { done(); a.cancel(); opener?.focus({ preventScroll: true }); };
+  }
+  for (const w of ["feed", "article"] as Which[]) {
+    const d = sheets[w];
+    // A tap on the dimmed page (the dialog itself, outside its content), "Fertig" or Escape.
+    d.addEventListener("click", (e) => { if (e.target === d) closeSheet(); });
+    sq(w, "[data-sheet-done]").addEventListener("click", () => closeSheet());
+    d.addEventListener("cancel", (e) => { e.preventDefault(); closeSheet(); });
+    // Pulled down by its top: follows the finger; far (or fast) enough closes it, else it springs back.
+    const head = sq(w, "[data-sheet-drag]");
+    let drag: { y: number; t: number; id: number } | undefined;
+    head.addEventListener("pointerdown", (e) => {
+      if ((e.target as Element).closest("button")) return;
+      drag = { y: e.clientY, t: e.timeStamp, id: e.pointerId };
+      head.setPointerCapture(e.pointerId);
+    });
+    head.addEventListener("pointermove", (e) => {
+      if (drag?.id !== e.pointerId) return;
+      d.style.transform = `translateY(${Math.max(0, e.clientY - drag.y)}px)`;
+    });
+    const release = (e: PointerEvent) => {
+      if (drag?.id !== e.pointerId) return;
+      const dy = Math.max(0, e.clientY - drag.y);
+      const fast = dy > 30 && dy / Math.max(1, e.timeStamp - drag.t) > 0.5;
+      drag = undefined;
+      if (dy > 90 || fast) return closeSheet();
+      if (dy && calm()) d.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 240, easing: EASE_GLIDE });
+      d.style.removeProperty("transform");
+    };
+    head.addEventListener("pointerup", release);
+    head.addEventListener("pointercancel", release);
+
+    // A photo of its own, for this spot only (the tile is rebuilt with it, so listened for on the sheet).
+    d.addEventListener("change", async (e) => {
+      const picker = e.target as HTMLInputElement;
+      if (!picker.matches("[data-file]")) return;
+      const file = picker.files?.[0];
+      picker.value = "";
+      if (!file) return;
+      sheetSay(w, "Foto wird hochgeladen …");
+      try {
+        const { blob, width, height } = await shrink(file);
+        const id = await upload(blob, width, height);
+        if (!id) return;
+        sheetSay(w, "");
+        const pic = { id, url: URL.createObjectURL(blob) };
+        if (w === "article") { uploadedArticle = id; ownArticle = pic; pics = pickArticle(pics, pic); }
+        else { uploadedFeed = id; ownFeed = { kind: "cut", src: pic }; pics = pickFeed(pics, ownFeed); }
+        render();
+        // A new face for the circle: straight to placing it.
+        if (w === "feed") setCropOpen(true);
+      } catch (err) {
+        sheetSay(w, (err as Error).message || "Foto konnte nicht hochgeladen werden.", "error");
+      }
+    });
+
+    // Remembering the uploaded photo as the player's team photo, with his crest picture made here.
+    sq(w, "[data-merken]").addEventListener("click", async (e) => {
+      const b = e.currentTarget as HTMLButtonElement;
+      const { player, id } = b.dataset;
+      const pic = w === "article" ? pics.article : cut()?.src;
+      if (!id || !player || !pic || pic.id !== id || b.disabled) return;
+      b.disabled = true;
+      let avatarId = made.get(id);
+      let note = "";
+      if (!avatarId) {
+        const r = await makeAvatar(pic.url, w);
+        if (r === null) { b.disabled = false; return; }
+        if ("id" in r) { avatarId = r.id; made.set(id, r.id); } else note = r.error;
+      }
+      const r = await api<{ photos?: TeamPhoto[] }>("/api/coach/team-photos/", { method: "PUT", body: JSON.stringify({ player, imageId: id, ...(avatarId ? { avatarId } : {}) }) });
+      b.disabled = false;
+      if (r.status === 401) return signedOut();
+      if (!r.ok || !r.data.photos) return sheetSay(w, r.data.error ?? "Teamfoto konnte nicht gespeichert werden.", "error");
+      team = r.data.photos;
+      // It is his team photo now: no longer a picture of its own; in the feed, his new crest picture takes the circle.
+      if (w === "article") ownArticle = undefined;
+      else { ownFeed = undefined; if (avatarId) pics = pickFeed(pics, { kind: "preset", id: avatarId, source: id }); }
+      followName();
+      render();
+      if (!avatarId) return sheetSay(w, `Als Teamfoto für ${player} gemerkt, ohne Teamfoto-Bild: ${note}`, "error");
+      sheetSay(w, `Als Teamfoto für ${player} gemerkt.`);
+    });
   }
 
   /**
    * Makes the crest picture for a photo in the browser and stores it: its id, a sentence when it didn't work, null
    * when signed out. The cutting tool loads only now (never for the readers).
    */
-  async function makeAvatar(url: string): Promise<{ id: string } | { error: string } | null> {
-    picsSay("Teamfoto-Bild wird erstellt …");
+  async function makeAvatar(url: string, w: Which): Promise<{ id: string } | { error: string } | null> {
+    sheetSay(w, "Teamfoto-Bild wird erstellt …");
     let mod: typeof import("./teamAvatar.ts") | undefined;
     try {
       mod = await import("./teamAvatar.ts");
       const blob = await mod.makeTeamAvatar(url, CLUB.crest);
       const id = await upload(blob, mod.AVATAR, mod.AVATAR);
-      picsSay("");
+      sheetSay(w, "");
       return id ? { id } : null;
     } catch (err) {
       const known = mod && err instanceof mod.AvatarError;
@@ -722,7 +806,7 @@ export function initCoach() {
   });
   q("[data-home-seg]").addEventListener("click", (e) => {
     const b = (e.target as Element).closest<HTMLElement>("[data-home]");
-    if (b) { setHome(b.dataset.home === "1"); preview(); }
+    if (b) { setHome(b.dataset.home === "1"); render(); }
   });
   q("[data-planned-now]").addEventListener("click", async () => {
     if (!editing) return;
@@ -742,103 +826,39 @@ export function initCoach() {
     const b = (e.target as Element).closest<HTMLElement>("[data-badge]");
     if (b) setBadge(b.dataset.badge as NewsType);
   });
-  form.addEventListener("input", preview);
-  // A known player's photo comes with his name, unless the post already has one the coach chose.
-  input("playerName").addEventListener("input", () => {
-    if (imageId && !autoPicked) return teamSave();
-    const t = findTeamPhoto(input("playerName").value, team);
-    if (t && t.imageId !== imageId) pickTeam(t, true);
-    else if (!t && autoPicked) { autoPicked = false; setPhoto(undefined); }
-    else teamSave();
-  });
-  // Remembering a new photo as the player's team photo: with his crest picture, made here.
-  q("[data-team-save]").addEventListener("click", async (e) => {
-    const b = e.currentTarget as HTMLButtonElement;
-    const player = b.dataset.player;
-    const id = imageId;
-    if (!id || !photoUrl || !player || b.disabled) return;
-    b.disabled = true;
-    let avatarId = made.get(id);
-    let note = "";
-    if (!avatarId) {
-      const r = await makeAvatar(photoUrl);
-      if (r === null) { b.disabled = false; return; }
-      if ("id" in r) avatarId = r.id; else note = r.error;
-    }
-    const r = await api<{ photos?: TeamPhoto[] }>("/api/coach/team-photos/", { method: "PUT", body: JSON.stringify({ player, imageId: id, ...(avatarId ? { avatarId } : {}) }) });
-    b.disabled = false;
-    if (r.status === 401) return signedOut();
-    if (!r.ok || !r.data.photos) return picsSay(r.data.error ?? "Teamfoto konnte nicht gespeichert werden.", "error");
-    team = r.data.photos;
-    renderTeam(id);
-    if (!avatarId) return picsSay(`Als Teamfoto für ${player} gemerkt, ohne Teamfoto-Bild: ${note} Im Feed bleibt das Foto.`, "error");
-    // His new crest picture is the feed picture now (as when picking a team photo that has one).
-    if (imageId === id) { preset = { id: avatarId, source: id }; thumbSrc = undefined; loadFace(); preview(); }
-    picsSay(`Als Teamfoto für ${player} gemerkt.`);
-  });
-  // "Teamfoto-Bild erstellen" (Ändern): the crest picture for this photo; a team photo keeps it too.
+  form.addEventListener("input", later);
+  // A known player's photo comes with his name, in each spot the coach hasn't chosen himself.
+  input("playerName").addEventListener("input", () => { followName(); render(); });
+  feedSpot.addEventListener("click", () => openSheet("feed", feedSpot));
+  banner.addEventListener("click", () => openSheet("article", banner));
+
+  // "Teamfoto-Bild erstellen": the crest picture for the photo the circle is cut from; a team photo keeps it too.
   q("[data-avatar-make]").addEventListener("click", async (e) => {
     const b = e.currentTarget as HTMLButtonElement;
-    const id = imageId;
-    if (!id || !photoUrl || b.disabled) return;
+    const pic = cut()?.src;
+    if (!pic || b.disabled) return;
     b.disabled = true;
-    const r = await makeAvatar(photoUrl);
+    const r = await makeAvatar(pic.url, "feed");
     b.disabled = false;
     if (r === null) return;
-    if ("error" in r) return picsSay(`${r.error} Im Feed bleibt das Foto.`, "error");
-    made.set(id, r.id);
-    const t = team.find((x) => x.imageId === id);
+    if ("error" in r) return sheetSay("feed", `${r.error} Im Feed bleibt das Foto.`, "error");
+    made.set(pic.id, r.id);
+    const t = team.find((x) => x.imageId === pic.id);
     if (t) {
-      const saved = await api<{ photos?: TeamPhoto[] }>("/api/coach/team-photos/", { method: "PUT", body: JSON.stringify({ player: t.player, imageId: id, avatarId: r.id }) });
+      const saved = await api<{ photos?: TeamPhoto[] }>("/api/coach/team-photos/", { method: "PUT", body: JSON.stringify({ player: t.player, imageId: pic.id, avatarId: r.id }) });
       if (saved.status === 401) return signedOut();
-      if (saved.ok && saved.data.photos) { team = saved.data.photos; renderTeam(); }
+      if (saved.ok && saved.data.photos) team = saved.data.photos;
     }
-    if (imageId !== id) return;
-    preset = { id: r.id, source: id };
-    thumbSrc = undefined;
-    loadFace();
-    preview();
+    if (cut()?.src.id !== pic.id) return render();
+    const preset: Feed = { kind: "preset", id: r.id, source: pic.id };
+    if (!t) ownFeed = preset;
+    pics = pickFeed(pics, preset);
+    render();
   });
-  q("[data-feed-edit]").addEventListener("click", () => setPanel(true));
-  q("[data-feed-done]").addEventListener("click", () => {
-    setPanel(false);
-    q("[data-feed-edit]").focus({ preventScroll: true });
-  });
-  // Teamfoto-Bild or placing the circle on the photo (from the head, as usual).
-  q("[data-feed-mode]").addEventListener("click", (e) => {
-    const b = (e.target as Element).closest<HTMLElement>("[data-mode]");
-    if (!b || b.getAttribute("aria-pressed") === "true") return;
-    if (b.dataset.mode === "preset") { preset = avatarFor(imageId); thumbSrc = undefined; }
-    else preset = crop = undefined;
-    loadFace();
-    preview();
-  });
+  q("[data-crop-toggle]").addEventListener("click", () => setCropOpen(!cropOpen));
   input("bots").addEventListener("change", () => (q("[data-context]").hidden = !input("bots").checked));
 
-  // A new photo, from + in the row (rebuilt with it, so listened for on the row).
-  teamRow.addEventListener("change", async (e) => {
-    const picker = e.target as HTMLInputElement;
-    if (!picker.matches("[data-photo]")) return;
-    const file = picker.files?.[0];
-    picker.value = "";
-    if (!file) return;
-    picsSay("Foto wird hochgeladen …");
-    try {
-      const { blob, width, height } = await shrink(file);
-      const id = await upload(blob, width, height);
-      if (!id) return;
-      picsSay("");
-      // A new article photo: the feed picture cut from it starts over (one of its own stays as it is).
-      if (!thumbSrc) crop = undefined;
-      autoPicked = false;
-      uploaded = id;
-      setPhoto(id, URL.createObjectURL(blob));
-    } catch (err) {
-      picsSay((err as Error).message || "Foto konnte nicht hochgeladen werden.", "error");
-    }
-  });
-
-  // Framing: one finger moves the photo, two (or the trackpad, or the slider) zoom; the preview follows on release.
+  // Framing: one finger moves the photo, two (or the trackpad, or the slider) zoom; the preview follows directly.
   const pointers = new Map<number, { x: number; y: number }>();
   let pinch: { dist: number; zoom: number } | undefined;
   const spread = () => {
@@ -868,7 +888,7 @@ export function initCoach() {
   const lift = (e: PointerEvent) => {
     if (!pointers.delete(e.pointerId)) return;
     pinch = undefined;
-    if (!pointers.size) preview();
+    if (!pointers.size) render();
   };
   stage.addEventListener("pointerup", lift);
   stage.addEventListener("pointercancel", lift);
@@ -878,42 +898,11 @@ export function initCoach() {
     e.preventDefault();
     setCrop({ ...c, zoom: c.zoom * Math.exp(-e.deltaY / 100) });
   }, { passive: false });
-  // The slider moves the circles itself (no rebuilding the preview on every step).
   q("[data-zoom]").addEventListener("input", (e) => {
-    e.stopPropagation();
     const c = framing();
     if (c) setCrop({ ...c, zoom: Number((e.target as HTMLInputElement).value) });
   });
   new ResizeObserver(() => drawFace()).observe(stage);
-
-  q<HTMLInputElement>("[data-thumb-file]").addEventListener("change", async (e) => {
-    const picker = e.target as HTMLInputElement;
-    const file = picker.files?.[0];
-    picker.value = "";
-    if (!file) return;
-    const label = q("[data-thumb-label]");
-    label.textContent = "Bild wird hochgeladen …";
-    try {
-      const { blob, width, height } = await shrink(file);
-      const id = await upload(blob, width, height);
-      if (!id) return;
-      thumbSrc = { id, url: URL.createObjectURL(blob) };
-      crop = preset = undefined;
-      loadFace();
-      preview();
-    } catch (err) {
-      label.textContent = (err as Error).message || "Bild konnte nicht hochgeladen werden.";
-    }
-  });
-  q("[data-thumb-reset]").addEventListener("click", () => {
-    // Back to the article photo, framed as last saved if that was cut from it (or its avatar, if that was saved).
-    thumbSrc = undefined;
-    const back = savedThumb?.source === imageId ? savedThumb : undefined;
-    crop = back?.preset ? undefined : back;
-    if (back?.preset) preset = { id: back.imageId, source: back.source };
-    loadFace();
-    preview();
-  });
 
   q("[data-delete]").addEventListener("click", async () => {
     if (!editing || !confirm("Diesen Beitrag löschen? Er verschwindet in ein paar Minuten aus den News.")) return;
@@ -949,9 +938,12 @@ export function initCoach() {
     save.disabled = true;
     say("Wird gespeichert …");
     // The feed picture first (a new framing is a small upload); if that fails, the old one stays if it still fits.
-    const thumb = type === "player" ? await feedThumb().catch(() => (savedThumb?.source === source()?.id ? savedThumb : undefined)) : undefined;
+    const thumb = type === "player" ? await feedThumb().catch(() => {
+      const f = feedOf(pics);
+      return f && savedThumb && (f.kind === "preset" ? f.id === savedThumb.imageId : f.src.id === savedThumb.source) ? savedThumb : undefined;
+    }) : undefined;
     if (thumb === null) { save.disabled = false; return; }
-    const body = toBody(values(), new Date(), imageId, thumb);
+    const body = toBody(values(), new Date(), pics.article?.id, thumb);
     const r = await api<{ post?: CoachPost }>(editing ? `/api/coach/posts/${editing.id}/` : "/api/coach/posts/", {
       method: editing ? "PUT" : "POST", body: JSON.stringify(body),
     });
@@ -974,5 +966,4 @@ export function initCoach() {
   });
 
   renderList();
-  renderTeam();
 }

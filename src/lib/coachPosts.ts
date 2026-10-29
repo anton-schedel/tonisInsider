@@ -70,7 +70,8 @@ export const slug = (s: string) =>
 const paragraphs = (text = "") =>
   text.trim().split(/\n\s*\n/).filter((p) => p.trim()).map((p) => `<p>${escapeHtml(p.trim()).replace(/\n/g, "<br>\n")}</p>`);
 
-function body(p: CoachPost): string {
+/** The article's text as the site builds it (also the editor's preview). */
+export function coachBody(p: Pick<CoachPost, "type" | "data">): string {
   const d = p.data;
   const parts: string[] = [];
   if (p.type === "lineup" && d.lineup) {
@@ -105,7 +106,7 @@ export function toArticle(p: CoachPost): Article {
     source: { name: "TonInsider" },
     publishedAt: p.publishedAt,
     ...(p.pinnedUntil ? { pinnedUntil: p.pinnedUntil } : {}),
-    bodyHtml: body(p),
+    bodyHtml: coachBody(p),
     banner: photo ?? CLUB_BANNER,
     ...(p.image ? { bannerSize: { width: p.image.width, height: p.image.height } } : {}),
     own: true,
