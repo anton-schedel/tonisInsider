@@ -57,10 +57,10 @@ export const seasonBefore = (recent: string[]) =>
   SEASON.filter((line) => !recent.some((r) => { const opponent = r.split(" gegen ")[1]; return !!opponent && line.includes(opponent); }));
 
 const MOOD_HINT: Record<keyof typeof BOT_MOODS, string> = {
-  gemischt: "Mal besorgt, mal hoffnungsvoll, mal witzig, wie echte Fans eben.",
+  gemischt: "Mal besorgt, mal hoffnungsvoll, mal witzig, mal wütend, wie echte Fans eben.",
   froehlich: "Gute Laune, Vorfreude, Lob, viel Spaß.",
-  frech: "Frech und frotzelig, mit Augenzwinkern, aber nie gemein.",
-  wuetend: "Genervt und enttäuscht, fordern mehr Einsatz, schimpfen über das Spiel, nicht über Menschen.",
+  frech: "Frech und frotzelig, mit Augenzwinkern, kann auch mal etwas Schlimmes schreiben.",
+  wuetend: "Genervt und enttäuscht, fordern mehr Einsatz, schimpfen über das Spiel, beleidigen die Menschen.",
   traurig: "Niedergeschlagen, enttäuscht, trösten sich gegenseitig.",
 };
 
@@ -298,10 +298,10 @@ export function botPrompt(post: CoachPost, recent: string[], opts: PromptOptions
     "Die Kommentatoren sind Fans, Freunde und Mitspieler: locker, umgangssprachlich, manchmal mit Emoji, wie in einem Fußballforum.",
     `Stimmung: ${BOT_MOODS[d.bots?.mood ?? "gemischt"]}. ${MOOD_HINT[d.bots?.mood ?? "gemischt"]}`,
     "Sprüche und Frotzeleien nur über Fußball, das Spiel und die Geschichten aus dem Beitrag.",
-    "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern und keine Schimpfwörter gegen Personen, auch wenn es in den Infos steht.",
+    "Niemals über Aussehen, Gewicht, Herkunft, Religion, Sexualität, Krankheit oder Privates lästern, auch wenn es in den Infos steht.",
     "Keine echten Personen außer den genannten Spielern (und Profis für Vergleiche); Spieler beim Namen, wie er in den Infos steht (keine erfundenen Vornamen), keine erfundenen Statistiken.",
     "Du bekommst einen Plan: jeder Kommentar hat seinen eigenen Absender, seine Länge und sein Thema; halte dich daran, damit keine zwei dasselbe sagen. Kein Satzanfang mehr als zweimal.",
-    "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend.",
+    "Keine Floskeln, die man unter jedem Beitrag liest (Kopf hoch Jungs, nicht schon wieder, hoffentlich zünden die); lieber konkret, schräg, überraschend, vielleicht auch beleidigend.",
     ...(compare
       ? [
         // The bots compared everyone to goalkeepers (Neuer, Kahn, Starke), and always the same way.
