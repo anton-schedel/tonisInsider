@@ -15,7 +15,14 @@ export type CoachPostData = {
   result?: { opponent: string; ours: number; theirs: number; home: boolean };
   player?: { name: string; newsType: NewsType };
   bots?: { on: boolean; context?: string; mood?: BotMood };
+  /**
+   * The round picture in the feed (player news), cut in the editor: imageId the 256 px square, source the photo it
+   * was cut from (the article photo or one of its own), x/y the cut's centre in that photo (0..1), zoom 1..4.
+   */
+  thumb?: CoachThumb;
 };
+
+export type CoachThumb = { imageId: string; source: string; x: number; y: number; zoom: number };
 
 /** How the bot commenters feel about a post (the coach picks it). */
 export const BOT_MOODS = { gemischt: "gemischt", froehlich: "fröhlich", frech: "frech", wuetend: "wütend", traurig: "traurig" } as const;
@@ -83,6 +90,8 @@ export function toArticle(p: CoachPost): Article {
   const d = p.data;
   const path = p.type === "lineup" ? "aufstellung-des-tus-schnoeselmob" : slug(d.headline) || "beitrag";
   const photo = p.image ? imagePath(p.image.id) : undefined;
+  // The feed's circle: the coach's cut if there is one (a tall photo centred shows the chest, not the head).
+  const face = d.thumb ? imagePath(d.thumb.imageId) : photo;
   return {
     id: p.id,
     url: `/${CLUB.slug}/${path}-${p.id}/`,
@@ -90,7 +99,7 @@ export function toArticle(p: CoachPost): Article {
     listHeadline: d.headline,
     category: "bundesliga",
     newsType: (p.type === "player" && d.player?.newsType) || "sonstiges",
-    ...(p.type === "player" && d.player ? { player: { id: p.id, slug: slug(d.player.name), name: d.player.name, ...(photo ? { photo } : {}) } } : {}),
+    ...(p.type === "player" && d.player ? { player: { id: p.id, slug: slug(d.player.name), name: d.player.name, ...(face ? { photo: face } : {}) } } : {}),
     club: CLUB,
     source: { name: "TonInsider" },
     publishedAt: p.publishedAt,
@@ -107,6 +116,8 @@ export type CoachInput = { type: CoachType; data: CoachPostData; publishedAt: st
 
 const BAD = { error: "Ungültige Anfrage." };
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const HEX16 = /^[0-9a-f]{16}$/;
+const clamp = (v: number, lo: number, hi: number) => Math.round(Math.min(hi, Math.max(lo, v)) * 10_000) / 10_000;
 const names = (v: unknown) => (Array.isArray(v) ? v.map((n) => str(n, 40)).filter(Boolean) : []);
 
 /** What the editor sends, checked and cleaned. */
@@ -149,11 +160,18 @@ export function validate(raw: unknown, now: Date): CoachInput | { error: string 
     data.bots = { on: bots.on, ...(context ? { context } : {}), ...(mood ? { mood } : {}) };
   }
 
+  // The feed picture (only player news shows one): dropped if broken, the feed then shows the article photo.
+  const t = (d.thumb ?? {}) as Record<string, unknown>;
+  const ids = [t.imageId, t.source].every((id) => typeof id === "string" && HEX16.test(id));
+  if (type === "player" && ids && [t.x, t.y, t.zoom].every((n) => typeof n === "number" && Number.isFinite(n))) {
+    data.thumb = { imageId: t.imageId as string, source: t.source as string, x: clamp(t.x as number, 0, 1), y: clamp(t.y as number, 0, 1), zoom: clamp(t.zoom as number, 1, 4) };
+  }
+
   const at = typeof r.publishedAt === "string" ? Date.parse(r.publishedAt) : NaN;
   if (Number.isNaN(at)) return { error: "Ungültige Zeit." };
   if (at > now.getTime() + 60 * 86_400_000) return { error: "Höchstens 60 Tage im Voraus." };
   const pinnedHours = r.pinnedHours ?? 0;
   if (typeof pinnedHours !== "number" || !(pinnedHours >= 0 && pinnedHours <= 24)) return { error: "Anheften geht für 0 bis 24 Stunden." };
-  const imageId = typeof r.imageId === "string" && /^[0-9a-f]{16}$/.test(r.imageId) ? r.imageId : undefined;
+  const imageId = typeof r.imageId === "string" && HEX16.test(r.imageId) ? r.imageId : undefined;
   return { type, data, publishedAt: new Date(at).toISOString(), pinnedHours, ...(imageId ? { imageId } : {}) };
 }

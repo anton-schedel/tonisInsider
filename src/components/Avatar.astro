@@ -6,8 +6,10 @@ interface Props {
   name: string;
   size?: number;
   class?: string;
+  /** Framed near the top, not centred: a tall photo then shows the head, not the chest (our own posts). */
+  top?: boolean;
 }
-const { src, name, size = 32, class: className } = Astro.props;
+const { src, name, size = 32, class: className, top = false } = Astro.props;
 ---
 <span
   class:list={["relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface font-semibold text-muted", className]}
@@ -20,7 +22,7 @@ const { src, name, size = 32, class: className } = Astro.props;
       alt={name}
       loading="lazy"
       decoding="async"
-      class="img-fade absolute inset-0 size-full object-cover"
+      class:list={["img-fade absolute inset-0 size-full object-cover", top && "object-[50%_15%]"]}
       onload="this.classList.add('is-loaded'); window.__imgLoaded?.add(this.src)"
       onerror="this.remove()"
     />

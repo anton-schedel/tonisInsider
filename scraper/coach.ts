@@ -8,14 +8,14 @@ export const coachDueIds = (posts: { id: number; publishedAt: string }[], now: D
 
 /**
  * The coach's posts (/schnoeselmob/, stored in D1): fetched from the site's export each run into
- * store/coach-posts.json, with their photos in public/img/custom/coach/. A change (new, edited or deleted post)
- * means a rebuild; a failed fetch keeps the last posts.
+ * store/coach-posts.json, with their photos and the feed's round cuts (data.thumb) in public/img/custom/coach/.
+ * A change (new, edited or deleted post) means a rebuild; a failed fetch keeps the last posts.
  */
 export async function pullCoachPosts(o: { site: string; token: string; file: string; imgDir: string; fetcher?: typeof fetch }): Promise<{ changed: boolean; problem?: string }> {
   const fetcher = o.fetcher ?? fetch;
   const site = o.site.replace(/\/+$/, "");
   const headers = { "x-export-token": o.token };
-  let posts: { image?: { id: string } }[];
+  let posts: { image?: { id: string }; data?: { thumb?: { imageId?: string } } }[];
   try {
     const res = await fetcher(`${site}/api/coach/export/`, { headers });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -26,7 +26,8 @@ export async function pullCoachPosts(o: { site: string; token: string; file: str
   }
 
   mkdirSync(o.imgDir, { recursive: true });
-  for (const id of new Set(posts.flatMap((p) => (p.image && /^[0-9a-f]{16}$/.test(p.image.id) ? [p.image.id] : [])))) {
+  const ids = posts.flatMap((p) => [p.image?.id, p.data?.thumb?.imageId]).filter((id): id is string => typeof id === "string" && /^[0-9a-f]{16}$/.test(id));
+  for (const id of new Set(ids)) {
     const path = join(o.imgDir, `${id}.jpg`);
     if (existsSync(path)) continue;
     try {

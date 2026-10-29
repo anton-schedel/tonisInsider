@@ -33,6 +33,14 @@ describe("pullCoachPosts", () => {
     expect(calls).toEqual(["https://site.example/api/coach/export/ t", "https://site.example/api/coach/images/ab12cd34ef56ab78/ t"]);
   });
 
+  it("also saves the feed picture cut from a photo", async () => {
+    const { file, imgDir } = setup();
+    const withThumb = post({ data: { ...post().data, thumb: { imageId: "0123456789abcdef", source: "ab12cd34ef56ab78", x: 0.5, y: 0.3, zoom: 1 } } });
+    const r = await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, fetcher: fake([withThumb]) });
+    expect(r.changed).toBe(true);
+    expect(existsSync(join(imgDir, "ab12cd34ef56ab78.jpg")) && existsSync(join(imgDir, "0123456789abcdef.jpg"))).toBe(true);
+  });
+
   it("sees no change for the same posts and skips photos it has", async () => {
     const { file, imgDir } = setup();
     await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, fetcher: fake([post()]) });

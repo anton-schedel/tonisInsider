@@ -65,7 +65,7 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
     <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-4 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
       <span class="relative shrink-0">
         {face
-          ? <Avatar src={face.photo} name={face.name} size={64} />
+          ? <Avatar src={face.photo} name={face.name} size={64} top={a.own} />
           : a.club
             ? <Crest src={a.club.crest} name={a.club.name} size={64} />
             : <Avatar src={by.logo} name={by.name} size={64} />}

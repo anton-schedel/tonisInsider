@@ -1,15 +1,24 @@
 import type { NewsType } from "../../scraper/types.ts";
-import type { BotMood, CoachPost, CoachType } from "./coachPosts.ts";
+import type { BotMood, CoachPost, CoachThumb, CoachType } from "./coachPosts.ts";
 import { CLUB } from "./coachPosts.ts";
 import { localInput, namesOf, statusOf, toBody, type FormValues } from "./coachForm.ts";
 import { NEWS_TYPE, toneClass } from "./newsTypes.ts";
 import { time } from "./format.ts";
+import { defaultCrop, fit, rounded, sameCrop, square, type Crop } from "./coachCrop.ts";
+import { EASE_GLIDE } from "./motion.ts";
 
 /** The coach's page (/schnoeselmob/): sign in, the list of posts, the editor with its preview. */
 
 const LINEUP_HEADLINE = "Aufstellung des TuS Schnöselmob";
 const TYPE_LABEL: Record<CoachType, string> = { lineup: "Aufstellung", result: "Ergebnis", player: "Spielernews" };
 const imageUrl = (id: string) => `/api/coach/images/${id}/`;
+/** The feed picture's size as stored (the feed shows it at 64 px, 40 on the article; sharp on 3x screens). */
+const THUMB = 256;
+/** The circle in the framing box (and the feed's at real size beside it). */
+const RING = 160;
+const FACE = 64;
+
+const jpeg = (canvas: HTMLCanvasElement, quality: number) => new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", quality));
 
 async function api<T>(path: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: T & { error?: string; signedOut?: boolean } }> {
   try {
@@ -31,9 +40,18 @@ async function shrink(file: File): Promise<{ blob: Blob; width: number; height: 
   canvas.width = width;
   canvas.height = height;
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, width, height);
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.82));
+  const blob = await jpeg(canvas, 0.82);
   if (!blob) throw new Error("Bild konnte nicht gelesen werden.");
   return { blob, width, height };
+}
+
+/** Puts a photo (w×h) under a circle of d px centred in a bw×bh box, showing the crop's square. */
+function place(img: HTMLImageElement, w: number, h: number, c: Crop, d: number, bw = d, bh = d) {
+  const s = square(w, h, c);
+  const k = d / s.side;
+  img.style.width = `${w * k}px`;
+  img.style.height = `${h * k}px`;
+  img.style.transform = `translate(${(bw - d) / 2 - s.left * k}px, ${(bh - d) / 2 - s.top * k}px)`;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
@@ -82,6 +100,12 @@ export function initCoach() {
   let mood: BotMood = "gemischt";
   let imageId: string | undefined;
   let photoUrl: string | undefined;
+  /** The feed picture: a photo of its own (else the article photo's), the framing (unset: defaultCrop), the one saved. */
+  let thumbSrc: { id: string; url: string } | undefined;
+  let crop: Crop | undefined;
+  let savedThumb: CoachThumb | undefined;
+  /** The photo being framed, once loaded: its size, and what the canvas draws when saving. */
+  let face: { id: string; url: string; img: HTMLImageElement; ready: Promise<unknown> } | undefined;
   /** Set when the cookie ran out while saving: after signing in again, back to the form as it was. */
   let resume = false;
 
@@ -127,7 +151,7 @@ export function initCoach() {
       const b = el("button", "press-row flex w-full items-center gap-3.5 py-3 text-left");
       b.type = "button";
       const img = el("img", "size-12 shrink-0 rounded-full object-cover");
-      img.src = p.image ? imageUrl(p.image.id) : CLUB.crest;
+      img.src = p.data.thumb ? imageUrl(p.data.thumb.imageId) : p.image ? imageUrl(p.image.id) : CLUB.crest;
       img.alt = "";
       const text = el("span", "min-w-0 flex-1");
       const s = statusOf(p.publishedAt, now);
@@ -228,8 +252,86 @@ export function initCoach() {
     img.hidden = !photoUrl;
     if (photoUrl) img.src = photoUrl;
     q("[data-photo-label]").textContent = photoUrl ? "Anderes Foto" : "Foto hinzufügen";
+    loadFace();
     preview();
   };
+
+  // --- The feed picture ------------------------------------------------------------------------------------
+  const source = () => thumbSrc ?? (imageId && photoUrl ? { id: imageId, url: photoUrl } : undefined);
+  const framing = (): Crop | undefined => {
+    if (!face?.img.naturalWidth) return undefined;
+    const { naturalWidth: w, naturalHeight: h } = face.img;
+    return crop ? fit(w, h, crop) : defaultCrop(w, h);
+  };
+  const stage = q("[data-crop]");
+  const stageImg = q<HTMLImageElement>("[data-crop-img]");
+
+  /** The circle in the box, the small one beside it and the preview's, all from the same framing. */
+  function drawFace() {
+    const c = framing();
+    if (!c || !face) return;
+    const { naturalWidth: w, naturalHeight: h } = face.img;
+    place(stageImg, w, h, c, RING, stage.clientWidth, stage.clientHeight);
+    place(q<HTMLImageElement>("[data-crop-face] img"), w, h, c, FACE);
+    const row = q("[data-preview]").querySelector<HTMLImageElement>(".coach-face img");
+    if (row) place(row, w, h, c, FACE);
+    q<HTMLInputElement>("[data-zoom]").value = String(c.zoom);
+  }
+  const setCrop = (c: Crop) => {
+    if (!face?.img.naturalWidth) return;
+    crop = fit(face.img.naturalWidth, face.img.naturalHeight, c);
+    drawFace();
+  };
+
+  /** Shows the framing for the current photo (hidden without one), loading it first if it's a new one. */
+  function loadFace() {
+    const src = source();
+    q("[data-thumb]").hidden = !src;
+    q("[data-thumb-reset]").hidden = !thumbSrc;
+    q("[data-thumb-label]").textContent = thumbSrc ? "Anderes Bild für den Feed" : "Eigenes Bild für den Feed";
+    if (!src) { face = undefined; return; }
+    if (face?.url === src.url) return drawFace();
+    const img = new Image();
+    img.src = src.url;
+    const f = { ...src, img, ready: img.decode() };
+    face = f;
+    f.ready.then(() => {
+      if (face !== f) return;
+      stageImg.src = q<HTMLImageElement>("[data-crop-face] img").src = src.url;
+      drawFace();
+      // A new photo settles in; dragging after that is immediate.
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) stageImg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: EASE_GLIDE });
+    }, () => {});
+  }
+
+  /** What to save as data.thumb: the saved one if nothing changed, else the circle drawn at 256 px and uploaded (null: signed out). */
+  async function feedThumb(): Promise<CoachThumb | undefined | null> {
+    const f = face;
+    if (!f || !source()) return undefined;
+    await f.ready;
+    const c = rounded(framing()!);
+    if (savedThumb && savedThumb.source === f.id && sameCrop(savedThumb, c)) return savedThumb;
+    const s = square(f.img.naturalWidth, f.img.naturalHeight, c);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = THUMB;
+    const ctx = canvas.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(f.img, s.left, s.top, s.side, s.side, 0, 0, THUMB, THUMB);
+    const blob = await jpeg(canvas, 0.86);
+    if (!blob) throw new Error("Bild konnte nicht gelesen werden.");
+    const imageId = await upload(blob, THUMB, THUMB);
+    return imageId ? { imageId, source: f.id, ...c } : null;
+  }
+
+  /** Stores a JPEG (POST /api/coach/images/) and returns its id; undefined when signed out (the sign-in shows). */
+  async function upload(blob: Blob, width: number, height: number): Promise<string | undefined> {
+    if (blob.size > 600 * 1024) throw new Error("Bild zu groß.");
+    const res = await fetch(`/api/coach/images/?w=${width}&h=${height}`, { method: "POST", headers: { "content-type": "image/jpeg" }, body: blob });
+    const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+    if (res.status === 401) { signedOut(); return undefined; }
+    if (!res.ok || !data.id) throw new Error(data.error ?? "Foto konnte nicht hochgeladen werden.");
+    return data.id;
+  }
 
   function openEditor(p?: CoachPost) {
     editing = p;
@@ -260,6 +362,10 @@ export function initCoach() {
       type = p.type;
       setHome(d.result?.home ?? true);
       setBadge(d.player?.newsType ?? "angeschlagen");
+      // The saved framing comes back; a picture of its own is loaded from its source.
+      savedThumb = d.thumb;
+      thumbSrc = d.thumb && d.thumb.source !== p.image?.id ? { id: d.thumb.source, url: imageUrl(d.thumb.source) } : undefined;
+      crop = d.thumb && { x: d.thumb.x, y: d.thumb.y, zoom: d.thumb.zoom };
       setPhoto(p.image?.id);
       setWhen(Date.parse(p.publishedAt) > now.getTime() ? "later" : "now");
     } else {
@@ -273,6 +379,7 @@ export function initCoach() {
       type = "lineup";
       setHome(true);
       setBadge("angeschlagen");
+      savedThumb = thumbSrc = crop = undefined;
       setPhoto(undefined);
       setMood("gemischt");
       q("[data-comments-box]").hidden = true;
@@ -292,13 +399,19 @@ export function initCoach() {
     // Like ArticleRow: the crest as it is for a lineup or a post without photo; a photo round, the crest on its corner.
     const row = el("div", "flex items-center " + (lineup ? "gap-2" : "gap-4"));
     const size = lineup ? 72 : 64;
-    const photo = v.type === "player" && photoUrl;
+    const photo = v.type === "player" ? source()?.url : undefined;
     const pic = el("span", "relative shrink-0");
-    const img = el("img", photo ? "rounded-full object-cover" : "object-contain");
-    img.style.cssText = `width:${size}px;height:${size}px`;
+    const img = el("img", photo ? "" : "object-contain");
+    img.style.cssText = `width:${size}px;height:${size}px;object-fit:cover;object-position:50% 15%`;
     img.src = photo || CLUB.crest;
     img.alt = "";
-    pic.append(img);
+    if (photo) {
+      // The circle as it will be cut (drawFace places the photo in it).
+      const circle = el("span", "coach-face relative block overflow-hidden rounded-full bg-surface");
+      circle.style.cssText = `width:${size}px;height:${size}px`;
+      circle.append(img);
+      pic.append(circle);
+    } else pic.append(img);
     if (photo) {
       const crest = el("img", "crest-overlay -right-1.5 -bottom-1 size-[26px]");
       crest.src = CLUB.crest;
@@ -327,6 +440,7 @@ export function initCoach() {
     const bench = namesOf(v.bench);
     if (lineup && bench.length) item.append(el("div", "mt-2 text-[13px] leading-snug text-muted", `Bank: ${bench.join(", ")}`));
     box.replaceChildren(item);
+    if (photo) drawFace();
   }
 
   // --- Wiring ----------------------------------------------------------------------------------------------
@@ -372,16 +486,90 @@ export function initCoach() {
     label.textContent = "Foto wird hochgeladen …";
     try {
       const { blob, width, height } = await shrink(file);
-      if (blob.size > 600 * 1024) throw new Error("Bild zu groß.");
-      const res = await fetch(`/api/coach/images/?w=${width}&h=${height}`, { method: "POST", headers: { "content-type": "image/jpeg" }, body: blob });
-      const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string; signedOut?: boolean };
-      if (res.status === 401) { signedOut(); return; }
-      if (!res.ok || !data.id) throw new Error(data.error ?? "Foto konnte nicht hochgeladen werden.");
-      setPhoto(data.id, URL.createObjectURL(blob));
+      const id = await upload(blob, width, height);
+      if (!id) return;
+      // A new article photo: the feed picture cut from it starts over (one of its own stays as it is).
+      if (!thumbSrc) crop = undefined;
+      setPhoto(id, URL.createObjectURL(blob));
     } catch (err) {
       setPhoto(imageId);
       label.textContent = (err as Error).message || "Foto konnte nicht hochgeladen werden.";
     }
+  });
+
+  // Framing: one finger moves the photo, two (or the trackpad, or the slider) zoom; the preview follows on release.
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinch: { dist: number; zoom: number } | undefined;
+  const spread = () => {
+    const [a, b] = [...pointers.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  };
+  stage.addEventListener("pointerdown", (e) => {
+    if (!framing()) return;
+    stage.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pinch = pointers.size === 2 ? { dist: spread(), zoom: framing()!.zoom } : undefined;
+  });
+  stage.addEventListener("pointermove", (e) => {
+    const p = pointers.get(e.pointerId);
+    const c = framing();
+    if (!p || !c || !face) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    if (pinch && pointers.size === 2) return setCrop({ ...c, zoom: (pinch.zoom * spread()) / pinch.dist });
+    // The photo follows the finger: k screen px per photo px.
+    const { naturalWidth: w, naturalHeight: h } = face.img;
+    const k = RING / square(w, h, c).side;
+    setCrop({ ...c, x: c.x - dx / k / w, y: c.y - dy / k / h });
+  });
+  const lift = (e: PointerEvent) => {
+    if (!pointers.delete(e.pointerId)) return;
+    pinch = undefined;
+    if (!pointers.size) preview();
+  };
+  stage.addEventListener("pointerup", lift);
+  stage.addEventListener("pointercancel", lift);
+  stage.addEventListener("wheel", (e) => {
+    const c = framing();
+    if (!e.ctrlKey || !c) return;
+    e.preventDefault();
+    setCrop({ ...c, zoom: c.zoom * Math.exp(-e.deltaY / 100) });
+  }, { passive: false });
+  // The slider moves the circles itself (no rebuilding the preview on every step).
+  q("[data-zoom]").addEventListener("input", (e) => {
+    e.stopPropagation();
+    const c = framing();
+    if (c) setCrop({ ...c, zoom: Number((e.target as HTMLInputElement).value) });
+  });
+  new ResizeObserver(() => drawFace()).observe(stage);
+
+  q<HTMLInputElement>("[data-thumb-file]").addEventListener("change", async (e) => {
+    const picker = e.target as HTMLInputElement;
+    const file = picker.files?.[0];
+    picker.value = "";
+    if (!file) return;
+    const label = q("[data-thumb-label]");
+    label.textContent = "Bild wird hochgeladen …";
+    try {
+      const { blob, width, height } = await shrink(file);
+      const id = await upload(blob, width, height);
+      if (!id) return;
+      thumbSrc = { id, url: URL.createObjectURL(blob) };
+      crop = undefined;
+      loadFace();
+      preview();
+    } catch (err) {
+      label.textContent = (err as Error).message || "Bild konnte nicht hochgeladen werden.";
+    }
+  });
+  q("[data-thumb-reset]").addEventListener("click", () => {
+    // Back to the article photo, framed as last saved if that was cut from it.
+    thumbSrc = undefined;
+    crop = savedThumb?.source === imageId ? savedThumb : undefined;
+    loadFace();
+    preview();
   });
 
   q("[data-delete]").addEventListener("click", async () => {
@@ -417,7 +605,10 @@ export function initCoach() {
     if (save.disabled) return;
     save.disabled = true;
     say("Wird gespeichert …");
-    const body = toBody(values(), new Date(), type === "player" ? imageId : undefined);
+    // The feed picture first (a new framing is a small upload); if that fails, the old one stays if it still fits.
+    const thumb = type === "player" ? await feedThumb().catch(() => (savedThumb?.source === source()?.id ? savedThumb : undefined)) : undefined;
+    if (thumb === null) { save.disabled = false; return; }
+    const body = toBody(values(), new Date(), type === "player" ? imageId : undefined, thumb);
     const r = await api<{ post?: CoachPost }>(editing ? `/api/coach/posts/${editing.id}/` : "/api/coach/posts/", {
       method: editing ? "PUT" : "POST", body: JSON.stringify(body),
     });
@@ -425,6 +616,7 @@ export function initCoach() {
     if (r.status === 401) return signedOut();
     if (!r.ok || !r.data.post) return say(r.data.error ?? "Speichern hat nicht geklappt.", "error");
     const post = r.data.post;
+    savedThumb = post.data.thumb;
     const i = posts.findIndex((x) => x.id === post.id);
     if (i >= 0) posts[i] = post; else posts.unshift(post);
     posts.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));

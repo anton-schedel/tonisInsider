@@ -21,7 +21,7 @@ const clubLineupHref = a.club && !a.own ? `/vereine/${a.club.slug}/` : undefined
 <Base title={a.headline} tab="news" back={{ href: "/", label: "News" }} hideHeading>
   <div slot="top" class="flex min-w-0 flex-1 items-center gap-3">
     {a.player && (a.player.photo || !a.own)
-      ? <Avatar src={a.player.photo} name={a.player.name} size={40} />
+      ? <Avatar src={a.player.photo} name={a.player.name} size={40} top={a.own} />
       : a.club
         ? <Crest src={a.club.crest} name={a.club.name} size={40} />
         : <Avatar src={LOGO} name={NAME} size={40} />}

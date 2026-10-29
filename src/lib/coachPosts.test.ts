@@ -44,6 +44,16 @@ describe("toArticle", () => {
     expect(a.banner).toBe("/img/custom/coach/ab12cd34ef56ab78.jpg");
   });
 
+  it("shows the coach's cut in the feed circle, the whole photo as banner", () => {
+    const a = toArticle(post({
+      type: "player",
+      data: { headline: "Nguyen fehlt", player: { name: "Kevin Nguyen", newsType: "angeschlagen" }, thumb: { imageId: "0123456789abcdef", source: "ab12cd34ef56ab78", x: 0.5, y: 0.3, zoom: 1.4 } },
+      image: { id: "ab12cd34ef56ab78", width: 454, height: 982 },
+    }));
+    expect(a.player?.photo).toBe("/img/custom/coach/0123456789abcdef.jpg");
+    expect(a.banner).toBe("/img/custom/coach/ab12cd34ef56ab78.jpg");
+  });
+
   it("escapes what the coach typed", () => {
     const a = toArticle(post({ type: "lineup", data: { headline: "A<b>", text: "x & <script>", lineup: { lines: [["Gör<i>"]], bench: [] } } }));
     expect(a.bodyHtml).not.toContain("<script>");
@@ -78,6 +88,22 @@ describe("validate", () => {
   ])("refuses %s", (_, input) => {
     expect("error" in validate(input, NOW)).toBe(true);
   });
+  it("keeps a feed picture's cut, clamped, and drops a broken one", () => {
+    const thumb = (t: unknown, base: object = player) => {
+      const v = validate({ ...base, data: { ...(base as typeof player).data, thumb: t } }, NOW);
+      return "data" in v ? v.data.thumb : "error";
+    };
+    const good = { imageId: "0123456789abcdef", source: "ab12cd34ef56ab78", x: 0.5, y: 0.31234567, zoom: 1.5 };
+    expect(thumb(good)).toEqual({ ...good, y: 0.3123 });
+    expect(thumb({ ...good, x: -1, y: 7, zoom: 9 })).toEqual({ ...good, x: 0, y: 1, zoom: 4 });
+    expect(thumb({ ...good, zoom: 0.2 })).toMatchObject({ zoom: 1 });
+    expect(thumb({ ...good, imageId: "../../etc/passwd" })).toBeUndefined();
+    expect(thumb({ ...good, source: "ABCDEF0123456789" })).toBeUndefined();
+    expect(thumb({ ...good, x: "0.5" })).toBeUndefined();
+    expect(thumb({ ...good, zoom: NaN })).toBeUndefined();
+    expect(thumb(good, result)).toBeUndefined(); // only player news shows a picture in the feed
+  });
+
   it("keeps the bot settings, with a known mood only", () => {
     const v = validate({ ...lineup, data: { ...lineup.data, bots: { on: true, context: "  Zwei Stammspieler fehlten. " } } }, NOW);
     expect("data" in v && v.data.bots).toEqual({ on: true, context: "Zwei Stammspieler fehlten." });
