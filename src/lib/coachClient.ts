@@ -6,6 +6,7 @@ import { NEWS_TYPE, toneClass } from "./newsTypes.ts";
 import { time } from "./format.ts";
 import { defaultCrop, fit, rounded, sameCrop, square, type Crop } from "./coachCrop.ts";
 import { EASE_GLIDE } from "./motion.ts";
+import { findTeamPhoto, type TeamPhoto } from "./teamPhotos.ts";
 
 /** The coach's page (/schnoeselmob/): sign in, the list of posts, the editor with its preview. */
 
@@ -91,6 +92,7 @@ export function initCoach() {
   const form = q<HTMLFormElement>('[data-view="edit"]');
   const status = q("[data-status]");
   const posts: CoachPost[] = JSON.parse(document.querySelector("[data-coach-posts]")?.textContent ?? "[]");
+  let team: TeamPhoto[] = JSON.parse(document.querySelector("[data-coach-team]")?.textContent ?? "[]");
 
   let editing: CoachPost | undefined;
   let type: CoachType = "lineup";
@@ -106,6 +108,10 @@ export function initCoach() {
   let savedThumb: CoachThumb | undefined;
   /** The photo being framed, once loaded: its size, and what the canvas draws when saving. */
   let face: { id: string; url: string; img: HTMLImageElement; ready: Promise<unknown> } | undefined;
+  /** The photo came from the typed name (it follows the name); one the coach picked or uploaded stays. */
+  let autoPicked = false;
+  /** The photo uploaded in this editor, offered as the player's team photo. */
+  let uploaded: string | undefined;
   /** Set when the cookie ran out while saving: after signing in again, back to the form as it was. */
   let resume = false;
 
@@ -184,6 +190,7 @@ export function initCoach() {
     type = t;
     setSeg(q("[data-type-seg]"), "data-type", t);
     root.querySelectorAll<HTMLElement>("[data-for]").forEach((x) => (x.hidden = x.dataset.for !== t));
+    teamSave();
     // The lineup's usual headline comes and goes with the type, unless the coach wrote their own.
     const h = input("headline");
     if (t === "lineup" && !h.value.trim()) h.value = LINEUP_HEADLINE;
@@ -254,7 +261,52 @@ export function initCoach() {
     q("[data-photo-label]").textContent = photoUrl ? "Anderes Foto" : "Foto hinzufügen";
     loadFace();
     preview();
+    markTeam();
   };
+
+  // --- Team photos -----------------------------------------------------------------------------------------
+  const teamRow = q("[data-team-row]");
+  const calm = () => !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /** The row of faces (hidden while there are none); a just saved one settles in. */
+  function renderTeam(fresh?: string) {
+    q("[data-team]").hidden = !team.length;
+    teamRow.replaceChildren(...team.map((t) => {
+      const b = el("button", "press coach-team-item");
+      b.type = "button";
+      b.dataset.teamId = t.imageId;
+      b.setAttribute("aria-label", t.player);
+      b.title = t.player;
+      const img = el("img");
+      img.src = imageUrl(t.imageId);
+      img.alt = "";
+      img.decoding = "async";
+      // The last name, as the lineups write them.
+      b.append(img, el("span", "", t.player.split(" ").at(-1) ?? t.player));
+      b.addEventListener("click", () => pickTeam(t));
+      if (t.imageId === fresh && calm()) b.animate([{ opacity: 0, transform: "scale(0.9)" }, { opacity: 1, transform: "none" }], { duration: 360, easing: EASE_GLIDE });
+      return b;
+    }));
+    markTeam();
+  }
+  function markTeam() {
+    teamRow.querySelectorAll<HTMLElement>("[data-team-id]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.teamId === imageId)));
+    teamSave();
+  }
+  /** As if the photo had just been uploaded (the feed circle starts from the head again); tapped again, no photo. */
+  function pickTeam(t: TeamPhoto, auto = false) {
+    autoPicked = auto;
+    if (!thumbSrc) crop = undefined;
+    setPhoto(!auto && imageId === t.imageId ? undefined : t.imageId);
+  }
+  /** "Als Teamfoto für … merken": after uploading a new photo with the player's name typed (an existing one by that name is replaced). */
+  function teamSave() {
+    const b = q<HTMLButtonElement>("[data-team-save]");
+    const name = input("playerName").value.trim().replace(/\s+/g, " ");
+    const player = findTeamPhoto(name, team)?.player ?? name;
+    const offer = type === "player" && !!imageId && imageId === uploaded && player.length >= 2 && player.length <= 40 && !team.some((t) => t.imageId === imageId);
+    b.hidden = !offer;
+    if (offer) { b.textContent = `Als Teamfoto für ${player} merken`; b.dataset.player = player; }
+  }
 
   // --- The feed picture ------------------------------------------------------------------------------------
   const source = () => thumbSrc ?? (imageId && photoUrl ? { id: imageId, url: photoUrl } : undefined);
@@ -336,6 +388,8 @@ export function initCoach() {
   function openEditor(p?: CoachPost) {
     editing = p;
     form.reset();
+    autoPicked = false;
+    uploaded = undefined;
     say("");
     q("[data-delete]").hidden = !p;
     const now = new Date();
@@ -477,6 +531,27 @@ export function initCoach() {
     if (b) setBadge(b.dataset.badge as NewsType);
   });
   form.addEventListener("input", preview);
+  // A known player's photo comes with his name, unless the post already has one the coach chose.
+  input("playerName").addEventListener("input", () => {
+    if (imageId && !autoPicked) return teamSave();
+    const t = findTeamPhoto(input("playerName").value, team);
+    if (t && t.imageId !== imageId) pickTeam(t, true);
+    else if (!t && autoPicked) { autoPicked = false; setPhoto(undefined); }
+    else teamSave();
+  });
+  q("[data-team-save]").addEventListener("click", async (e) => {
+    const b = e.currentTarget as HTMLButtonElement;
+    const player = b.dataset.player;
+    if (!imageId || !player || b.disabled) return;
+    b.disabled = true;
+    const r = await api<{ photos?: TeamPhoto[] }>("/api/coach/team-photos/", { method: "PUT", body: JSON.stringify({ player, imageId }) });
+    b.disabled = false;
+    if (r.status === 401) return signedOut();
+    if (!r.ok || !r.data.photos) return say(r.data.error ?? "Teamfoto konnte nicht gespeichert werden.", "error");
+    team = r.data.photos;
+    renderTeam(imageId);
+    teamRow.querySelector(`[data-team-id="${imageId}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: calm() ? "smooth" : "auto" });
+  });
   input("bots").addEventListener("change", () => (q("[data-context]").hidden = !input("bots").checked));
 
   q<HTMLInputElement>("[data-photo]").addEventListener("change", async (e) => {
@@ -490,6 +565,8 @@ export function initCoach() {
       if (!id) return;
       // A new article photo: the feed picture cut from it starts over (one of its own stays as it is).
       if (!thumbSrc) crop = undefined;
+      autoPicked = false;
+      uploaded = id;
       setPhoto(id, URL.createObjectURL(blob));
     } catch (err) {
       setPhoto(imageId);
@@ -631,4 +708,5 @@ export function initCoach() {
   });
 
   renderList();
+  renderTeam();
 }

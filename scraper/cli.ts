@@ -52,6 +52,7 @@ if (command === "scrape") {
     const coach = await pullCoachPosts({
       site: process.env.COACH_EXPORT_URL, token: process.env.COACH_EXPORT_TOKEN,
       file: join(ROOT, "store", "coach-posts.json"), imgDir: join(publicDir, "img", "custom", "coach"),
+      teamFile: join(ROOT, "store", "team-photos.json"),
     });
     if (coach.problem) result.problems.push(coach.problem);
     const file = join(ROOT, "store", "coach-posts.json");

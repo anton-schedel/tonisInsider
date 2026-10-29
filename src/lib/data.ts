@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Article, Lineup, State } from "../../scraper/types.ts";
 import { dayKey } from "./format.ts";
 import { dueCoach, toArticle, type CoachPost } from "./coachPosts.ts";
+import { withTeamPhoto, type OwnPostJson, type TeamPhotoMap } from "./teamPhotos.ts";
 
 const STORE = join(process.cwd(), "store");
 /** Our own posts (e.g. our uni league club's lineup), written by hand: one Article JSON per file. */
@@ -19,6 +20,17 @@ function coachPosts(): Article[] {
   return existsSync(path) ? dueCoach(JSON.parse(readFileSync(path, "utf8")) as CoachPost[], new Date()).map(toArticle) : [];
 }
 
+/** Our hand-written posts that are out, a player's photo taken from the coach's team photos (store/team-photos.json). */
+export function ownPosts(posts: OwnPostJson[], photos: TeamPhotoMap, now: Date): Article[] {
+  // Posts scheduled for later stay out until then (the scraper rebuilds the site when one is due).
+  return posts.filter((a) => Date.parse(a.publishedAt) <= now.getTime()).map((a) => withTeamPhoto(a, photos));
+}
+
+function teamPhotos(): TeamPhotoMap {
+  const path = join(STORE, "team-photos.json");
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as TeamPhotoMap) : {};
+}
+
 function readJsonFiles<T>(path: string): T[] {
   if (!existsSync(path)) return [];
   return readdirSync(path)
@@ -32,8 +44,7 @@ function load() {
   if (!cache) {
     const statePath = join(STORE, "state.json");
     cache = {
-      // Own posts scheduled for later stay out until then (the scraper rebuilds the site when one is due).
-      articles: [...readDir<Article>("articles"), ...readJsonFiles<Article>(POSTS).filter((a) => Date.parse(a.publishedAt) <= Date.now()), ...coachPosts()].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
+      articles: [...readDir<Article>("articles"), ...ownPosts(readJsonFiles<OwnPostJson>(POSTS), teamPhotos(), new Date()), ...coachPosts()].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
       lineups: readDir<Lineup>("lineups").sort((a, b) => a.club.name.localeCompare(b.club.name, "de")),
       state: existsSync(statePath) ? (JSON.parse(readFileSync(statePath, "utf8")) as State) : {},
     };

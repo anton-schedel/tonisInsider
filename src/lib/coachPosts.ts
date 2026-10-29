@@ -44,7 +44,7 @@ export type CoachPost = {
 export const COACH_ID_MIN = 900_001_000;
 
 export const CLUB = { id: 0, slug: "tus-schnoeselmob", name: "TuS Schnöselmob", crest: "/brand/schnoeselmob.png" };
-const BANNER = "/img/custom/schnoeselmob-banner.jpg";
+export const CLUB_BANNER = "/img/custom/schnoeselmob-banner.jpg";
 /**
  * A scheduled post is built this long before its time (the scrape runs every 5 minutes) and shown from its minute
  * on. Not earlier: a post days ahead would sit in the page (and its day in the feed) before it's out.
@@ -105,7 +105,7 @@ export function toArticle(p: CoachPost): Article {
     publishedAt: p.publishedAt,
     ...(p.pinnedUntil ? { pinnedUntil: p.pinnedUntil } : {}),
     bodyHtml: body(p),
-    banner: photo ?? BANNER,
+    banner: photo ?? CLUB_BANNER,
     ...(p.image ? { bannerSize: { width: p.image.width, height: p.image.height } } : {}),
     own: true,
     fetchedAt: p.updatedAt,

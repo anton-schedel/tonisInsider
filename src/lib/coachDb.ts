@@ -1,6 +1,7 @@
 import type { D1 } from "cloudflare:workers";
 import { removeExtras } from "./ownCommentsDb.ts";
 import { COACH_ID_MIN, type CoachInput, type CoachPost, type CoachType } from "./coachPosts.ts";
+import type { TeamPhoto } from "./teamPhotos.ts";
 
 /** coach_posts joined with its image's size. */
 export type CoachRow = {
@@ -64,4 +65,28 @@ export async function deletePost(db: D1, id: number, now: Date): Promise<boolean
 /** For the build: every live post. */
 export async function exportPosts(db: D1): Promise<CoachPost[]> {
   return listPosts(db);
+}
+
+// --- Team photos (src/lib/teamPhotos.ts) ----------------------------------------------------------------------
+
+/** Every team photo with its image's size, by name. */
+export async function listTeamPhotos(db: D1): Promise<TeamPhoto[]> {
+  const { results } = await db.prepare(`SELECT t.player, t.image_id AS imageId, i.width, i.height
+    FROM coach_team_photos t JOIN coach_images i ON i.id = t.image_id ORDER BY t.player COLLATE NOCASE`).bind().all<TeamPhoto>();
+  return results;
+}
+
+/** Sets a player's photo (a new one replaces the old; the name is stored as last written). False: no such image. */
+export async function saveTeamPhoto(db: D1, player: string, imageId: string, now: Date): Promise<boolean> {
+  if (!(await db.prepare("SELECT 1 AS ok FROM coach_images WHERE id = ?").bind(imageId).first())) return false;
+  await db.prepare(`INSERT INTO coach_team_photos (player, image_id, updated_at) VALUES (?, ?, ?)
+    ON CONFLICT (player) DO UPDATE SET player = excluded.player, image_id = excluded.image_id, updated_at = excluded.updated_at`)
+    .bind(player, imageId, now.toISOString()).run();
+  return true;
+}
+
+/** Forgets a player's photo (the image stays: posts may show it). */
+export async function deleteTeamPhoto(db: D1, player: string): Promise<boolean> {
+  const { meta } = await db.prepare("DELETE FROM coach_team_photos WHERE player = ?").bind(player.trim()).run();
+  return meta.changes > 0;
 }

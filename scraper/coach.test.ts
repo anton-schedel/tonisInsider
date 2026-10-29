@@ -15,9 +15,9 @@ function setup() {
   return { file: join(dir, "store", "coach-posts.json"), imgDir: join(dir, "public", "img", "custom", "coach") };
 }
 
-const fake = (posts: unknown[], calls: string[] = []) => (async (url: string, init?: RequestInit) => {
+const fake = (posts: unknown[], calls: string[] = [], teamPhotos?: unknown[]) => (async (url: string, init?: RequestInit) => {
   calls.push(`${url} ${new Headers(init?.headers).get("x-export-token")}`);
-  if (url.endsWith("/api/coach/export/")) return Response.json({ posts });
+  if (url.endsWith("/api/coach/export/")) return Response.json({ posts, ...(teamPhotos ? { teamPhotos } : {}) });
   if (url.includes("/api/coach/images/")) return new Response(new Uint8Array([0xff, 0xd8, 1, 2]), { headers: { "content-type": "image/jpeg" } });
   return new Response(null, { status: 404 });
 }) as typeof fetch;
@@ -56,6 +56,22 @@ describe("pullCoachPosts", () => {
     expect((await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, fetcher: fake([post({ updatedAt: "2026-10-24T13:00:00.000Z" })]) })).changed).toBe(true);
     expect((await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, fetcher: fake([]) })).changed).toBe(true);
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual([]);
+  });
+
+  it("saves the team photos and their map, and rebuilds when one changes", async () => {
+    const { file, imgDir } = setup();
+    const teamFile = join(file, "..", "team-photos.json");
+    const kevin = { player: "Kevin Nguyen", imageId: "0123456789abcdef", width: 1024, height: 1024 };
+    const calls: string[] = [];
+    expect((await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, teamFile, fetcher: fake([], calls, [kevin]) })).changed).toBe(true);
+    expect(calls).toContain("https://site.example/api/coach/images/0123456789abcdef/ t");
+    expect(existsSync(join(imgDir, "0123456789abcdef.jpg"))).toBe(true);
+    expect(JSON.parse(readFileSync(teamFile, "utf8"))).toEqual({ "Kevin Nguyen": { photo: "/img/custom/coach/0123456789abcdef.jpg", width: 1024, height: 1024 } });
+    expect((await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, teamFile, fetcher: fake([], [], [kevin]) })).changed).toBe(false);
+    expect((await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, teamFile, fetcher: fake([], [], [{ ...kevin, imageId: "fedcba9876543210" }]) })).changed).toBe(true);
+    // An export from before team photos keeps the last map.
+    expect((await pullCoachPosts({ site: "https://site.example", token: "t", file, imgDir, teamFile, fetcher: fake([]) })).changed).toBe(false);
+    expect(JSON.parse(readFileSync(teamFile, "utf8"))["Kevin Nguyen"].photo).toBe("/img/custom/coach/fedcba9876543210.jpg");
   });
 
   it("keeps the last posts when the export fails", async () => {

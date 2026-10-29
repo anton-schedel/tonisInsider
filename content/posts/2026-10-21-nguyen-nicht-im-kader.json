@@ -5,14 +5,12 @@
   "listHeadline": "Nicht im Kader: Schnöselmob muss gegen Förderbedarf auf Nguyen verzichten",
   "category": "bundesliga",
   "newsType": "angeschlagen",
-  "player": { "id": 900000101, "slug": "kevin-nguyen", "name": "Kevin Nguyen", "photo": "/img/custom/nguyen4-avatar.jpg" },
+  "player": { "id": 900000101, "slug": "kevin-nguyen", "name": "Kevin Nguyen", "teamPhoto": "Kevin Nguyen" },
   "club": { "id": 0, "slug": "tus-schnoeselmob", "name": "TuS Schnöselmob", "crest": "/brand/schnoeselmob.png" },
   "source": { "name": "TonInsider" },
   "publishedAt": "2026-10-21T15:35:00.000Z",
   "pinnedUntil": "2026-10-21T16:35:00.000Z",
   "bodyHtml": "<p>Der TuS Schnöselmob muss im heutigen Duell mit dem FC Förderbedarf ohne Nguyen auskommen. Der Offensivspieler steht nicht im Spieltagskader, die Gründe für sein Fehlen sind bislang nicht bekannt.</p>\n<p>Für den Schnöselmob ist der Ausfall nach der deutlichen 1:7-Pleite gegen den AS Tralkörper ein weiterer Rückschlag. Nguyen gehört zu den Leistungsträgern im Team und stand in der Vorwoche noch in der Startelf. Wer seinen Platz einnimmt, ist offen. Die Aufstellung folgt um 19 Uhr.</p>",
-  "banner": "/brand/nguyen-photo.jpg",
-  "bannerSize": { "width": 1024, "height": 1024 },
   "own": true,
   "fetchedAt": "2026-10-21T15:35:00.000Z"
 }
