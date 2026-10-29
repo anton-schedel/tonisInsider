@@ -208,7 +208,8 @@ html {
 
   /* A feed row's headline and the line under it (ArticleRow.astro, the coach's preview). */
   .feed-title { display: block; margin-bottom: 4px; font-size: 17px; line-height: 1.375; font-weight: 600; letter-spacing: -0.015em; }
-  .feed-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  /* clip: on the narrowest phones pill, time and comment count could poke out of the row by a pixel. */
+  .feed-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); overflow-x: clip; }
 
   /* A club crest on the corner of a player's photo. */
   .crest-overlay { position: absolute; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)); }
