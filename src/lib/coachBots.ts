@@ -45,6 +45,7 @@ export function storiesOf(posts: CoachPost[], post: CoachPost, max = 8): string[
 
 /** Results before the coach page existed (newest first); later ones come from the coach's result posts. */
 export const SEASON = [
+  "28.10.: 0:1 gegen JAVIS' FOOT – Trendwende verpasst, fast voller Kader (nur Gerl krank, Enciu kurzfristig raus), Schedels Startdebüt, überlegen in der zweiten Halbzeit, aber deren Torwart hielt alles",
   "21.10.: 0:2 gegen FC Förderbedarf – deutlich besseres Spiel als zuletzt, aber zwei wichtige Spieler fehlten (u. a. Kevin Nguyen)",
   "14.10.: 1:7 gegen AS Tralkörper – nach der Pause vom Pressing überrollt, Ehrentreffer Ellenberger",
 ];
