@@ -15,7 +15,8 @@ export type KbLeague = { id: string; name: string };
 export type KbLive = { state: 0 | 1 | 2; points?: number; minute?: number; kickoff?: string };
 /** pos: 1 = TW, 2 = ABW, 3 = MF, 4 = ST */
 export type KbPlayer = { id: string; name: string; teamId: string; position: 1 | 2 | 3 | 4; image?: string; live?: KbLive };
-export type KbTeam = { id: string; name: string };
+/** played: Bundesliga matches played so far (from the table). */
+export type KbTeam = { id: string; name: string; played?: number };
 
 type Fetch = typeof fetch;
 
@@ -104,9 +105,40 @@ export async function teamRoster(fetchFn: Fetch, token: string, teamId: string):
   return (r.it ?? []).map((p) => p.n);
 }
 
+/** A Bundesliga club's players with their Kickbase ids and positions (1 = TW … 4 = ST). */
+export async function teamSquad(fetchFn: Fetch, token: string, teamId: string): Promise<{ id: string; name: string; position: number }[]> {
+  const r = await call<{ it?: { i: string; n: string; pos: number }[] }>(fetchFn, `/v4/competitions/1/teams/${encodeURIComponent(teamId)}/teamprofile`, { token });
+  return (r.it ?? []).map((p) => ({ id: String(p.i), name: p.n, position: p.pos }));
+}
+
+/**
+ * A player's Bundesliga matches this season, played or not (Kickbase's "performance"): t1 is the home team; goals,
+ * points and minutes only once the match has started. state: 0 = not started, 1 = running, 2 = over.
+ */
+export type KbPerfMatch = {
+  day: number; matchId: string; date: string; home: string; away: string; homeGoals?: number; awayGoals?: number;
+  points?: number; minutes?: number; state: number;
+};
+
+export async function performance(fetchFn: Fetch, token: string, playerId: string): Promise<KbPerfMatch[]> {
+  const r = await call<{ it?: { ti: string; ph?: { mi: string; day: number; md: string; t1: string; t2: string; t1g?: number | null; t2g?: number | null; p?: number | null; mp?: string | null; mdst?: number }[] }[] }>(
+    fetchFn, `/v4/competitions/1/players/${encodeURIComponent(playerId)}/performance`, { token },
+  );
+  // Grouped by season, oldest first: this season is the last.
+  const season = [...(r.it ?? [])].sort((a, b) => a.ti.localeCompare(b.ti)).at(-1);
+  return (season?.ph ?? []).map((m) => ({
+    day: m.day, matchId: String(m.mi), date: m.md, home: String(m.t1), away: String(m.t2),
+    ...(typeof m.t1g === "number" ? { homeGoals: m.t1g } : {}),
+    ...(typeof m.t2g === "number" ? { awayGoals: m.t2g } : {}),
+    ...(typeof m.p === "number" ? { points: m.p } : {}),
+    ...(m.mp ? { minutes: parseInt(m.mp, 10) } : {}),
+    state: m.mdst ?? 0,
+  }));
+}
+
 export async function clubTable(fetchFn: Fetch, token: string): Promise<KbTeam[]> {
-  const r = await call<{ it?: { tid: string; tn: string }[] }>(fetchFn, "/v4/competitions/1/table", { token });
-  return (r.it ?? []).map((t) => ({ id: String(t.tid), name: t.tn }));
+  const r = await call<{ it?: { tid: string; tn: string; mc?: number }[] }>(fetchFn, "/v4/competitions/1/table", { token });
+  return (r.it ?? []).map((t) => ({ id: String(t.tid), name: t.tn, ...(typeof t.mc === "number" ? { played: t.mc } : {}) }));
 }
 
 /** A club's players and their Kickbase points on the current matchday (none before kickoff), and its match. */
@@ -128,10 +160,10 @@ export async function teamCenter(fetchFn: Fetch, token: string, teamId: string):
 /** One action that earned or cost a player points (type: Kickbase event type id). */
 export type KbEvent = { type: number; points: number; minute?: number };
 
-/** A player's match on the current matchday: state, points and every action behind them. */
-export async function playerCenter(fetchFn: Fetch, token: string, playerId: string): Promise<{ live: KbLive; events: KbEvent[] }> {
+/** A player's match on the current matchday (or on matchday `day`): state, points and every action behind them. */
+export async function playerCenter(fetchFn: Fetch, token: string, playerId: string, day?: number): Promise<{ live: KbLive; events: KbEvent[] }> {
   const r = await call<ApiPlayer & { events?: { eti: number; p: number; mt?: number }[] }>(
-    fetchFn, `/v4/competitions/1/playercenter/${encodeURIComponent(playerId)}`, { token },
+    fetchFn, `/v4/competitions/1/playercenter/${encodeURIComponent(playerId)}${day !== undefined ? `?day=${day}` : ""}`, { token },
   );
   return {
     live: toLive(r),

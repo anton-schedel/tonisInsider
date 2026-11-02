@@ -78,9 +78,18 @@ From the player's events this season: which share of his points comes from which
 goals, shots, key passes; duels; defence: tackles, interceptions, clean sheet; goalkeeping; minutes). The groups are
 built from Kickbase's event types; the mapping is a fixed table in our code.
 
-Combined with this week's opponent (win chance from the odds) into one statement per player where it stands out,
-e.g. *"Most of Saibari's points come from attacking actions, and they dropped by half against top-6 opponents;
-this week Bayern are favourites against Dortmund."* "Top-6" means the six best teams by our odds, not the table.
+**Opponent strength** for a past match is not one number but three, all from the match results in the Kickbase
+history (every match's home team, away team and score), as they were *before* that match:
+- the table strength (points per game so far),
+- home or away: how the opponent does at home vs. away (some teams are much weaker away),
+- momentum: points from its last 5 matches.
+
+The player's own home/away split is part of his profile too.
+
+Combined with this week's opponent (win chance from the odds, plus the same three numbers) into one statement per
+player where it stands out,
+e.g. *"Most of Saibari's points come from attacking actions, and they halved away against teams in form; this
+Saturday Bayern play at Union, who won 4 of their last 5 at home."*
 
 Shown when the player has ≥ 4 matches with minutes. Up to 3 players are named, those where the profile and the
 matchup point in the same direction most clearly.
@@ -105,9 +114,8 @@ matchup point in the same direction most clearly.
 ## Decided after the builder check
 
 - **Which players:** the whole Kickbase squad, not only the set eleven: the manager picks the eleven from it.
-- **"Top-6" opponents for past matches:** the six best teams in the current Bundesliga table (Kickbase
-  `/v4/competitions/1/table`, already used). Our odds only cover the coming matchday, so they can't rank past
-  opponents. This week's opponent is still judged by this week's odds.
+- **Opponents of past matches** are judged by the three numbers above as they were at the time (owner: "a team
+  can also be strong at home or have momentum"), not by today's table.
 - **Competitions in Kickbase's performance:** `competitions/1` is the Bundesliga only (its answer is grouped by
   season with `"n": "Bundesliga"`), so a player's "usual starts" are Bundesliga starts. Checked with the test
   account on 2026-11-02.

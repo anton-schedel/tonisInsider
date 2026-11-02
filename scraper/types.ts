@@ -1,3 +1,4 @@
+import type { CupGame } from "./cupGames.ts";
 import type { SavedPrediction } from "./predictions.ts";
 import type { OddsEvent } from "./odds.ts";
 import type { ScorerMatch } from "./scorers.ts";
@@ -110,4 +111,7 @@ export type State = {
   coachDue?: number[];
   /** LigaInsider's predicted XI per matchday as saved before its first kickoff, with the confirmed XI (predictions.ts). */
   predictions?: SavedPrediction[];
+  /** The Bundesliga clubs' European and DFB-Pokal games, kept from when first listed (cupGames.ts). */
+  cupGames?: CupGame[];
+  cupGamesFetchedAt?: string;
 };

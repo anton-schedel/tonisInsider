@@ -66,6 +66,9 @@ jobs:
           # The coach's posts (/schnoeselmob/), from the site's export. Without them the run skips them.
           COACH_EXPORT_URL: ${{ secrets.COACH_EXPORT_URL }}
           COACH_EXPORT_TOKEN: ${{ secrets.COACH_EXPORT_TOKEN }}
+          # Optional: the owner's Kickbase account for every player's season history (scraper/kbHistory.ts).
+          KICKBASE_EMAIL: ${{ secrets.KICKBASE_EMAIL }}
+          KICKBASE_PASSWORD: ${{ secrets.KICKBASE_PASSWORD }}
 
       # Our club's banner: LigaInsider's Dortmund stadium photo with our crest swapped in (scripts/club-banner.py).
       # Made here, not committed: the photo is LigaInsider's/Getty's, and the repo holds only code.

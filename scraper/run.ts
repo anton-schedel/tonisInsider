@@ -15,6 +15,7 @@ import { LIVE_URL, parseLive } from "../src/lib/live.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
 import { bannerKey, ensureImage } from "./images.ts";
 import { recordPredictions } from "./predictions.ts";
+import { CUP_COMPETITIONS, cupGamesDue, cupGamesUrl, mergeCupGames, parseCupGames, type CupGame } from "./cupGames.ts";
 
 export const RETENTION_DAYS = 30;
 export const BACKFILL_PAGES = 3;
@@ -291,6 +292,23 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       if (status === 401 || status === 403) result.problems.push(`odds: HTTP ${status}, check the ODDS_API_KEY secret`);
       else console.warn(`odds unavailable${status ? ` (HTTP ${status})` : ""}, retrying later`);
     }
+  }
+
+  // European and cup games, once a day (the rotation risk around them). Not shown yet: no rebuild.
+  if (oddsApiKey && state.odds?.length && cupGamesDue(state.cupGamesFetchedAt, now)) {
+    const bundesliga = new Set(state.odds.flatMap((e) => [e.home, e.away]));
+    // Games are listed weeks ahead: a competition that fails is simply asked again tomorrow.
+    const fresh: CupGame[] = [];
+    for (const [sport, name] of Object.entries(CUP_COMPETITIONS)) {
+      try {
+        fresh.push(...parseCupGames(JSON.parse(await fetcher.text(cupGamesUrl(oddsApiKey, sport))), name, bundesliga));
+      } catch (err) {
+        const status = err instanceof HttpError ? err.status : undefined;
+        console.warn(`${name} games unavailable${status ? ` (HTTP ${status})` : ""}, retrying later`);
+      }
+    }
+    state.cupGames = mergeCupGames(state.cupGames, fresh);
+    state.cupGamesFetchedAt = now.toISOString();
   }
 
   // Player and team odds for the coming matchday, released together on Thursday evening (match ids come from
