@@ -15,3 +15,6 @@ scraper/__fixtures__/
 .env.*
 .dev.vars
 .wrangler/
+
+# Player photos for the team avatars: private, never in git or on the site.
+photos/
