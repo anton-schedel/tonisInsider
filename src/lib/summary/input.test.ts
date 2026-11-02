@@ -22,6 +22,15 @@ const args = (history: KbHistory | undefined) => ({
 });
 
 describe("summaryInput", () => {
+  it("gives each player this week's game with short club names, his win and clean sheet chance and his position", () => {
+    const a = { ...args(undefined), outlook: new Map([["1", { win: 74, cleanSheet: 41 }]]) };
+    const [one, two] = summaryInput(a).players;
+    // Dortmund is away at Union in this fixture list.
+    expect(one.outlook).toEqual({ team: "Dortmund", opponent: "Union Berlin", home: false, win: 74, cleanSheet: 41 });
+    expect(one.position).toBe(3);
+    expect(two.outlook).toBeUndefined();
+  });
+
   it("says nothing about a game that has already started (a club whose page still shows last weekend)", () => {
     const h: KbHistory = { ...emptyHistory(), season: "2026/2027" };
     // Dortmund ("3") away at Union ("40"), which draws every home game (a weak home side), six times.
@@ -55,8 +64,8 @@ describe("summaryInput", () => {
   it("works without the history: names and the predicted XI only", () => {
     const input = summaryInput(args(undefined));
     expect(input.players).toEqual([
-      { name: "Spieler 1", inPredictedXi: true, clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
-      { name: "Spieler 2", inPredictedXi: false, clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
+      { name: "Spieler 1", inPredictedXi: true, position: 3, clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
+      { name: "Spieler 2", inPredictedXi: false, position: 3, clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
     ]);
     expect(input.reliability.size).toBe(0);
   });

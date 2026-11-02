@@ -21,6 +21,8 @@ export type Profile = {
   /** The biggest share, leaving out playing time, team success and the ungrouped rest (they say nothing about his game). */
   top: Group;
   byContext: { context: Context; avg: number; games: number }[];
+  /** At home and away (every game with minutes, whatever the opponent), weighted by recency. */
+  byVenue: { home?: { avg: number; games: number }; away?: { avg: number; games: number } };
 };
 
 export function contextOf(form: Form | undefined, opponentHome: boolean): Context["opponent"] {
@@ -38,7 +40,7 @@ export function profileOf(p: HistPlayer, matches: Record<string, HistMatch>): Pr
       const home = m.home === team;
       const form = formBefore(matches, home ? m.away : m.home, m.date);
       const context = form && form.games >= MIN_FORM_GAMES ? { home, opponent: contextOf(form, !home) } : undefined;
-      return { g, date: m.date, context };
+      return { g, date: m.date, home, context };
     })
     .sort((a, b) => b.date.localeCompare(a.date));
   if (games.length < MIN_GAMES) return undefined;
@@ -66,7 +68,12 @@ export function profileOf(p: HistPlayer, matches: Record<string, HistMatch>): Pr
     if (!buckets.has(key)) buckets.set(key, { context, points: [] });
     buckets.get(key)!.points.push(g.points);
   }
+  const venue = (home: boolean) => {
+    const points = games.filter((x) => x.home === home).map(({ g }) => g.points);
+    return points.length ? { avg: weighted(points)!, games: points.length } : undefined;
+  };
   return {
+    byVenue: { home: venue(true), away: venue(false) },
     games: games.length,
     avg: weighted(games.map(({ g }) => g.points))!,
     shares,
@@ -88,4 +95,17 @@ export function matchupIndex(profile: Profile, upcoming: Context): { index: numb
   if (!b || b.games < MIN_KIND || profile.avg <= 0) return undefined;
   const shrunk = (b.games * b.avg + PRIOR * profile.avg) / (b.games + PRIOR);
   return { index: shrunk / profile.avg, games: b.games };
+}
+
+/**
+ * His points at this venue against the other one (1.5: half again as many at home as away), both pulled toward his
+ * average like the kinds of match. Undefined without three games on both sides.
+ */
+export function venueIndex(profile: Profile, home: boolean): { index: number; games: number } | undefined {
+  const here = home ? profile.byVenue.home : profile.byVenue.away;
+  const there = home ? profile.byVenue.away : profile.byVenue.home;
+  if (!here || !there || here.games < MIN_KIND || there.games < MIN_KIND || profile.avg <= 0) return undefined;
+  const shrink = (v: { avg: number; games: number }) => (v.games * v.avg + PRIOR * profile.avg) / (v.games + PRIOR);
+  const other = shrink(there);
+  return other > 0 ? { index: shrink(here) / other, games: here.games } : undefined;
 }

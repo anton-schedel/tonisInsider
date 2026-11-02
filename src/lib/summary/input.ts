@@ -5,7 +5,7 @@ import type { Lineup } from "../../../scraper/types.ts";
 import type { KbTeam } from "../kickbase.ts";
 import { mapClubs, type MyPlayer, type StartStatus } from "../match.ts";
 import { toFixtures } from "../fixtures.ts";
-import { contextOf, matchupIndex, MIN_FORM_GAMES, profileOf } from "./profile.ts";
+import { contextOf, matchupIndex, MIN_FORM_GAMES, profileOf, venueIndex } from "./profile.ts";
 import { reliabilityByClub, type Reliability } from "./reliability.ts";
 import { rotationRisk } from "./rotation.ts";
 import { formBefore } from "./teamForm.ts";
@@ -31,6 +31,8 @@ function currentMatchday(lineups: Lineup[]): number | undefined {
 export function summaryInput(args: {
   now: Date; players: MyPlayer[]; history: KbHistory | undefined; lineups: Lineup[];
   predictions: SavedPrediction[]; cupGames: CupGame[]; table: KbTeam[];
+  /** The page's odds per Kickbase player id: his club's win chance and clean sheet chance, in whole percent. */
+  outlook?: Map<string, { win?: number; cleanSheet?: number }>;
 }): SummaryInput {
   const { history, lineups, table } = args;
   const clubs = mapClubs(table, lineups);
@@ -38,33 +40,56 @@ export function summaryInput(args: {
   const fixtures = toFixtures(lineups);
   const matchday = currentMatchday(lineups);
 
+  const nameOf = (kbId: string | undefined) => table.find((x) => x.id === kbId)?.name;
+
   const players = args.players.map((p): SummaryPlayer => {
     const base: SummaryPlayer = {
       name: p.kickbase.name,
       inPredictedXi: IN_XI.has(p.status),
+      position: p.kickbase.position,
       ...(p.lineup ? { clubSlug: p.lineup.club.slug, clubName: p.lineup.club.name } : {}),
     };
-    const hp = history?.players[p.kickbase.id];
-    if (!history || !hp) return base;
-    const profile = profileOf(hp, history.matches);
     // Only this matchday's game, before it starts: a club whose page still shows last weekend says nothing.
     const fixture = p.lineup?.matchday === matchday ? fixtures.find((f) => f.home === p.lineup || f.away === p.lineup) : undefined;
-    if (!fixture?.kickoff || Date.parse(fixture.kickoff) <= args.now.getTime()) return { ...base, ...(profile ? { profile } : {}) };
+    const upcoming = fixture?.kickoff && Date.parse(fixture.kickoff) > args.now.getTime() ? fixture : undefined;
+    const home = upcoming?.home === p.lineup;
+    const opponent = upcoming && (home ? upcoming.away : upcoming.home);
+    const opponentId = opponent && kbTeamOf.get(opponent.club.slug);
 
+    // This week's chances, from the odds the page has for its player cards.
+    const chances = args.outlook?.get(p.kickbase.id);
+    const outlook: SummaryPlayer["outlook"] = upcoming && chances?.win !== undefined ? {
+      team: nameOf(p.kickbase.teamId) ?? p.lineup!.club.name,
+      opponent: nameOf(opponentId) ?? (home ? upcoming.awayName : upcoming.homeName),
+      home, win: chances.win,
+      ...(chances.cleanSheet !== undefined ? { cleanSheet: chances.cleanSheet } : {}),
+    } : undefined;
+
+    const hp = history?.players[p.kickbase.id];
+    const profile = history && hp ? profileOf(hp, history.matches) : undefined;
     let matchup: SummaryPlayer["matchup"];
-    if (profile) {
-      const home = fixture.home === p.lineup;
-      const opponent = home ? fixture.away : fixture.home;
-      const opponentId = opponent && kbTeamOf.get(opponent.club.slug);
-      const opponentForm = opponentId ? formBefore(history.matches, opponentId, fixture.kickoff) : undefined;
-      // Without enough of the opponent's games there's no kind of match to compare with.
-      const context = opponentForm && opponentForm.games >= MIN_FORM_GAMES ? { home, opponent: contextOf(opponentForm, !home) } : undefined;
-      const mi = context && matchupIndex(profile, context);
-      if (mi && context) matchup = { ...mi, context, opponentName: home ? fixture.awayName : fixture.homeName, ...(opponentForm ? { opponentForm } : {}), day: weekday(fixture.kickoff) };
+    let venue: SummaryPlayer["venue"];
+    let rotation: SummaryPlayer["rotation"];
+    if (history && hp && upcoming) {
+      if (profile) {
+        venue = venueIndex(profile, home);
+        const opponentForm = opponentId ? formBefore(history.matches, opponentId, upcoming.kickoff!) : undefined;
+        // Without enough of the opponent's games there's no kind of match to compare with.
+        const context = opponentForm && opponentForm.games >= MIN_FORM_GAMES ? { home, opponent: contextOf(opponentForm, !home) } : undefined;
+        const mi = context && matchupIndex(profile, context);
+        if (mi && context) matchup = { ...mi, context, opponentName: home ? upcoming.awayName : upcoming.homeName, ...(opponentForm ? { opponentForm } : {}), day: weekday(upcoming.kickoff!) };
+      }
+      const clubName = nameOf(p.kickbase.teamId);
+      rotation = clubName ? rotationRisk(hp, clubName, history.matches, args.cupGames, upcoming.kickoff!) : undefined;
     }
-    const clubName = table.find((t) => t.id === p.kickbase.teamId)?.name;
-    const rotation = clubName ? rotationRisk(hp, clubName, history.matches, args.cupGames, fixture.kickoff) : undefined;
-    return { ...base, ...(profile ? { profile } : {}), ...(matchup ? { matchup } : {}), ...(rotation ? { rotation } : {}) };
+    return {
+      ...base,
+      ...(outlook ? { outlook } : {}),
+      ...(profile ? { profile } : {}),
+      ...(venue ? { venue } : {}),
+      ...(matchup ? { matchup } : {}),
+      ...(rotation ? { rotation } : {}),
+    };
   });
 
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contextOf, matchupIndex, profileOf, type Profile } from "./profile.ts";
+import { contextOf, matchupIndex, profileOf, venueIndex, type Profile } from "./profile.ts";
 import type { HistGame, HistMatch, HistPlayer } from "../../../scraper/kbHistory.ts";
 
 const date = (day: number) => `2026-09-${String(day).padStart(2, "0")}T13:30:00Z`;
@@ -66,7 +66,7 @@ describe("contextOf", () => {
 
 describe("matchupIndex", () => {
   const profile: Profile = {
-    games: 6, avg: 100, shares: { attack: 1 }, top: "attack",
+    games: 6, avg: 100, shares: { attack: 1 }, top: "attack", byVenue: {},
     byContext: [
       { context: { home: true, opponent: "strong" }, avg: 50, games: 2 },
       { context: { home: false, opponent: "weak" }, avg: 160, games: 1 },
@@ -82,5 +82,23 @@ describe("matchupIndex", () => {
     expect(matchupIndex(profile, { home: true, opponent: "strong" })).toBeUndefined();
     expect(matchupIndex(profile, { home: false, opponent: "weak" })).toBeUndefined();
     expect(matchupIndex(profile, { home: false, opponent: "middle" })).toBeUndefined();
+  });
+});
+
+describe("venueIndex", () => {
+  it("compares his points at this venue with the other one, each pulled toward his average", () => {
+    // Team "10" at home on odd days (100 points), away on even days (40 points).
+    const games = [1, 2, 3, 4, 5, 6].map((d) => game(d, { points: d % 2 ? 100 : 40 }));
+    const p = profileOf(player(games), matchesOf(6))!;
+    expect(p.byVenue.home).toEqual({ avg: expect.closeTo(100), games: 3 });
+    const home = venueIndex(p, true)!;
+    const shrink = (v: number) => (3 * v + 3 * p.avg) / 6;
+    expect(home.index).toBeCloseTo(shrink(100) / shrink(40));
+    expect(venueIndex(p, false)!.index).toBeCloseTo(shrink(40) / shrink(100));
+  });
+
+  it("needs three games on both sides", () => {
+    const p = profileOf(player([1, 2, 3, 5].map((d) => game(d))), matchesOf(6))!;
+    expect(venueIndex(p, true)).toBeUndefined();
   });
 });

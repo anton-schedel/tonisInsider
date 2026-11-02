@@ -110,7 +110,7 @@ async function load(token: string) {
   try {
     summary = composeSummary(summaryInput({
       now: new Date(), players, history, lineups: snapshot?.lineups ?? [], table: g.__kbTable?.teams ?? [],
-      predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [],
+      predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [], outlook,
     }));
   } catch (err) {
     console.error("team summary", err);
