@@ -58,7 +58,7 @@ export const seasonBefore = (recent: string[]) =>
   SEASON.filter((line) => !recent.some((r) => { const opponent = r.split(" gegen ")[1]; return !!opponent && line.includes(opponent); }));
 
 const MOOD_HINT: Record<keyof typeof BOT_MOODS, string> = {
-  gemischt: "Mal besorgt, mal hoffnungsvoll, mal witzig, mal wütend, wie echte Fans eben.",
+  gemischt: "Mal besorgt, mal hoffnungsvoll, mal witzig, mal wütend, enttäuscht von der Leistung der Spieler oder fordern Trainerwechsel, wie echte Fans eben.",
   froehlich: "Gute Laune, Vorfreude, Lob, viel Spaß.",
   frech: "Frech und frotzelig, mit Augenzwinkern, kann auch mal etwas Schlimmes schreiben.",
   wuetend: "Genervt und enttäuscht, fordern mehr Einsatz, schimpfen über das Spiel, beleidigen die Menschen.",
