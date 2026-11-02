@@ -15,6 +15,10 @@ import { confirmedClubs } from "../lib/lineupNews.ts";
 import { anyRunning } from "../lib/livePoints.ts";
 import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/session.ts";
 import { loadSnapshot } from "../lib/snapshotServer.ts";
+import { loadKbHistory } from "../lib/kbHistoryServer.ts";
+import { summaryInput } from "../lib/summary/input.ts";
+import { composeSummary } from "../lib/summary/compose.ts";
+import TeamSummary from "../components/TeamSummary.astro";
 
 export const prerender = false;
 
@@ -41,6 +45,7 @@ async function load(token: string) {
     : undefined;
   table?.catch(() => {}); // still thrown below; this only covers the early returns
   const snapshotLoad = loadSnapshot(Astro.url);
+  const historyLoad = loadKbHistory(Astro.url);
   const leagues = await fetchLeagues(fetch, token);
   const picked = Astro.url.searchParams.get("league");
   const wanted = picked ?? Astro.cookies.get(LEAGUE_COOKIE)?.value;
@@ -56,7 +61,7 @@ async function load(token: string) {
       if (err instanceof KickbaseAuthError) throw err;
       return fetchSquad(fetch, token, id).then((all) => ({ starters: [], bench: all }));
     });
-  const [{ starters, bench, points }, snapshot] = await Promise.all([eleven(token, league.id), snapshotLoad, table]);
+  const [{ starters, bench, points }, snapshot, , history] = await Promise.all([eleven(token, league.id), snapshotLoad, table, historyLoad]);
   const squad = [...starters, ...bench];
   const teamIds = [...new Set(squad.map((p) => p.teamId))];
   await Promise.all(
@@ -100,14 +105,24 @@ async function load(token: string) {
     const list = playerNews(articlePlayer(p, byNewest)?.id);
     return list ? [[p.kickbase.id, list] as const] : [];
   }));
-  return { leagues, league, players, starterCount: starters.length, points, outlook, cardNews };
+  // The summary above the lineup; whatever goes wrong there must not cost the page.
+  let summary: string[] = [];
+  try {
+    summary = composeSummary(summaryInput({
+      now: new Date(), players, history, lineups: snapshot?.lineups ?? [], table: g.__kbTable?.teams ?? [],
+      predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [],
+    }));
+  } catch (err) {
+    console.error("team summary", err);
+  }
+  return { leagues, league, players, starterCount: starters.length, points, outlook, cardNews, summary };
 }
 
 let error: string | undefined;
 // Not signed in (or the session ran out): the page says so itself instead of redirecting, so the tab bar
 // doesn't glide to Mein Team and then on to the settings.
 let signedOut: "none" | "expired" | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, points: undefined, outlook: new Map(), cardNews: new Map() };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, points: undefined, outlook: new Map(), cardNews: new Map(), summary: [] };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -133,7 +148,7 @@ try {
     error = "Kickbase ist gerade nicht erreichbar. Versuch es gleich nochmal.";
   }
 }
-const { leagues, league, players, starterCount, points, outlook, cardNews } = data;
+const { leagues, league, players, starterCount, points, outlook, cardNews, summary } = data;
 // The XI's Kickbase points this matchday, once one of its matches has started (updated live, script below).
 const started = players.slice(0, starterCount).some((p) => p.kickbase.live?.state);
 const running = anyRunning(players.map((p) => p.kickbase.live), Date.now());
@@ -189,6 +204,8 @@ let index = 0;
 
   {!error && league && players.length === 0 && <p class="empty-note">Keine Spieler in dieser Liga.</p>}
   {!error && !signedOut && !league && <p class="empty-note">Du bist in keiner Kickbase-Liga.</p>}
+
+  {!error && <TeamSummary sentences={summary} />}
 
   {starterCount > 0 ? (
     <>

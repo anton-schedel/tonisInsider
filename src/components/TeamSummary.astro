@@ -1,0 +1,12 @@
+---
+/** The team summary above the lineup (src/lib/summary/compose.ts): plain sentences, the first one the headline. */
+interface Props {
+  sentences: string[];
+}
+const { sentences } = Astro.props;
+---
+{sentences.length > 0 && (
+  <div class="mb-6 space-y-1.5 text-[15px] leading-snug text-pretty">
+    {sentences.map((s, i) => <p class:list={[i > 0 && "text-muted"]}>{s}</p>)}
+  </div>
+)}
