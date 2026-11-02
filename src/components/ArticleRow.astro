@@ -71,7 +71,7 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
             ? <Crest src={a.club.crest} name={a.club.name} size={64} />
             : <Avatar src={by.logo} name={by.name} size={64} />}
         {face && a.club?.crest && (
-          <img src={a.club.crest} alt="" class="crest-overlay -right-1.5 -bottom-1 size-[26px]" />
+          <img src={a.club.crest} alt="" loading="lazy" decoding="async" class="crest-overlay -right-1.5 -bottom-1 size-[26px]" />
         )}
       </span>
       <span class="min-w-0 flex-1">

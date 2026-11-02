@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { env, type D1 } from "cloudflare:workers";
 import { isSameOrigin } from "../../lib/session.ts";
 import { playerIds, SCOUT_MAX, scoutOwner } from "../../lib/scout.ts";
-import { json, readJson } from "../../lib/http.ts";
+import { json, notAllowed, readJson } from "../../lib/http.ts";
 
 export const prerender = false;
 
@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ cookies }) => {
 
 /** POST /api/scout/ {add?: ids, remove?: ids, seen?: true}: changes the list; answers like GET. */
 export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
+  if (!isSameOrigin(request)) return notAllowed();
   const owner = await scoutOwner(cookies, env.CREDENTIALS_KEY);
   const db = env.COMMENTS;
   if (!owner || !db) return json({ account: false }, 401);

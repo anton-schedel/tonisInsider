@@ -44,7 +44,8 @@ export type CoachPost = {
 /** Above the hand-written own posts (9000000xx), inside isOwnPost's range. */
 export const COACH_ID_MIN = 900_001_000;
 
-export const CLUB = { id: 0, slug: "tus-schnoeselmob", name: "TuS Schnöselmob", crest: "/brand/schnoeselmob.png" };
+// crest: the small copy every feed row loads (16 KB); source: the full crest for the watermark and the crest pictures.
+export const CLUB = { id: 0, slug: "tus-schnoeselmob", name: "TuS Schnöselmob", crest: "/brand/schnoeselmob-192.webp", source: "/brand/schnoeselmob.png" };
 export const CLUB_BANNER = "/img/custom/schnoeselmob-banner.jpg";
 /**
  * A scheduled post is built this long before its time (the scrape runs every 5 minutes) and shown from its minute

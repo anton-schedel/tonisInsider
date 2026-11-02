@@ -6,7 +6,7 @@
   "category": "bundesliga",
   "newsType": "angeschlagen",
   "player": { "id": 900000101, "slug": "kevin-nguyen", "name": "Kevin Nguyen", "teamPhoto": "Kevin Nguyen" },
-  "club": { "id": 0, "slug": "tus-schnoeselmob", "name": "TuS Schnöselmob", "crest": "/brand/schnoeselmob.png" },
+  "club": { "id": 0, "slug": "tus-schnoeselmob", "name": "TuS Schnöselmob", "crest": "/brand/schnoeselmob-192.webp" },
   "source": { "name": "TonInsider" },
   "publishedAt": "2026-10-21T15:35:00.000Z",
   "pinnedUntil": "2026-10-21T16:35:00.000Z",

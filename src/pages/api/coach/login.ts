@@ -3,13 +3,13 @@ import { env } from "cloudflare:workers";
 import { isSameOrigin } from "../../../lib/session.ts";
 import { senderKey } from "../../../lib/ownComments.ts";
 import { COACH_COOKIE, COACH_DAYS, LOGIN_RATE, passwordMatches, signCoach } from "../../../lib/coachAuth.ts";
-import { json, readJson } from "../../../lib/http.ts";
+import { json, notAllowed, readJson } from "../../../lib/http.ts";
 
 export const prerender = false;
 
 /** POST /api/coach/login/ {password}: the coach's cookie for 90 days. Five wrong tries per sender in 10 minutes. */
 export const POST: APIRoute = async ({ request, cookies }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
+  if (!isSameOrigin(request)) return notAllowed();
   const db = env.COMMENTS;
   if (!db || !env.CREDENTIALS_KEY || !env.COACH_PASSWORD) return json({ error: "Die Trainerseite ist noch nicht eingerichtet." }, 503);
   const raw = await readJson<{ password?: unknown }>(request);
@@ -34,7 +34,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
 /** DELETE /api/coach/login/: sign out. */
 export const DELETE: APIRoute = async ({ request, cookies }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
+  if (!isSameOrigin(request)) return notAllowed();
   cookies.delete(COACH_COOKIE, { path: "/" });
   return json({ ok: true });
 };

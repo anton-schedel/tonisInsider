@@ -1,19 +1,15 @@
 import type { APIRoute } from "astro";
-import { env } from "cloudflare:workers";
-import { isSameOrigin } from "../../../../lib/session.ts";
-import { isOwnPost } from "../../../../lib/ownComments.ts";
 import { grown } from "../../../../lib/ownVotes.ts";
-import { voterOf } from "../[id].ts";
+import { ownGuard, voterOf } from "../../../../lib/ownApi.ts";
 import { json, readJson } from "../../../../lib/http.ts";
 
 export const prerender = false;
 
 /** POST /api/own-comments/<post id>/vote/ {comment, on}: upvote a comment, or take the upvote back. */
 export const POST: APIRoute = async ({ params, request, cookies }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
-  const postId = Number(params.id);
-  const db = env.COMMENTS;
-  if (!isOwnPost(postId) || !db) return json({ error: "Nicht gefunden." }, 404);
+  const own = ownGuard(request, params.id);
+  if (own instanceof Response) return own;
+  const { db, postId } = own;
   const body = await readJson<{ comment?: unknown; on?: unknown }>(request);
   if (body instanceof Response) return body;
   const commentId = Number(body.comment);

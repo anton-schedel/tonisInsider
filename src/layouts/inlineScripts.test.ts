@@ -5,8 +5,8 @@ import { join } from "node:path";
 // Inline scripts ship as written (no bundler, no typecheck): a syntax error silently kills the whole script,
 // e.g. the theme switch and the tab bar. Every one must at least parse.
 const root = join(import.meta.dirname, "..");
-const files = ["layouts", "components", "pages", "pages/vereine"].flatMap((dir) =>
-  readdirSync(join(root, dir)).filter((f) => f.endsWith(".astro")).map((f) => join(root, dir, f)),
+const files = ["layouts", "components", "pages"].flatMap((dir) =>
+  readdirSync(join(root, dir), { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".astro")).map((f) => join(root, dir, f)),
 );
 
 describe("inline scripts", () => {

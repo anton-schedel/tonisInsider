@@ -783,7 +783,7 @@ export function initCoach() {
     let mod: typeof import("./teamAvatar.ts") | undefined;
     try {
       mod = await import("./teamAvatar.ts");
-      const blob = await mod.makeTeamAvatar(url, CLUB.crest);
+      const blob = await mod.makeTeamAvatar(url, CLUB.source);
       const id = await upload(blob, mod.AVATAR, mod.AVATAR);
       sheetSay(w, "");
       return id ? { id } : null;

@@ -41,7 +41,7 @@ const TONE: Record<StartStatus, { dot: string; note?: string }> = {
                 : <span class:list={["start-dot", tone.dot]}></span>}
               {p.rival && <span class="swap-hint is-top" aria-hidden="true">⇄</span>}
               {fresh.has(p.kickbase.id) && <NewsBadge />}
-              {p.club?.crest && <img src={p.club.crest} alt="" class="crest-overlay -bottom-0.5 -left-1 size-[20px]" />}
+              {p.club?.crest && <img src={p.club.crest} alt="" loading="lazy" decoding="async" class="crest-overlay -bottom-0.5 -left-1 size-[20px]" />}
               {/* Right under the photo, so every player's points are level, however long his name. */}
               <KbPoints slot="points" id={p.kickbase.id} player={p.kickbase.id} live={p.kickbase.live} />
             </PitchFace>

@@ -1,28 +1,18 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { isSameOrigin, type CookieJar } from "../../../lib/session.ts";
-import { isOwnPost, parseNewComment, RATE, senderKey, VOTER_COOKIE } from "../../../lib/ownComments.ts";
+import { parseNewComment, RATE, senderKey } from "../../../lib/ownComments.ts";
 import { parseNewPoll } from "../../../lib/ownVotes.ts";
 import { insertComment, loadThreads } from "../../../lib/ownCommentsDb.ts";
 import { json, readJson } from "../../../lib/http.ts";
+import { ownGuard, voterOf } from "../../../lib/ownApi.ts";
 
 export const prerender = false;
 
-/** The visitor's vote id from the cookie; with `create`, a new one is made and set (400 days). */
-export function voterOf(cookies: CookieJar, create = false): string {
-  const v = cookies.get(VOTER_COOKIE)?.value;
-  if (v && /^[0-9a-f]{32}$/.test(v)) return v;
-  if (!create) return "";
-  const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
-  cookies.set(VOTER_COOKIE, id, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 400 * 86_400 });
-  return id;
-}
-
 /** GET /api/own-comments/<post id>/: the comments on one of our own posts, with upvotes and polls. */
-export const GET: APIRoute = async ({ params, cookies }) => {
-  const id = Number(params.id);
-  const db = env.COMMENTS;
-  if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
+export const GET: APIRoute = async ({ params, request, cookies }) => {
+  const own = ownGuard(request, params.id);
+  if (own instanceof Response) return own;
+  const { db, postId: id } = own;
   // Comments dated in the future (prepared ones) appear only when their time comes, their polls with them.
   // The visitor's id is set here already, so quick taps right after loading all carry the same one.
   return json(await loadThreads(db, id, voterOf(cookies, true), new Date()));
@@ -33,10 +23,9 @@ export const GET: APIRoute = async ({ params, cookies }) => {
  * comment or start a poll, under a name of their choice.
  */
 export const POST: APIRoute = async ({ params, request, cookies }) => {
-  if (!isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
-  const id = Number(params.id);
-  const db = env.COMMENTS;
-  if (!isOwnPost(id) || !db) return json({ error: "Nicht gefunden." }, 404);
+  const own = ownGuard(request, params.id);
+  if (own instanceof Response) return own;
+  const { db, postId: id } = own;
   const raw = await readJson(request);
   if (raw instanceof Response) return raw;
   const r = raw as { poll?: unknown; text?: unknown };

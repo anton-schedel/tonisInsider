@@ -5,7 +5,7 @@
   "listHeadline": "Aufstellung des TuS Schnöselmob",
   "category": "bundesliga",
   "newsType": "sonstiges",
-  "club": { "id": 0, "slug": "tus-schnoeselmob", "name": "TuS Schnöselmob", "crest": "/brand/schnoeselmob.png" },
+  "club": { "id": 0, "slug": "tus-schnoeselmob", "name": "TuS Schnöselmob", "crest": "/brand/schnoeselmob-192.webp" },
   "source": { "name": "TonInsider" },
   "publishedAt": "2026-10-14T20:40:00.000Z",
   "pinnedUntil": "2026-10-14T21:40:00.000Z",

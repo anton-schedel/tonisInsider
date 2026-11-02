@@ -2,7 +2,7 @@ import { env, type D1 } from "cloudflare:workers";
 import { isSameOrigin, type CookieJar } from "./session.ts";
 import { modelFromEnv } from "./coachBots.ts";
 import { COACH_COOKIE, isCoach } from "./coachAuth.ts";
-import { json } from "./http.ts";
+import { json, notAllowed } from "./http.ts";
 
 export { json };
 
@@ -10,7 +10,7 @@ export const coachSignedIn = (cookies: CookieJar) => isCoach(cookies.get(COACH_C
 
 /** The database for a coach request, or what to answer when it may not go on (writes from another site, no database, not signed in). */
 export async function coachGuard(request: Request, cookies: CookieJar): Promise<D1 | Response> {
-  if (request.method !== "GET" && request.method !== "HEAD" && !isSameOrigin(request)) return json({ error: "Nicht erlaubt." }, 403);
+  if (request.method !== "GET" && request.method !== "HEAD" && !isSameOrigin(request)) return notAllowed();
   const db = env.COMMENTS;
   if (!db) return json({ error: "Gerade nicht erreichbar." }, 503);
   if (!(await coachSignedIn(cookies))) return json(NOT_SIGNED_IN, 401);

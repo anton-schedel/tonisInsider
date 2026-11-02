@@ -4,6 +4,9 @@
 export const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "cache-control": "private, no-store" } });
 
+/** A write from another site (or without the right token). */
+export const notAllowed = (status = 403) => json({ error: "Nicht erlaubt." }, status);
+
 export const forbidden = () => new Response("Forbidden", { status: 403, headers: { "cache-control": "private, no-store" } });
 
 /** The request's JSON body ({} for null), or the 400 to answer with when it isn't JSON. */
