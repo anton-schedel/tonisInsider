@@ -22,6 +22,32 @@ const args = (history: KbHistory | undefined) => ({
 });
 
 describe("summaryInput", () => {
+  it("says nothing about a game that has already started (a club whose page still shows last weekend)", () => {
+    const h: KbHistory = { ...emptyHistory(), season: "2026/2027" };
+    // Dortmund ("3") away at Union ("40"), which draws every home game (a weak home side), six times.
+    const games: HistGame[] = [1, 2, 3, 4, 5, 6].map((d) => ({ day: d, matchId: `m${d}`, team: "3", minutes: 90, start: true, points: d < 4 ? 20 : 200, events: { 4216: 10 } }));
+    h.players["1"] = { name: "Spieler 1", team: "3", position: 3, games };
+    [1, 2, 3, 4, 5, 6].forEach((d) => { h.matches[`m${d}`] = { day: d, date: `2026-10-0${d}T13:30:00Z`, home: "40", away: "3", homeGoals: 1, awayGoals: 1 }; });
+    expect(summaryInput(args(h)).players[0].matchup).toBeDefined();
+    expect(summaryInput({ ...args(h), now: new Date("2026-11-07T15:00:00Z") }).players[0].matchup).toBeUndefined();
+  });
+
+  it("states no matchup when this week's opponent has fewer than 3 games to judge it by", () => {
+    const h: KbHistory = { ...emptyHistory(), season: "2026/2027" };
+    // Dortmund ("3") at home against "9" six times, away at Union ("40") never: Union has no games.
+    const games: HistGame[] = [1, 2, 3, 4, 5, 6].map((d) => ({ day: d, matchId: `m${d}`, team: "3", minutes: 90, start: true, points: d < 4 ? 20 : 200, events: { 4216: 10 } }));
+    h.players["1"] = { name: "Spieler 1", team: "3", position: 3, games };
+    // "9" wins and loses at home in turn: an average team, so days 4–6 are "away against average teams" for him.
+    [1, 2, 3, 4, 5, 6].forEach((d) => { h.matches[`m${d}`] = { day: d, date: `2026-10-0${d}T13:30:00Z`, home: "9", away: "3", homeGoals: d % 2 ? 1 : 0, awayGoals: d % 2 ? 0 : 1 }; });
+    expect(summaryInput(args(h)).players[0].matchup).toBeUndefined();
+  });
+
+  it("works out the reliability once per history and predictions (both stay the same for a whole build)", () => {
+    const h: KbHistory = { ...emptyHistory(), season: "2026/2027" };
+    const a = { ...args(h), predictions: [] };
+    expect(summaryInput(a).reliability).toBe(summaryInput({ ...a, now: new Date("2026-11-05T13:00:00Z") }).reliability);
+  });
+
   it("takes the first kickoff of the matchday most clubs are on", () => {
     expect(summaryInput(args(undefined)).firstKickoff).toBe("2026-11-06T19:30:00Z");
   });

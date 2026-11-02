@@ -16,6 +16,15 @@ const DAY = 86_400_000;
 export function reliabilityByClub(predictions: SavedPrediction[], history: KbHistory, kbTeamOf: (slug: string) => string | undefined): Map<string, Reliability> {
   const hits = new Map<string, number[]>();
   const matches = Object.entries(history.matches);
+  // Who started each match for which club, read once (not per prediction and club).
+  const starters = new Map<string, string[]>();
+  for (const pl of Object.values(history.players)) {
+    for (const g of pl.games) {
+      if (!g.start) continue;
+      const key = `${g.matchId}:${g.team ?? pl.team}`;
+      starters.set(key, [...(starters.get(key) ?? []), pl.name]);
+    }
+  }
   for (const p of predictions) {
     for (const [slug, club] of Object.entries(p.clubs)) {
       const team = kbTeamOf(slug);
@@ -23,10 +32,9 @@ export function reliabilityByClub(predictions: SavedPrediction[], history: KbHis
       const kickoff = Date.parse(club.kickoff);
       const match = matches.find(([, m]) => (m.home === team || m.away === team) && Math.abs(Date.parse(m.date) - kickoff) <= DAY)?.[0];
       if (!match) continue;
-      const starters = Object.values(history.players).flatMap((pl) =>
-        pl.games.some((g) => g.matchId === match && (g.team ?? pl.team) === team && g.start) ? [pl.name] : []);
-      if (!starters.length) continue;
-      const right = club.xi.filter((x) => starters.some((n) => nameMatches(n, { id: x.id, slug: normalize(x.name).replace(/ /g, "-"), name: x.name }))).length;
+      const started = starters.get(`${match}:${team}`);
+      if (!started) continue;
+      const right = club.xi.filter((x) => started.some((n) => nameMatches(n, { id: x.id, slug: normalize(x.name).replace(/ /g, "-"), name: x.name }))).length;
       hits.set(slug, [...(hits.get(slug) ?? []), right]);
     }
   }

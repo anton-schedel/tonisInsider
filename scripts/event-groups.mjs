@@ -7,14 +7,14 @@ import { env } from "node:process";
 const API = "https://api.kickbase.com";
 // First match wins, so the order matters: "Tor kassiert" is a mistake before it's attack, "(TW)" always keeper.
 const RULES = [
-  ["keeper", /\(TW\)|Parade|gehalten|Torwart|Abwurf|Abschlag|Rauslaufen/],
+  ["keeper", /\(TW\)|Parade|gehalten|Torwart|Abwurf|Abschlag|Rauslaufen|abgewehrt/],
   ["mistake", /Karte|Foul|Ballverlust|vergeben|Eigentor|Fehler|verloren|Abseits|verursacht|verschossen|verschuldet|kassiert|Platzverweis|Handspiel|Ausgespielt|zu weit/],
   ["team", /Spiel gewonnen|Teamtor|Unentschieden/],
-  ["attack", /Tor|Schuss|schuss|Assist|Torvorlage|Pass des Todes|Großchance|Elfmeter|Penalty|Dribbling|ausgedribbelt|Aluminium|Latte|Pfosten|Eins-gegen-Eins/],
-  ["duel", /Zweikampf|Duell/],
+  ["attack", /Tor|Schuss|schuss|Assist|Torvorlage|Pass des Todes|Großchance|Elfmeter|Penalty|Dribbling|ausgedribbelt|Aluminium|Latte|Pfosten|Eins-gegen-Eins|Gefoult/],
+  ["duel", /[Zz]weikampf|Duell/],
   ["defence", /Tackling|Abgefangen|abgefangen|Klärung|geklärt|Geklärt|Block|geblockt|Zu Null|Ballgewinn|Balleroberung|gestört/],
   ["pass", /Pass|Flanke|Ecke|Freistoß|Vorlage/],
-  ["time", /Minuten|Startelf|Einwechsl|eingewechselt/],
+  ["time", /Minuten|Startelf|Einwechsl|[Ee]ingewechselt/],
 ];
 
 const login = await fetch(`${API}/v4/user/login`, {

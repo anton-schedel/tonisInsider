@@ -40,7 +40,7 @@ function matchupClause(p: SummaryPlayer): string {
   const where = m.context.home ? "zu Hause" : "auswärts";
   const top = p.profile ? `, die meisten aus ${GROUP_LABEL[p.profile.top]}` : "";
   const game = `${m.day} ${m.context.home ? "gegen" : "bei"} ${m.opponentName}`;
-  const form = m.opponentForm ? `, ${m.opponentForm.momentum} Punkte aus den letzten ${m.opponentForm.last} Spielen` : "";
+  const form = m.opponentForm ? `, Gegner mit ${m.opponentForm.momentum} Punkten aus den letzten ${m.opponentForm.last} Spielen` : "";
   return `${p.name} holt ${where} gegen ${OPPONENT[m.context.opponent]} Teams ${howMuch(m.index)}${top} (${game}${form})`;
 }
 
@@ -75,10 +75,11 @@ export function composeSummary(input: SummaryInput): string[] {
 
   const clubs = [...new Map(players.flatMap((p) => {
     const r = p.clubSlug ? reliability.get(p.clubSlug) : undefined;
-    return r && r.hits < OFTEN_WRONG ? [[p.clubSlug!, { name: p.clubName ?? p.clubSlug!, hits: Math.round(r.hits) }] as const] : [];
+    // Rounded down: a club under the line never reads "9 von 11".
+    return r && r.hits < OFTEN_WRONG ? [[p.clubSlug!, { name: p.clubName ?? p.clubSlug!, hits: Math.floor(r.hits) }] as const] : [];
   })).values()].slice(0, 2);
   if (clubs.length) {
-    out.push(`Bei ${clubs.map((c) => c.name).join(" und ")} lag LigaInsider zuletzt nur bei ${clubs.map((c) => c.hits).join(" bzw. ")} von 11 richtig.`);
+    out.push(`Bei ${clubs.map((c) => c.name).join(" und ")} lag LigaInsider im Schnitt nur bei ${clubs.map((c) => c.hits).join(" bzw. ")} von 11 richtig.`);
   }
   return out;
 }

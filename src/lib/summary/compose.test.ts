@@ -39,14 +39,16 @@ describe("composeSummary", () => {
     expect(matchups).toContain("D holt auswärts gegen formstarke Teams deutlich weniger Punkte als sonst");
     expect(matchups).not.toContain("E holt");
     expect(matchups).not.toContain("A holt");
-    expect(matchups).toContain("Samstag bei Union Berlin, 13 Punkte aus den letzten 5 Spielen");
+    // The points are the opponent's, not his: said so.
+    expect(matchups).toContain("Samstag bei Union Berlin, Gegner mit 13 Punkten aus den letzten 5 Spielen");
   });
 
   it("warns about clubs whose prediction was often wrong", () => {
     const players: SummaryPlayer[] = [{ name: "Baumgartner", inPredictedXi: true, clubSlug: "rb-leipzig", clubName: "RB Leipzig" }];
-    const out = composeSummary(input(players, { reliability: new Map([["rb-leipzig", { matchdays: 3, hits: 7.4 }]]) }));
+    const out = composeSummary(input(players, { reliability: new Map([["rb-leipzig", { matchdays: 3, hits: 8.6 }]]) }));
     expect(out[0]).toBe("Von deinen 1 Spielern steht 1 in der voraussichtlichen Startelf. 1 davon bei Vereinen, deren Prognose oft danebenliegt.");
-    expect(out.at(-1)).toBe("Bei RB Leipzig lag LigaInsider zuletzt nur bei 7 von 11 richtig.");
+    // 8.6 is below 9: rounded down, so the sentence never says "9 von 11" for a club under the line.
+    expect(out.at(-1)).toBe("Bei RB Leipzig lag LigaInsider im Schnitt nur bei 8 von 11 richtig.");
   });
 
   it("warns about rotation around a cup game", () => {
