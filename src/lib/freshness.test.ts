@@ -30,4 +30,10 @@ describe("newestOut", () => {
     expect(newestOut([{ id: 9, publishedAt: "2026-10-24T12:05:00.000Z" }, { id: 7, publishedAt: "2026-10-24T11:00:00.000Z" }], now)).toBe(7);
     expect(newestOut([], now)).toBeUndefined();
   });
+
+  it("skips our own posts, which /data/version.json doesn't know (else every rebuild shows a false notice)", async () => {
+    const { newestOut } = await import("./freshness.ts");
+    const now = new Date("2026-10-24T12:00:00.000Z");
+    expect(newestOut([{ id: 900001009, publishedAt: "2026-10-24T11:30:00.000Z", own: true }, { id: 7, publishedAt: "2026-10-24T11:00:00.000Z" }], now)).toBe(7);
+  });
 });

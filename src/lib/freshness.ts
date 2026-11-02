@@ -1,8 +1,11 @@
 import type { Version } from "../../scraper/snapshot.ts";
 
-/** The newest article that is out (a scheduled own post may already be built in). */
-export const newestOut = (articles: { id: number; publishedAt: string }[], now: Date) =>
-  articles.find((a) => Date.parse(a.publishedAt) <= now.getTime())?.id;
+/**
+ * The newest LigaInsider article that is out, as /data/version.json counts it: our own posts aren't in the
+ * scraper's store, so with one on top the page and the live version would never match.
+ */
+export const newestOut = (articles: { id: number; publishedAt: string; own?: boolean }[], now: Date) =>
+  articles.find((a) => !a.own && Date.parse(a.publishedAt) <= now.getTime())?.id;
 
 export type UpdateContext = {
   /** The page just became visible again after a while in the background. */

@@ -183,6 +183,8 @@ const { thread, url } = Astro.props;
   }
 
   async function load() {
+    // The script lives on across page changes: the last article's thread mustn't count into this one.
+    thread = undefined;
     const section = sectionOf();
     if (!section) return;
     const status = section.querySelector<HTMLElement>("[data-comments-status]");
