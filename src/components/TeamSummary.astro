@@ -17,13 +17,15 @@ const { view, class: cls } = Astro.props;
 const FAVOURITE = 55;
 const dayTime = new Intl.DateTimeFormat("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const when = (iso: string) => dayTime.format(new Date(iso)).replace(".,", "");
+/** A number and its "%" never break apart ("38 % zu Null"). */
+const nb = (s: string) => s.replace(/ %/g, "\u00a0%");
 ---
 {view && (
   <section class={cls}>
     <SectionHead title="Spieltag" class="mb-1">{view.inXi} von {view.total} in der Startelf</SectionHead>
     {view.text.length > 0 && (
       <div class="mt-1 mb-2 space-y-2 text-[15px] leading-snug text-pretty">
-        {view.text.map((s) => <p>{s}</p>)}
+        {view.text.map((s) => <p>{nb(s)}</p>)}
       </div>
     )}
     {view.games.length > 0 && (
@@ -47,7 +49,7 @@ const when = (iso: string) => dayTime.format(new Date(iso)).replace(".,", "");
                     <>
                       {j > 0 && ", "}
                       <span>{p.name}</span>
-                      {p.note && <span class="text-muted"> ({p.note})</span>}
+                      {p.note && <span class="text-muted"> ({nb(p.note)})</span>}
                     </>
                   ))}
                 </span>
@@ -60,7 +62,7 @@ const when = (iso: string) => dayTime.format(new Date(iso)).replace(".,", "");
     )}
     {view.notes.length > 0 && (
       <div class="mt-2 space-y-2 border-t border-hairline pt-3">
-        {view.notes.map((n) => <p class="text-[14px] leading-snug text-pretty text-muted">{n}</p>)}
+        {view.notes.map((n) => <p class="text-[14px] leading-snug text-pretty text-muted">{nb(n)}</p>)}
       </div>
     )}
   </section>

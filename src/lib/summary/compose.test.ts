@@ -69,11 +69,48 @@ describe("summaryView", () => {
     ];
     const view = summaryView(input(players))!;
     expect(view.text.slice(1)).toEqual([
-      "Rückenwind: Schick lebt von Toren und Vorlagen, und Leverkusen werden bei Köln 2,3 Tore zugetraut; Seimen punktet viel über den Siegbonus, und Stuttgart gewinnt gegen Bremen mit 62 % Wahrscheinlichkeit.",
-      "Vorsicht: Friedl holt viele Punkte über zu Null, aber die Chance darauf liegt bei Stuttgart nur bei 10 %; Caci lebt von Toren und Vorlagen, aber Mainz werden gegen Bayern nur 0,8 Tore zugetraut.",
+      "Rückenwind: Schick lebt von Toren und Vorlagen, und Leverkusen werden bei Köln 2,3 Tore zugetraut; Seimen punktet viel über den Siegbonus, und Stuttgart gewinnt gegen Bremen mit 62 % Wahrscheinlichkeit. Unbedingt drin lassen.",
+      "Vorsicht: Friedl holt viele Punkte über zu Null, aber die Chance darauf liegt bei Stuttgart nur bei 10 %; Caci lebt von Toren und Vorlagen, aber Mainz werden gegen Bayern nur 0,8 Tore zugetraut. Ein Blick auf deine Bank lohnt sich.",
     ]);
     const notes = Object.fromEntries(view.games.flatMap((g) => g.players.map((p) => [p.name, p.note])));
-    expect(notes).toMatchObject({ Schick: "lebt von Toren", Friedl: "viele Zu-Null-Punkte", Seimen: "viel Siegbonus" });
+    expect(notes).toMatchObject({
+      Schick: "lebt von Toren, 2,3 Tore erwartet",
+      Caci: "lebt von Toren, nur 0,8 Tore erwartet",
+      Friedl: "viele Zu-Null-Punkte, nur 10 % zu Null",
+      Seimen: "viel Siegbonus, 62 % Siegchance",
+    });
+  });
+
+  it("judges a goal getter by his own chance to score or assist once the player odds are out", () => {
+    const players = [xi("Schick", { ...outlook("Leverkusen", "Köln", false, 55), goals: 1.6, scorer: 52 }, { reliance: { kind: "goals", share: 0.4 } })];
+    const view = summaryView(input(players))!;
+    expect(view.text.at(-1)).toBe("Rückenwind: Schick lebt von Toren und Vorlagen, und seine Chance auf Tor oder Vorlage liegt bei Köln bei 52 %. Unbedingt drin lassen.");
+    expect(view.games[0].players[0].note).toBe("lebt von Toren, 52 % Tor oder Vorlage");
+  });
+
+  it("looks only at the eleven he set in Kickbase, and names those LigaInsider doesn't see in the XI", () => {
+    const b04 = outlook("Leverkusen", "Köln", false, 55);
+    const players: SummaryPlayer[] = [
+      xi("Schick", b04, { inLineup: true }),
+      { name: "Gomis", inPredictedXi: false, inLineup: true, startNote: "nur Alternative", outlook: outlook("Leipzig", "Augsburg", true, 65) },
+      { name: "Juranović", inPredictedXi: false, inLineup: true, startNote: "nicht in der Startelf", outlook: outlook("Union Berlin", "Freiburg", false, 17) },
+      xi("Götze", outlook("Paderborn", "Frankfurt", true, 32), { inLineup: false }),
+    ];
+    const view = summaryView(input(players))!;
+    expect({ inXi: view.inXi, total: view.total }).toEqual({ inXi: 1, total: 3 });
+    expect(view.games.map((g) => g.team)).toEqual(["Leipzig", "Leverkusen", "Union Berlin"]);
+    expect(view.games[0].players).toEqual([{ name: "Gomis", note: "nur Alternative" }]);
+    expect(view.text).toContain("Nicht in der voraussichtlichen Startelf: Gomis (nur Alternative) und Juranović (nicht in der Startelf). Ein Blick auf deine Bank lohnt sich.");
+  });
+
+  it("points to the bench only once", () => {
+    const players: SummaryPlayer[] = [
+      { name: "Gomis", inPredictedXi: false, inLineup: true, startNote: "nur Alternative", outlook: outlook("Leipzig", "Augsburg", true, 65) },
+      xi("Caci", { ...outlook("Mainz", "Bayern", true, 17), goals: 0.8 }, { reliance: { kind: "goals", share: 0.27 }, inLineup: true }),
+    ];
+    const text = summaryView(input(players))!.text.join(" ");
+    expect(text.split("Ein Blick auf deine Bank lohnt sich.").length - 1).toBe(1);
+    expect(text.endsWith("Ein Blick auf deine Bank lohnt sich.")).toBe(true);
   });
 
   it("notes where a player does clearly better or worse at this venue, and a good clean sheet chance for goalkeepers and defenders", () => {

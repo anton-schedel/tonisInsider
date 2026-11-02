@@ -22,6 +22,15 @@ const args = (history: KbHistory | undefined) => ({
 });
 
 describe("summaryInput", () => {
+  it("marks the eleven he set in Kickbase, says why one of them isn't in the predicted XI, and takes his scorer odds", () => {
+    const a = { ...args(undefined), players: [me("1", BVB), me("2", BVB, "alternative"), me("3", BVB, "bench")], lineupIds: new Set(["1", "2"]), outlook: new Map([["1", { win: 74, scorer: 48 }]]) };
+    const [one, two, three] = summaryInput(a).players;
+    expect(one).toMatchObject({ inLineup: true, outlook: { scorer: 48 } });
+    expect(one.startNote).toBeUndefined();
+    expect(two).toMatchObject({ inLineup: true, startNote: "nur Alternative" });
+    expect(three).toMatchObject({ inLineup: false, startNote: "nicht in der Startelf" });
+  });
+
   it("adds his team's expected goals from the odds", () => {
     const odds = [{ home: "Union Berlin", away: "Borussia Dortmund", kickoff: "2026-11-07T14:30:00Z", chances: { home: 20, draw: 25, away: 55 }, books: 5 }];
     const a = { ...args(undefined), outlook: new Map([["1", { win: 55 }]]), odds };
@@ -71,7 +80,7 @@ describe("summaryInput", () => {
     const input = summaryInput(args(undefined));
     expect(input.players).toEqual([
       { name: "Spieler 1", inPredictedXi: true, position: 3, clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
-      { name: "Spieler 2", inPredictedXi: false, position: 3, clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
+      { name: "Spieler 2", inPredictedXi: false, position: 3, startNote: "nicht in der Startelf", clubSlug: "borussia-dortmund", clubName: "Borussia Dortmund" },
     ]);
     expect(input.reliability.size).toBe(0);
   });

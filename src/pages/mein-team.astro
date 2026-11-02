@@ -111,6 +111,8 @@ async function load(token: string) {
     summary = summaryView(summaryInput({
       now: new Date(), players, history, lineups: snapshot?.lineups ?? [], table: g.__kbTable?.teams ?? [],
       predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [], outlook, odds: snapshot?.state.odds,
+      // The eleven he set in Kickbase (none set: the whole squad counts).
+      ...(starters.length ? { lineupIds: new Set(starters.map((p) => p.id)) } : {}),
     }));
   } catch (err) {
     console.error("team summary", err);

@@ -15,6 +15,8 @@ import type { OddsEvent } from "../../../scraper/odds.ts";
 import type { SummaryInput, SummaryPlayer } from "./compose.ts";
 
 const IN_XI = new Set<StartStatus>(["confirmed", "start", "contested", "doubtful"]);
+/** Why a player isn't in LigaInsider's predicted XI, as the summary says it. */
+const OUT_OF_XI: Partial<Record<StartStatus, string>> = { alternative: "nur Alternative", bench: "nicht in der Startelf" };
 
 /**
  * The history and the snapshot's predictions are read once per Worker isolate and build, so the reliability
@@ -35,7 +37,9 @@ export function summaryInput(args: {
   now: Date; players: MyPlayer[]; history: KbHistory | undefined; lineups: Lineup[];
   predictions: SavedPrediction[]; cupGames: CupGame[]; table: KbTeam[];
   /** The page's odds per Kickbase player id: his club's win chance and clean sheet chance, in whole percent. */
-  outlook?: Map<string, { win?: number; cleanSheet?: number }>;
+  outlook?: Map<string, { win?: number; cleanSheet?: number; scorer?: number }>;
+  /** The Kickbase ids of the eleven he set (undefined: not known, the whole squad counts). */
+  lineupIds?: Set<string>;
   /** The Bundesliga odds, for his team's expected goals. */
   odds?: OddsEvent[];
 }): SummaryInput {
@@ -52,6 +56,8 @@ export function summaryInput(args: {
       name: p.kickbase.name,
       inPredictedXi: IN_XI.has(p.status),
       position: p.kickbase.position,
+      ...(args.lineupIds ? { inLineup: args.lineupIds.has(p.kickbase.id) } : {}),
+      ...(OUT_OF_XI[p.status] ? { startNote: OUT_OF_XI[p.status] } : {}),
       ...(p.lineup ? { clubSlug: p.lineup.club.slug, clubName: p.lineup.club.name } : {}),
     };
     // Only this matchday's game, before it starts: a club whose page still shows last weekend says nothing.
@@ -71,6 +77,7 @@ export function summaryInput(args: {
       home, win: chances.win, kickoff: upcoming.kickoff!,
       ...(p.lineup?.club.crest ? { crest: p.lineup.club.crest } : {}),
       ...(chances.cleanSheet !== undefined ? { cleanSheet: chances.cleanSheet } : {}),
+      ...(chances.scorer !== undefined ? { scorer: chances.scorer } : {}),
       ...(xg ? { goals: home ? xg.home : xg.away } : {}),
     } : undefined;
 

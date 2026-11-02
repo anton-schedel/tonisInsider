@@ -8,6 +8,10 @@ import type { Reliance } from "./reliance.ts";
 export type SummaryPlayer = {
   name: string;
   inPredictedXi: boolean;
+  /** In the eleven he set in Kickbase (undefined: unknown, then the whole squad counts). */
+  inLineup?: boolean;
+  /** For a lineup player LigaInsider doesn't see in the XI: "nur Alternative", "nicht in der Startelf", "fraglich". */
+  startNote?: string;
   clubSlug?: string;
   /** LigaInsider's club name, for the sentences. */
   clubName?: string;
@@ -17,7 +21,7 @@ export type SummaryPlayer = {
   /** Kickbase position (1 goalkeeper, 2 defender, 3 midfielder, 4 striker). */
   position?: number;
   /** This week's game: his club and the opponent (short names), kickoff, his club's crest, win and clean sheet chance in whole percent. */
-  outlook?: { team: string; opponent: string; home: boolean; win: number; cleanSheet?: number; kickoff: string; crest?: string; goals?: number };
+  outlook?: { team: string; opponent: string; home: boolean; win: number; cleanSheet?: number; kickoff: string; crest?: string; goals?: number; scorer?: number };
   /** The source his points depend on clearly more than others in his position (reliance.ts). */
   reliance?: { kind: Reliance; share: number };
   /** His points at this week's venue against the other one (profile.ts venueIndex). */
@@ -66,72 +70,91 @@ function matchupClause(p: SummaryPlayer): string {
 
 const where = (home: boolean) => (home ? "zu Hause" : "auswärts");
 
-const RELIANCE_NOTE: Record<Reliance, string> = { goals: "lebt von Toren", cleansheet: "viele Zu-Null-Punkte", team: "viel Siegbonus" };
+const FAVOURITE = 55;
+const OUTSIDER = 25;
+const BENCH_HINT = "Ein Blick auf deine Bank lohnt sich.";
+const against = (o: NonNullable<SummaryPlayer["outlook"]>) => `${o.home ? "gegen" : "bei"} ${o.opponent}`;
+const decimal = (n: number) => n.toFixed(1).replace(".", ",");
 
-/** "zu Hause stärker", "48 % zu Null", "lebt von Toren": what stands out about him in this game. */
+/**
+ * What his points depend on against this week's number: from `good` it fits, up to `bad` it doesn't. Goals: his
+ * own chance to score or assist once the player odds are out (Thursday), before that his team's expected goals.
+ */
+type Check = { value: number; good: number; bad: number; note: (v: string) => string; clause: (fits: boolean, only: string) => string };
+
+function checkOf(p: SummaryPlayer): Check | undefined {
+  const o = p.outlook;
+  if (!p.reliance || !o) return undefined;
+  const link = (fits: boolean) => (fits ? "und" : "aber");
+  switch (p.reliance.kind) {
+    case "goals":
+      if (o.scorer !== undefined) return {
+        value: o.scorer, good: 45, bad: 20, note: (v) => `lebt von Toren, ${v}${o.scorer} % Tor oder Vorlage`,
+        clause: (fits, only) => `${p.name} lebt von Toren und Vorlagen, ${link(fits)} seine Chance auf Tor oder Vorlage liegt ${against(o)} ${only}bei ${o.scorer} %`,
+      };
+      if (o.goals === undefined) return undefined;
+      return {
+        value: o.goals, good: 2.2, bad: 1.35, note: (v) => `lebt von Toren, ${v}${decimal(o.goals!)} Tore erwartet`,
+        clause: (fits, only) => `${p.name} lebt von Toren und Vorlagen, ${link(fits)} ${o.team} werden ${against(o)} ${only}${decimal(o.goals!)} Tore zugetraut`,
+      };
+    case "cleansheet":
+      if (o.cleanSheet === undefined) return undefined;
+      return {
+        value: o.cleanSheet, good: 40, bad: 20, note: (v) => `viele Zu-Null-Punkte, ${v}${o.cleanSheet} % zu Null`,
+        clause: (fits, only) => `${p.name} holt viele Punkte über zu Null, ${link(fits)} die Chance darauf liegt ${against(o)} ${only}bei ${o.cleanSheet} %`,
+      };
+    case "team":
+      return {
+        value: o.win, good: 60, bad: 25, note: (v) => `viel Siegbonus, ${v}${o.win} % Siegchance`,
+        clause: (fits, only) => `${p.name} punktet viel über den Siegbonus, ${link(fits)} ${o.team} gewinnt ${against(o)} ${only}mit ${o.win} % Wahrscheinlichkeit`,
+      };
+  }
+}
+
+/** "lebt von Toren, 2,3 Tore erwartet", "zu Hause stärker", "48 % zu Null", "nur Alternative": what stands out about him in this game. */
 function noteOf(p: SummaryPlayer): string | undefined {
   const o = p.outlook!;
+  const check = checkOf(p);
   const notes = [
-    p.reliance ? RELIANCE_NOTE[p.reliance.kind] : undefined,
+    p.startNote,
+    check?.note(check.value <= check.bad ? "nur " : ""),
     p.venue && Math.abs(p.venue.index - 1) >= STANDS_OUT ? `${where(o.home)} ${p.venue.index > 1 ? "stärker" : "schwächer"}` : undefined,
-    (p.position === 1 || p.position === 2) && (o.cleanSheet ?? 0) >= CLEAN_SHEET ? `${o.cleanSheet} % zu Null` : undefined,
+    p.reliance?.kind !== "cleansheet" && (p.position === 1 || p.position === 2) && (o.cleanSheet ?? 0) >= CLEAN_SHEET ? `${o.cleanSheet} % zu Null` : undefined,
   ].filter(Boolean);
   return notes.length ? notes.join(", ") : undefined;
 }
 
-const FAVOURITE = 55;
-const OUTSIDER = 25;
-const against = (o: NonNullable<SummaryPlayer["outlook"]>) => `${o.home ? "gegen" : "bei"} ${o.opponent}`;
-const decimal = (n: number) => n.toFixed(1).replace(".", ",");
-
 /** "2 deiner 8 Starter spielen bei Favoriten, 1 bei einem klaren Außenseiter." */
-function overview(inXi: SummaryPlayer[]): string | undefined {
-  const fav = inXi.filter((p) => p.outlook && p.outlook.win >= FAVOURITE).length;
-  const out = inXi.filter((p) => p.outlook && p.outlook.win <= OUTSIDER).length;
+function overview(starters: SummaryPlayer[]): string | undefined {
+  const fav = starters.filter((p) => p.outlook && p.outlook.win >= FAVOURITE).length;
+  const out = starters.filter((p) => p.outlook && p.outlook.win <= OUTSIDER).length;
   if (!fav && !out) return undefined;
   const outsiders = (n: number) => (n === 1 ? "bei einem klaren Außenseiter" : "bei klaren Außenseitern");
-  if (!fav) return `${out} deiner ${inXi.length} Starter ${out === 1 ? "spielt" : "spielen"} ${outsiders(out)}.`;
-  return `${fav} deiner ${inXi.length} Starter ${fav === 1 ? "spielt bei einem Favoriten" : "spielen bei Favoriten"}${out ? `, ${out} ${outsiders(out)}` : ""}.`;
+  if (!fav) return `${out} deiner ${starters.length} Starter ${out === 1 ? "spielt" : "spielen"} ${outsiders(out)}.`;
+  return `${fav} deiner ${starters.length} Starter ${fav === 1 ? "spielt bei einem Favoriten" : "spielen bei Favoriten"}${out ? `, ${out} ${outsiders(out)}` : ""}.`;
 }
 
-/**
- * What his points depend on against this week's numbers: [the number, from which it fits, up to which it doesn't].
- * Goals: his team's expected goals; clean sheet: its chance; win bonus: the win chance.
- */
-const RELIANCE_CHECK: Record<Reliance, { value: (o: NonNullable<SummaryPlayer["outlook"]>) => number | undefined; good: number; bad: number }> = {
-  goals: { value: (o) => o.goals, good: 2.2, bad: 1.35 },
-  cleansheet: { value: (o) => o.cleanSheet, good: 40, bad: 20 },
-  team: { value: (o) => o.win, good: 60, bad: 25 },
-};
-
-function relianceClause(p: SummaryPlayer, fits: boolean): string {
-  const o = p.outlook!;
-  const v = RELIANCE_CHECK[p.reliance!.kind].value(o)!;
-  const only = fits ? "" : "nur ";
-  const link = fits ? "und" : "aber";
-  switch (p.reliance!.kind) {
-    case "goals": return `${p.name} lebt von Toren und Vorlagen, ${link} ${o.team} werden ${against(o)} ${only}${decimal(v)} Tore zugetraut`;
-    case "cleansheet": return `${p.name} holt viele Punkte über zu Null, ${link} die Chance darauf liegt ${against(o)} ${only}bei ${v} %`;
-    case "team": return `${p.name} punktet viel über den Siegbonus, ${link} ${o.team} gewinnt ${against(o)} ${only}mit ${v} % Wahrscheinlichkeit`;
-  }
+/** "Nicht in der voraussichtlichen Startelf: Gomis (nur Alternative). …": lineup players LigaInsider doesn't see starting. */
+function missing(lineup: SummaryPlayer[]): string | undefined {
+  const out = lineup.filter((p) => !p.inPredictedXi);
+  if (!out.length) return undefined;
+  return `Nicht in der voraussichtlichen Startelf: ${list(out.map((p) => (p.startNote ? `${p.name} (${p.startNote})` : p.name)))}. ${BENCH_HINT}`;
 }
 
-/** "Rückenwind: …" and "Vorsicht: …": up to two players each, the clearest first. */
-function relianceSentences(inXi: SummaryPlayer[]): string[] {
-  const judged = inXi.flatMap((p) => {
-    if (!p.reliance || !p.outlook) return [];
-    const check = RELIANCE_CHECK[p.reliance.kind];
-    const v = check.value(p.outlook);
-    if (v === undefined) return [];
-    if (v >= check.good) return [{ p, fits: true, by: (v - check.good) / check.good }];
-    if (v <= check.bad) return [{ p, fits: false, by: (check.bad - v) / check.bad }];
+/** "Rückenwind: …" and "Vorsicht: …": up to two players each, the clearest first, with what to do. */
+function relianceSentences(starters: SummaryPlayer[]): string[] {
+  const judged = starters.flatMap((p) => {
+    const c = checkOf(p);
+    if (!c) return [];
+    if (c.value >= c.good) return [{ c, fits: true, by: (c.value - c.good) / c.good }];
+    if (c.value <= c.bad) return [{ c, fits: false, by: (c.bad - c.value) / c.bad }];
     return [];
   });
-  const sentence = (fits: boolean, lead: string) => {
-    const clauses = judged.filter((j) => j.fits === fits).sort((a, b) => b.by - a.by).slice(0, 2).map((j) => relianceClause(j.p, fits));
-    return clauses.length ? [`${lead}: ${clauses.join("; ")}.`] : [];
+  const sentence = (fits: boolean, lead: string, then: string) => {
+    const clauses = judged.filter((j) => j.fits === fits).sort((a, b) => b.by - a.by).slice(0, 2).map((j) => j.c.clause(fits, fits ? "" : "nur "));
+    return clauses.length ? [`${lead}: ${clauses.join("; ")}. ${then}`] : [];
   };
-  return [...sentence(true, "Rückenwind"), ...sentence(false, "Vorsicht")];
+  return [...sentence(true, "Rückenwind", "Unbedingt drin lassen."), ...sentence(false, "Vorsicht", BENCH_HINT)];
 }
 
 /** His predicted starters' games, one row each, the best win chance first. */
@@ -157,15 +180,19 @@ export function summaryView(input: SummaryInput): SummaryView | undefined {
   const { players, reliability } = input;
   const out: string[] = [];
 
-  const inXi = players.filter((p) => p.inPredictedXi);
+  // The eleven he set in Kickbase, if known; else his whole squad (rows and counts then only the predicted XI).
+  const lineup = players.filter((p) => p.inLineup);
+  const scope = lineup.length ? lineup : players;
+  const inXi = scope.filter((p) => p.inPredictedXi);
+  const starters = lineup.length ? lineup : inXi;
 
-  const matchups = players
+  const matchups = scope
     .filter((p) => p.matchup && Math.abs(p.matchup.index - 1) >= STANDS_OUT)
     .sort((a, b) => Math.abs(b.matchup!.index - 1) - Math.abs(a.matchup!.index - 1))
     .slice(0, 3);
   if (matchups.length) out.push(`${matchups.map(matchupClause).join("; ")}.`);
 
-  const rotating = players.filter((p) => p.rotation).slice(0, 3);
+  const rotating = scope.filter((p) => p.rotation).slice(0, 3);
   if (rotating.length === 1) {
     const [p] = rotating;
     const r = p.rotation!;
@@ -174,7 +201,7 @@ export function summaryView(input: SummaryInput): SummaryView | undefined {
     out.push(`Rotationsgefahr bei ${list(rotating.map((p) => p.name))}: Neben Europapokal- und Pokalspielen standen sie zuletzt deutlich seltener in der Startelf, und diese Woche steht wieder eins an.`);
   }
 
-  const clubs = [...new Map(players.flatMap((p) => {
+  const clubs = [...new Map(scope.flatMap((p) => {
     const r = p.clubSlug ? reliability.get(p.clubSlug) : undefined;
     // Rounded down: a club under the line never reads "9 von 11".
     return r && r.hits < OFTEN_WRONG ? [[p.clubSlug!, { name: p.clubName ?? p.clubSlug!, hits: Math.floor(r.hits) }] as const] : [];
@@ -182,8 +209,11 @@ export function summaryView(input: SummaryInput): SummaryView | undefined {
   if (clubs.length) {
     out.push(`Bei ${clubs.map((c) => c.name).join(" und ")} lag LigaInsider im Schnitt nur bei ${clubs.map((c) => c.hits).join(" bzw. ")} von 11 richtig.`);
   }
-  const games = gameRows(inXi);
-  const text = [overview(inXi), ...relianceSentences(inXi)].filter((s): s is string => !!s);
+  const games = gameRows(starters);
+  const text = [overview(starters), lineup.length ? missing(lineup) : undefined, ...relianceSentences(starters)].filter((s): s is string => !!s);
+  // The bench hint once, at the end.
+  const hinted = text.map((s, i) => (s.endsWith(BENCH_HINT) ? i : -1)).filter((i) => i >= 0);
+  for (const i of hinted.slice(0, -1)) text[i] = text[i].slice(0, -BENCH_HINT.length - 1);
   // How many are in the predicted XI alone tells the manager nothing new.
-  return games.length || out.length ? { inXi: inXi.length, total: players.length, text, games, notes: out } : undefined;
+  return games.length || out.length ? { inXi: inXi.length, total: scope.length, text, games, notes: out } : undefined;
 }
