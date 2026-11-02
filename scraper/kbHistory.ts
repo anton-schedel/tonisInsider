@@ -9,6 +9,8 @@ export type HistMatch = { day: number; date: string; home: string; away: string;
 export type HistGame = { day: number; matchId: string; minutes: number; start: boolean; points: number; events?: Record<string, number> };
 export type HistPlayer = { name: string; team: string; position: number; games: HistGame[] };
 export type KbHistory = {
+  /** HISTORY_VERSION when written; an older file is fetched afresh (v1 had every game's events from the latest match). */
+  version?: number;
   /** Kickbase team id → name and matches played when its players were last refreshed. */
   teams: Record<string, { name: string; played: number }>;
   matches: Record<string, HistMatch>;
@@ -22,14 +24,22 @@ export type HistoryApi = {
   table(): Promise<KbTeam[]>;
   squad(teamId: string): Promise<{ id: string; name: string; position: number }[]>;
   performance(playerId: string): Promise<KbPerfMatch[]>;
-  events(playerId: string, day: number): Promise<KbEvent[]>;
+  events(playerId: string, matchId: string): Promise<KbEvent[]>;
 };
 
 const CHECK_EVERY_MS = 12 * 3600_000;
 /** Kickbase's "Startelf" bonus and its "played from the start" marker. */
 const STARTED = new Set([4237, -8]);
 
-export const emptyHistory = (): KbHistory => ({ teams: {}, matches: {}, players: {}, queue: [] });
+export const HISTORY_VERSION = 2;
+
+export const emptyHistory = (): KbHistory => ({ version: HISTORY_VERSION, teams: {}, matches: {}, players: {}, queue: [] });
+
+/** The stored history, or a fresh one if there's none or it was written by older code. */
+export const loadHistory = (json: string | undefined): KbHistory => {
+  const h = json ? (JSON.parse(json) as KbHistory) : undefined;
+  return h?.version === HISTORY_VERSION ? h : emptyHistory();
+};
 
 /** One finished match of a player; `events` undefined when he didn't play. */
 export function gameOf(m: KbPerfMatch, events: KbEvent[] | undefined): HistGame {
@@ -91,7 +101,7 @@ export async function updateHistory(h: KbHistory, api: HistoryApi, now: Date, bu
       if (player.games.some((g) => g.day === m.day)) continue;
       const played = m.minutes !== undefined;
       if (played && !can()) { done = false; break; }
-      player.games.push(gameOf(m, played ? await ask(() => api.events(id, m.day)) : undefined));
+      player.games.push(gameOf(m, played ? await ask(() => api.events(id, m.matchId)) : undefined));
       player.games.sort((a, b) => a.day - b.day);
       changed = true;
     }

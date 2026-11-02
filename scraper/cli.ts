@@ -6,7 +6,7 @@ import { run } from "./run.ts";
 import { lastingProblems } from "./problems.ts";
 import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
 import { coachDueIds, pullCoachPosts } from "./coach.ts";
-import { emptyHistory, updateHistory, type KbHistory } from "./kbHistory.ts";
+import { loadHistory, updateHistory, type KbHistory } from "./kbHistory.ts";
 import { KickbaseAuthError, clubTable, login, performance, playerCenter, teamSquad } from "../src/lib/kickbase.ts";
 
 const ROOT = process.cwd();
@@ -41,7 +41,7 @@ async function history(now: Date, budget: number): Promise<{ changed: boolean; p
   const email = process.env.KICKBASE_EMAIL;
   const password = process.env.KICKBASE_PASSWORD;
   if (!email || !password) return { changed: false };
-  const h: KbHistory = existsSync(HISTORY_FILE) ? JSON.parse(readFileSync(HISTORY_FILE, "utf8")) : emptyHistory();
+  const h = loadHistory(existsSync(HISTORY_FILE) ? readFileSync(HISTORY_FILE, "utf8") : undefined);
   const slow: typeof fetch = async (input, init) => {
     await new Promise((r) => setTimeout(r, 150));
     return fetch(input, init);
@@ -53,7 +53,7 @@ async function history(now: Date, budget: number): Promise<{ changed: boolean; p
       table: () => clubTable(slow, token),
       squad: (id) => teamSquad(slow, token, id),
       performance: (id) => performance(slow, token, id),
-      events: async (id, day) => (await playerCenter(slow, token, id, day)).events,
+      events: async (id, matchId) => (await playerCenter(slow, token, id, matchId)).events,
     }, now, budget);
     changed = r.changed;
     console.log(`kickbase history: ${r.requests} requests, ${Object.keys(h.players).length} players, ${h.queue.length} queued`);

@@ -160,10 +160,13 @@ export async function teamCenter(fetchFn: Fetch, token: string, teamId: string):
 /** One action that earned or cost a player points (type: Kickbase event type id). */
 export type KbEvent = { type: number; points: number; minute?: number };
 
-/** A player's match on the current matchday (or on matchday `day`): state, points and every action behind them. */
-export async function playerCenter(fetchFn: Fetch, token: string, playerId: string, day?: number): Promise<{ live: KbLive; events: KbEvent[] }> {
+/**
+ * A player's match on the current matchday (or the match `matchId`; Kickbase ignores a "day" parameter and answers
+ * with the current match): state, points and every action behind them.
+ */
+export async function playerCenter(fetchFn: Fetch, token: string, playerId: string, matchId?: string): Promise<{ live: KbLive; events: KbEvent[] }> {
   const r = await call<ApiPlayer & { events?: { eti: number; p: number; mt?: number }[] }>(
-    fetchFn, `/v4/competitions/1/playercenter/${encodeURIComponent(playerId)}${day !== undefined ? `?day=${day}` : ""}`, { token },
+    fetchFn, `/v4/competitions/1/playercenter/${encodeURIComponent(playerId)}${matchId ? `?matchId=${encodeURIComponent(matchId)}` : ""}`, { token },
   );
   return {
     live: toLive(r),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gameOf, updateHistory, type HistoryApi, type KbHistory } from "./kbHistory.ts";
+import { emptyHistory, gameOf, loadHistory, updateHistory, type HistoryApi, type KbHistory } from "./kbHistory.ts";
 import type { KbPerfMatch } from "../src/lib/kickbase.ts";
 
 const NOW = new Date("2026-11-02T12:00:00.000Z");
@@ -15,14 +15,14 @@ function fakeApi(perf: Record<string, KbPerfMatch[]>, played = 2) {
     table: async () => { calls.push("table"); return [{ id: "2", name: "Bayern", played }, { id: "3", name: "BVB", played }]; },
     squad: async (tid) => { calls.push(`squad ${tid}`); return tid === "2" ? [{ id: "10", name: "Kane", position: 4 }] : [{ id: "20", name: "Kobel", position: 1 }]; },
     performance: async (pid) => { calls.push(`perf ${pid}`); return perf[pid] ?? []; },
-    events: async (pid, day) => {
-      calls.push(`events ${pid} ${day}`);
+    events: async (pid, matchId) => {
+      calls.push(`events ${pid} ${matchId}`);
       return [{ type: 4237, points: 5 }, { type: 4231, points: 5 }, { type: 4231, points: 5 }, { type: -8, points: 0 }, { type: 4240, points: -1 }];
     },
   };
   return { api, calls };
 }
-const empty = (): KbHistory => ({ teams: {}, matches: {}, players: {}, queue: [] });
+const empty = (): KbHistory => emptyHistory();
 
 describe("gameOf", () => {
   it("sums each event type's points, knows whether he started, and drops Kickbase's bookkeeping events", () => {
@@ -32,6 +32,15 @@ describe("gameOf", () => {
 
   it("is a game without minutes for a player who didn't play", () => {
     expect(gameOf(match(1, { minutes: undefined, points: undefined }), undefined)).toEqual({ day: 1, matchId: "m1", minutes: 0, start: false, points: 0 });
+  });
+});
+
+describe("loadHistory", () => {
+  it("starts afresh from a file older code wrote", () => {
+    expect(loadHistory(JSON.stringify({ teams: { 2: { name: "Bayern", played: 8 } }, matches: {}, players: {}, queue: [] }))).toEqual(emptyHistory());
+    expect(loadHistory(undefined)).toEqual(emptyHistory());
+    const h = { ...emptyHistory(), checkedAt: "2026-11-02T12:00:00.000Z" };
+    expect(loadHistory(JSON.stringify(h))).toEqual(h);
   });
 });
 
@@ -58,7 +67,7 @@ describe("updateHistory", () => {
     calls.length = 0;
     await updateHistory(h, api, new Date(NOW.getTime() + 5 * 60_000), 100);
     // No new table check within 12 hours; matchday 1 isn't fetched again.
-    expect(calls).toEqual(["perf 10", "events 10 2", "perf 20", "events 20 1", "events 20 2"]);
+    expect(calls).toEqual(["perf 10", "events 10 m2", "perf 20", "events 20 m1", "events 20 m2"]);
     expect(h.queue).toEqual([]);
   });
 
@@ -71,7 +80,7 @@ describe("updateHistory", () => {
     await updateHistory(h, later.api, new Date(NOW.getTime() + 11 * 3600_000), 100);
     expect(later.calls).toEqual([]);
     await updateHistory(h, later.api, new Date(NOW.getTime() + 12 * 3600_000), 100);
-    expect(later.calls).toEqual(["table", "squad 2", "perf 10", "events 10 2"]);
+    expect(later.calls).toEqual(["table", "squad 2", "perf 10", "events 10 m2"]);
     expect(h.players["10"].games.map((g) => g.day)).toEqual([1, 2]);
   });
 
