@@ -14,6 +14,7 @@ import { canonicalOpponent, fillFromSchedule, fillOpponents } from "./opponents.
 import { LIVE_URL, parseLive } from "../src/lib/live.ts";
 import { validateArticle, validateLineup } from "./validate.ts";
 import { bannerKey, ensureImage } from "./images.ts";
+import { recordPredictions } from "./predictions.ts";
 
 export const RETENTION_DAYS = 30;
 export const BACKFILL_PAGES = 3;
@@ -263,6 +264,11 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       }
     }
   }
+
+  // The predicted XIs as a manager last saw them before the matchday's lineup locks, and later the confirmed ones
+  // (before the retention below can drop a lineup post). Not shown yet, so no rebuild: the state carries them.
+  const { predictions, changed: predictionsChanged } = recordPredictions(state.predictions, store.lineups(), store.articles(), now);
+  if (predictionsChanged) state.predictions = predictions;
 
   // 4. Retention: drop old articles, unless LigaInsider still lists them (else we'd re-fetch them every run).
   for (const a of store.articles()) {

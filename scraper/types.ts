@@ -1,3 +1,4 @@
+import type { SavedPrediction } from "./predictions.ts";
 import type { OddsEvent } from "./odds.ts";
 import type { ScorerMatch } from "./scorers.ts";
 
@@ -107,4 +108,6 @@ export type State = {
   ownPostsOut?: number[];
   /** The coach's posts the build includes (due within the lead time); one entering means a rebuild. */
   coachDue?: number[];
+  /** LigaInsider's predicted XI per matchday as saved before its first kickoff, with the confirmed XI (predictions.ts). */
+  predictions?: SavedPrediction[];
 };
