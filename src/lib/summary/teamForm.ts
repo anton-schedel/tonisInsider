@@ -18,7 +18,7 @@ export function weighted(newestFirst: number[]): number | undefined {
   return sum / total;
 }
 
-const pointsOf = (m: HistMatch, teamId: string) => {
+const pointsOf = (m: HistMatch, teamId: string): number => {
   const own = m.home === teamId ? m.homeGoals! : m.awayGoals!;
   const other = m.home === teamId ? m.awayGoals! : m.homeGoals!;
   return own > other ? 3 : own === other ? 1 : 0;
