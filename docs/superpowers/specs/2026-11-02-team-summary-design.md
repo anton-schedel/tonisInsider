@@ -86,6 +86,12 @@ history (every match's home team, away team and score), as they were *before* th
 
 The player's own home/away split is part of his profile too.
 
+**Recent games count more** (owner: "the last 5 games matter more than the start of the season"). Only this season
+is used at all (new players, new coaches). Every average in the point profile, the home/away splits and the table
+strength weighs each game by how recent it is: each game counts ~15 % less than the one after it (the 5th-last
+still counts about half). The decay is one constant, to be tuned once real data is in. Momentum stays the plain
+points of the last 5 matches.
+
 Combined with this week's opponent (win chance from the odds, plus the same three numbers) into one statement per
 player where it stands out,
 e.g. *"Most of Saibari's points come from attacking actions, and they halved away against teams in form; this
