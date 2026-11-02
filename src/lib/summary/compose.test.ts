@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeSummary, summaryVisible, type SummaryInput, type SummaryPlayer } from "./compose.ts";
+import { summaryView, summaryVisible, type SummaryInput, type SummaryPlayer } from "./compose.ts";
 import type { Profile } from "./profile.ts";
 
 const NOW = new Date("2026-11-05T12:00:00Z");
@@ -21,56 +21,56 @@ describe("summaryVisible", () => {
   });
 });
 
-describe("composeSummary", () => {
-  it("is empty when not visible", () => {
-    expect(composeSummary(input([withMatchup("Saibari", 0.5)], { firstKickoff: "2026-11-01T14:30:00Z" }))).toEqual([]);
+describe("summaryView", () => {
+  it("is nothing when not visible", () => {
+    expect(summaryView(input([withMatchup("Saibari", 0.5)], { firstKickoff: "2026-11-01T14:30:00Z" }))).toBeUndefined();
   });
 
-  it("shows nothing when there's nothing to say beyond how many are in the predicted XI", () => {
+  it("is nothing when there's nothing to say beyond how many are in the predicted XI", () => {
     const players: SummaryPlayer[] = [{ name: "A", inPredictedXi: true }, { name: "B", inPredictedXi: false }, { name: "C", inPredictedXi: true }];
-    expect(composeSummary(input(players))).toEqual([]);
+    expect(summaryView(input(players))).toBeUndefined();
   });
 
-  const outlook = (team: string, opponent: string, home: boolean, win: number, cleanSheet?: number) => ({ team, opponent, home, win, ...(cleanSheet !== undefined ? { cleanSheet } : {}) });
+  const outlook = (team: string, opponent: string, home: boolean, win: number, cleanSheet?: number) => ({
+    team, opponent, home, win, kickoff: KICKOFF, crest: `/img/clubs/${team}.png`, ...(cleanSheet !== undefined ? { cleanSheet } : {}),
+  });
   const xi = (name: string, o: ReturnType<typeof outlook>, extra: Partial<SummaryPlayer> = {}): SummaryPlayer => ({ name, inPredictedXi: true, outlook: o, ...extra });
 
-  it("names his players with clear favourites, one club after the other, strongest first", () => {
+  it("is one row per game of his predicted starters, the best chance first", () => {
     const bvb = outlook("Dortmund", "Elversberg", true, 74);
-    const players = [xi("Nmecha", bvb), xi("Guirassy", bvb), xi("Gomis", outlook("Leipzig", "Augsburg", true, 65)), xi("Schick", outlook("Leverkusen", "Köln", false, 55)), xi("Gerl", outlook("HSV", "Gladbach", true, 40)), { name: "Bank", inPredictedXi: false, outlook: outlook("Bayern", "Mainz", false, 66) }];
-    const out = composeSummary(input(players));
-    expect(out[0]).toBe("Von deinen 6 Spielern stehen 5 in der voraussichtlichen Startelf.");
-    expect(out[1]).toBe("Gute Woche: Nmecha und Guirassy spielen mit Dortmund als klarer Favorit gegen Elversberg (74 % Siegchance), Gomis mit Leipzig gegen Augsburg (65 %) und Schick mit Leverkusen bei Köln (55 %).");
+    const b04 = outlook("Leverkusen", "Köln", false, 55);
+    const players = [xi("Quansah", b04), xi("Nmecha", bvb), xi("Friedl", outlook("Bremen", "Stuttgart", false, 19)), xi("Schick", b04), xi("Guirassy", bvb), { name: "Bank", inPredictedXi: false, outlook: outlook("Bayern", "Mainz", false, 66) }];
+    const view = summaryView(input(players))!;
+    expect({ inXi: view.inXi, total: view.total }).toEqual({ inXi: 5, total: 6 });
+    expect(view.games.map((g) => [g.team, g.win, g.players.map((p) => p.name)])).toEqual([
+      ["Dortmund", 74, ["Nmecha", "Guirassy"]],
+      ["Leverkusen", 55, ["Quansah", "Schick"]],
+      ["Bremen", 19, ["Friedl"]],
+    ]);
+    expect(view.games[0]).toMatchObject({ opponent: "Elversberg", home: true, kickoff: KICKOFF, crest: "/img/clubs/Dortmund.png" });
   });
 
-  it("names the outsiders, weakest first", () => {
-    const players = [xi("Friedl", outlook("Bremen", "Stuttgart", false, 19)), xi("Caci", outlook("Mainz", "Bayern", true, 17)), xi("Gerl", outlook("HSV", "Gladbach", true, 40))];
-    expect(composeSummary(input(players))[1]).toBe("Schwer wird's für Caci (Mainz gegen Bayern, 17 % Siegchance) und Friedl (Bremen bei Stuttgart, 19 %).");
-  });
-
-  it("adds where a named player does much better or worse at this venue", () => {
+  it("notes where a player does clearly better or worse at this venue, and a good clean sheet chance for goalkeepers and defenders", () => {
     const players = [
-      xi("Nmecha", outlook("Dortmund", "Elversberg", true, 74), { venue: { index: 1.4, games: 4 } }),
-      xi("Caci", outlook("Mainz", "Bayern", true, 17), { venue: { index: 1.35, games: 3 } }),
-      xi("Friedl", outlook("Bremen", "Stuttgart", false, 19), { venue: { index: 1.1, games: 3 } }),
+      xi("Nmecha", outlook("Dortmund", "Elversberg", true, 74, 38), { venue: { index: 1.4, games: 4 }, position: 3 }),
+      xi("Caci", outlook("Mainz", "Bayern", true, 17, 7), { venue: { index: 0.65, games: 3 }, position: 2 }),
+      xi("Schick", outlook("Leverkusen", "Köln", false, 55, 41), { venue: { index: 1.35, games: 3 }, position: 4 }),
+      xi("Quansah", outlook("Leverkusen", "Köln", false, 55, 41), { venue: { index: 1.1, games: 3 }, position: 2 }),
+      xi("Seimen", outlook("Stuttgart", "Bremen", true, 62, 48), { venue: { index: 1.5, games: 3 }, position: 1 }),
     ];
-    const [, good, hard] = composeSummary(input(players));
-    expect(good).toBe("Gute Woche: Nmecha spielt mit Dortmund als klarer Favorit gegen Elversberg (74 % Siegchance); zu Hause holt Nmecha zudem deutlich mehr Punkte als auswärts.");
-    expect(hard).toBe("Schwer wird's für Caci (Mainz gegen Bayern, 17 % Siegchance) und Friedl (Bremen bei Stuttgart, 19 %); zu Hause holt Caci allerdings deutlich mehr Punkte als auswärts.");
-  });
-
-  it("names goalkeepers and defenders with a good chance of a clean sheet", () => {
-    const players = [
-      xi("Seimen", outlook("Stuttgart", "Bremen", true, 62, 48), { position: 1 }),
-      xi("Quansah", outlook("Leverkusen", "Köln", false, 55, 41), { position: 2 }),
-      xi("Schick", outlook("Leverkusen", "Köln", false, 55, 41), { position: 4 }),
-      xi("Friedl", outlook("Bremen", "Stuttgart", false, 19, 20), { position: 2 }),
-    ];
-    expect(composeSummary(input(players)).at(-1)).toBe("Gute Chance auf zu Null für Seimen (48 %) und Quansah (41 %).");
+    const notes = Object.fromEntries(summaryView(input(players))!.games.flatMap((g) => g.players.map((p) => [p.name, p.note])));
+    expect(notes).toEqual({
+      Nmecha: "zu Hause stärker",
+      Caci: "zu Hause schwächer",
+      Schick: "auswärts stärker",
+      Quansah: "41 % zu Null",
+      Seimen: "zu Hause stärker, 48 % zu Null",
+    });
   });
 
   it("names at most three matchups, those that stand out most", () => {
     const players = [withMatchup("A", 0.95), withMatchup("B", 0.5), withMatchup("C", 1.9), withMatchup("D", 0.65), withMatchup("E", 1.32)];
-    const [, matchups] = composeSummary(input(players));
+    const [matchups] = summaryView(input(players))!.notes;
     expect(matchups).toContain("B holt auswärts gegen formstarke Teams nur halb so viele Punkte wie sonst");
     expect(matchups).toContain("C holt auswärts gegen formstarke Teams doppelt so viele Punkte wie sonst");
     expect(matchups).toContain("D holt auswärts gegen formstarke Teams deutlich weniger Punkte als sonst");
@@ -82,8 +82,7 @@ describe("composeSummary", () => {
 
   it("warns about clubs whose prediction was often wrong", () => {
     const players: SummaryPlayer[] = [{ name: "Baumgartner", inPredictedXi: true, clubSlug: "rb-leipzig", clubName: "RB Leipzig" }];
-    const out = composeSummary(input(players, { reliability: new Map([["rb-leipzig", { matchdays: 3, hits: 8.6 }]]) }));
-    expect(out[0]).toBe("Von deinen 1 Spielern steht 1 in der voraussichtlichen Startelf. 1 davon bei Vereinen, deren Prognose oft danebenliegt.");
+    const out = summaryView(input(players, { reliability: new Map([["rb-leipzig", { matchdays: 3, hits: 8.6 }]]) }))!.notes;
     // 8.6 is below 9: rounded down, so the sentence never says "9 von 11" for a club under the line.
     expect(out.at(-1)).toBe("Bei RB Leipzig lag LigaInsider im Schnitt nur bei 8 von 11 richtig.");
   });
@@ -91,6 +90,6 @@ describe("composeSummary", () => {
   it("warns about rotation around a cup game", () => {
     const near = { id: "c", competition: "Champions League", kickoff: "2026-11-04T20:00:00Z", home: "Atlético Madrid", away: "Bayern Munich" };
     const players: SummaryPlayer[] = [{ name: "Laimer", inPredictedXi: true, clubName: "FC Bayern München", rotation: { near, nearStarts: 0, nearGames: 2, usualRate: 1 } }];
-    expect(composeSummary(input(players)).at(-1)).toBe("Rotationsgefahr bei Laimer: FC Bayern München spielt am Mittwoch in der Champions League, und neben solchen Spielen stand er zuletzt nur 0 von 2 Mal in der Startelf.");
+    expect(summaryView(input(players))!.notes.at(-1)).toBe("Rotationsgefahr bei Laimer: FC Bayern München spielt am Mittwoch in der Champions League, und neben solchen Spielen stand er zuletzt nur 0 von 2 Mal in der Startelf.");
   });
 });

@@ -1,12 +1,91 @@
 ---
-/** The team summary above the lineup (src/lib/summary/compose.ts): plain sentences, the first one the headline. */
+import Crest from "./Crest.astro";
+import SectionHead from "./SectionHead.astro";
+import type { SummaryView } from "../lib/summary/compose.ts";
+
+/**
+ * The matchday at a glance (src/lib/summary/compose.ts): one row per game of the manager's predicted starters,
+ * the best win chance first, so favourites sit on top and outsiders at the bottom; the bar is gold from 55 %.
+ * Below, what stands out beyond the odds (matchups, rotation, LigaInsider's reliability).
+ */
 interface Props {
-  sentences: string[];
+  view: SummaryView | undefined;
 }
-const { sentences } = Astro.props;
+const { view } = Astro.props;
+const FAVOURITE = 55;
+const dayTime = new Intl.DateTimeFormat("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const when = (iso: string) => dayTime.format(new Date(iso)).replace(".,", "");
 ---
-{sentences.length > 0 && (
-  <div class="mb-6 space-y-1.5 text-[15px] leading-snug text-pretty">
-    {sentences.map((s, i) => <p class:list={[i > 0 && "text-muted"]}>{s}</p>)}
-  </div>
+{view && (
+  <section class="mb-8">
+    <SectionHead title="Spieltag" class="mb-1">{view.inXi} von {view.total} in der Startelf</SectionHead>
+    {view.games.length > 0 && (
+      <ul class="divide-y divide-hairline">
+        {view.games.map((g, i) => (
+          <li class="flex items-start gap-3 py-3">
+            <span class="pt-0.5"><Crest src={g.crest} name={g.team} size={28} /></span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-baseline gap-3">
+                <span class="min-w-0 truncate text-[16px] leading-tight font-semibold">
+                  {g.team} <span class="font-normal text-muted">{g.home ? "gegen" : "bei"} {g.opponent}</span>
+                </span>
+                <span class="ml-auto shrink-0 text-[16px] leading-tight font-semibold tabular-nums">{g.win}&nbsp;%</span>
+              </div>
+              <div class="win-bar mt-2" role="img" aria-label={`${g.win} Prozent Siegchance`}>
+                <i class:list={[g.win >= FAVOURITE && "is-favourite"]} style={`--w:${g.win}%;--i:${i}`} />
+              </div>
+              <div class="mt-2 flex items-baseline gap-3 text-[14px] leading-snug">
+                <span class="min-w-0">
+                  {g.players.map((p, j) => (
+                    <>
+                      {j > 0 && ", "}
+                      <span>{p.name}</span>
+                      {p.note && <span class="text-muted"> ({p.note})</span>}
+                    </>
+                  ))}
+                </span>
+                <span class="ml-auto shrink-0 text-muted tabular-nums">{when(g.kickoff)}</span>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+    {view.notes.length > 0 && (
+      <div class="mt-2 space-y-2 border-t border-hairline pt-3">
+        {view.notes.map((n) => <p class="text-[14px] leading-snug text-pretty text-muted">{n}</p>)}
+      </div>
+    )}
+  </section>
 )}
+
+<style>
+  .win-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--hairline);
+    overflow: hidden;
+  }
+  .win-bar i {
+    display: block;
+    height: 100%;
+    width: var(--w);
+    border-radius: inherit;
+    background: var(--muted);
+    opacity: 0.45;
+    transform-origin: left;
+    /* One reveal when the page opens: the bars grow in, top to bottom. */
+    animation: win-grow 700ms var(--ease-glide) both;
+    animation-delay: calc(var(--i) * 40ms);
+  }
+  .win-bar i.is-favourite {
+    background: var(--gold);
+    opacity: 1;
+  }
+  @keyframes win-grow {
+    from { transform: scaleX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .win-bar i { animation: none; }
+  }
+</style>

@@ -61,7 +61,8 @@ export function summaryInput(args: {
     const outlook: SummaryPlayer["outlook"] = upcoming && chances?.win !== undefined ? {
       team: nameOf(p.kickbase.teamId) ?? p.lineup!.club.name,
       opponent: nameOf(opponentId) ?? (home ? upcoming.awayName : upcoming.homeName),
-      home, win: chances.win,
+      home, win: chances.win, kickoff: upcoming.kickoff!,
+      ...(p.lineup?.club.crest ? { crest: p.lineup.club.crest } : {}),
       ...(chances.cleanSheet !== undefined ? { cleanSheet: chances.cleanSheet } : {}),
     } : undefined;
 

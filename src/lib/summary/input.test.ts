@@ -26,7 +26,7 @@ describe("summaryInput", () => {
     const a = { ...args(undefined), outlook: new Map([["1", { win: 74, cleanSheet: 41 }]]) };
     const [one, two] = summaryInput(a).players;
     // Dortmund is away at Union in this fixture list.
-    expect(one.outlook).toEqual({ team: "Dortmund", opponent: "Union Berlin", home: false, win: 74, cleanSheet: 41 });
+    expect(one.outlook).toEqual({ team: "Dortmund", opponent: "Union Berlin", home: false, win: 74, cleanSheet: 41, kickoff: "2026-11-07T14:30:00Z" });
     expect(one.position).toBe(3);
     expect(two.outlook).toBeUndefined();
   });

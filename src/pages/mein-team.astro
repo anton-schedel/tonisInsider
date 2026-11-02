@@ -17,7 +17,7 @@ import { clearSession, LEAGUE_COOKIE, relogin, TOKEN_COOKIE } from "../lib/sessi
 import { loadSnapshot } from "../lib/snapshotServer.ts";
 import { loadKbHistory } from "../lib/kbHistoryServer.ts";
 import { summaryInput } from "../lib/summary/input.ts";
-import { composeSummary } from "../lib/summary/compose.ts";
+import { summaryView, type SummaryView } from "../lib/summary/compose.ts";
 import TeamSummary from "../components/TeamSummary.astro";
 
 export const prerender = false;
@@ -106,9 +106,9 @@ async function load(token: string) {
     return list ? [[p.kickbase.id, list] as const] : [];
   }));
   // The summary above the lineup; whatever goes wrong there must not cost the page.
-  let summary: string[] = [];
+  let summary: SummaryView | undefined;
   try {
-    summary = composeSummary(summaryInput({
+    summary = summaryView(summaryInput({
       now: new Date(), players, history, lineups: snapshot?.lineups ?? [], table: g.__kbTable?.teams ?? [],
       predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [], outlook,
     }));
@@ -122,7 +122,7 @@ let error: string | undefined;
 // Not signed in (or the session ran out): the page says so itself instead of redirecting, so the tab bar
 // doesn't glide to Mein Team and then on to the settings.
 let signedOut: "none" | "expired" | undefined;
-let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, points: undefined, outlook: new Map(), cardNews: new Map(), summary: [] };
+let data: Awaited<ReturnType<typeof load>> = { leagues: [], league: undefined, players: [], starterCount: 0, points: undefined, outlook: new Map(), cardNews: new Map(), summary: undefined };
 try {
   // Expired cookie → quietly log in again with the encrypted credentials (if the user has them).
   let token = Astro.cookies.get(TOKEN_COOKIE)?.value ?? (await relogin(Astro.cookies, key, doLogin));
@@ -205,7 +205,7 @@ let index = 0;
   {!error && league && players.length === 0 && <p class="empty-note">Keine Spieler in dieser Liga.</p>}
   {!error && !signedOut && !league && <p class="empty-note">Du bist in keiner Kickbase-Liga.</p>}
 
-  {!error && <TeamSummary sentences={summary} />}
+  {!error && <TeamSummary view={summary} />}
 
   {starterCount > 0 ? (
     <>

@@ -15,22 +15,26 @@ export type SummaryPlayer = {
   rotation?: Rotation;
   /** Kickbase position (1 goalkeeper, 2 defender, 3 midfielder, 4 striker). */
   position?: number;
-  /** This week's game: his club and the opponent (short names), win and clean sheet chance in whole percent. */
-  outlook?: { team: string; opponent: string; home: boolean; win: number; cleanSheet?: number };
+  /** This week's game: his club and the opponent (short names), kickoff, his club's crest, win and clean sheet chance in whole percent. */
+  outlook?: { team: string; opponent: string; home: boolean; win: number; cleanSheet?: number; kickoff: string; crest?: string };
   /** His points at this week's venue against the other one (profile.ts venueIndex). */
   venue?: { index: number; games: number };
 };
 
 export type SummaryInput = { now: Date; firstKickoff?: string; players: SummaryPlayer[]; reliability: Map<string, Reliability> };
 
+/** One game of his predicted starters this matchday: what TeamSummary.astro draws as a row. */
+export type GameRow = {
+  team: string; opponent: string; home: boolean; win: number; kickoff: string; crest?: string;
+  /** note: "zu Hause stärker", "48 % zu Null". */
+  players: { name: string; note?: string }[];
+};
+export type SummaryView = { inXi: number; total: number; games: GameRow[]; notes: string[] };
+
 /** A matchup is named from 30 % off his average; a club's prediction is "often wrong" below 9 of 11. */
 const STANDS_OUT = 0.3;
 const OFTEN_WRONG = 9;
-/** Win chance (whole percent) from which a club counts as favourite, clear favourite; up to which as outsider. */
-const FAVOURITE = 55;
-const CLEAR_FAVOURITE = 65;
-const OUTSIDER = 25;
-/** Clean sheet chance from which a goalkeeper or defender is named. */
+/** Clean sheet chance from which a goalkeeper or defender gets it as a note. */
 const CLEAN_SHEET = 40;
 
 /** Only before the matchday's first kickoff: from then on Kickbase has locked the lineup. */
@@ -57,71 +61,41 @@ function matchupClause(p: SummaryPlayer): string {
 }
 
 const where = (home: boolean) => (home ? "zu Hause" : "auswärts");
-const against = (o: NonNullable<SummaryPlayer["outlook"]>) => `${o.home ? "gegen" : "bei"} ${o.opponent}`;
 
-/** "zu Hause holt Nmecha zudem deutlich mehr Punkte als auswärts" for named players whose venue makes a clear difference. */
-function venueNotes(players: SummaryPlayer[], favourite: boolean): string {
-  return players
-    .filter((p) => p.venue && p.outlook && Math.abs(p.venue.index - 1) >= STANDS_OUT)
-    .map((p) => {
-      const more = p.venue!.index > 1;
-      const link = more === favourite ? "zudem" : "allerdings";
-      return `; ${where(p.outlook!.home)} holt ${p.name} ${link} deutlich ${more ? "mehr" : "weniger"} Punkte als ${where(!p.outlook!.home)}`;
-    })
-    .join("");
+/** "zu Hause stärker", "48 % zu Null": what stands out about him in this game. */
+function noteOf(p: SummaryPlayer): string | undefined {
+  const o = p.outlook!;
+  const notes = [
+    p.venue && Math.abs(p.venue.index - 1) >= STANDS_OUT ? `${where(o.home)} ${p.venue.index > 1 ? "stärker" : "schwächer"}` : undefined,
+    (p.position === 1 || p.position === 2) && (o.cleanSheet ?? 0) >= CLEAN_SHEET ? `${o.cleanSheet} % zu Null` : undefined,
+  ].filter(Boolean);
+  return notes.length ? notes.join(", ") : undefined;
 }
 
-function outlookSentences(inXi: SummaryPlayer[]): string[] {
-  const out: string[] = [];
-  const withOutlook = inXi.filter((p) => p.outlook);
-
-  // Favourites by club, strongest first: "Nmecha und Guirassy spielen mit Dortmund als klarer Favorit gegen …".
-  const clubs = new Map<string, SummaryPlayer[]>();
-  for (const p of withOutlook.filter((p) => p.outlook!.win >= FAVOURITE).sort((a, b) => b.outlook!.win - a.outlook!.win)) {
-    clubs.set(p.outlook!.team, [...(clubs.get(p.outlook!.team) ?? []), p]);
+/** His predicted starters' games, one row each, the best win chance first. */
+function gameRows(inXi: SummaryPlayer[]): GameRow[] {
+  const rows = new Map<string, GameRow>();
+  for (const p of inXi) {
+    const o = p.outlook;
+    if (!o) continue;
+    const key = `${o.team}|${o.kickoff}`;
+    if (!rows.has(key)) rows.set(key, { team: o.team, opponent: o.opponent, home: o.home, win: o.win, kickoff: o.kickoff, ...(o.crest ? { crest: o.crest } : {}), players: [] });
+    const note = noteOf(p);
+    rows.get(key)!.players.push({ name: p.name, ...(note ? { note } : {}) });
   }
-  const groups = [...clubs.values()].slice(0, 3);
-  if (groups.length) {
-    const parts = groups.map((ps, i) => {
-      const o = ps[0].outlook!;
-      const names = list(ps.map((p) => p.name));
-      if (i > 0) return `${names} mit ${o.team} ${against(o)} (${o.win} %)`;
-      return `${names} ${ps.length > 1 ? "spielen" : "spielt"} mit ${o.team} als ${o.win >= CLEAR_FAVOURITE ? "klarer " : ""}Favorit ${against(o)} (${o.win} % Siegchance)`;
-    });
-    out.push(`Gute Woche: ${list(parts)}${venueNotes(groups.flat(), true)}.`);
-  }
-
-  // Outsiders, weakest first.
-  const outsiders = withOutlook.filter((p) => p.outlook!.win <= OUTSIDER).sort((a, b) => a.outlook!.win - b.outlook!.win).slice(0, 3);
-  if (outsiders.length) {
-    const parts = outsiders.map((p, i) => `${p.name} (${p.outlook!.team} ${against(p.outlook!)}, ${p.outlook!.win} %${i === 0 ? " Siegchance" : ""})`);
-    out.push(`Schwer wird's für ${list(parts)}${venueNotes(outsiders, false)}.`);
-  }
-
-  // Goalkeepers and defenders with a good chance of a clean sheet.
-  const keepers = withOutlook
-    .filter((p) => (p.position === 1 || p.position === 2) && (p.outlook!.cleanSheet ?? 0) >= CLEAN_SHEET)
-    .sort((a, b) => b.outlook!.cleanSheet! - a.outlook!.cleanSheet!)
-    .slice(0, 3);
-  if (keepers.length) out.push(`Gute Chance auf zu Null für ${list(keepers.map((p) => `${p.name} (${p.outlook!.cleanSheet} %)`))}.`);
-  return out;
+  return [...rows.values()].sort((a, b) => b.win - a.win);
 }
 
 function competition(name: string): string {
   return name === "DFB-Pokal" ? "im DFB-Pokal" : `in der ${name}`;
 }
 
-export function composeSummary(input: SummaryInput): string[] {
-  if (!summaryVisible(input.now, input.firstKickoff)) return [];
+export function summaryView(input: SummaryInput): SummaryView | undefined {
+  if (!summaryVisible(input.now, input.firstKickoff)) return undefined;
   const { players, reliability } = input;
   const out: string[] = [];
 
   const inXi = players.filter((p) => p.inPredictedXi);
-  const unsure = inXi.filter((p) => p.clubSlug && (reliability.get(p.clubSlug)?.hits ?? OFTEN_WRONG) < OFTEN_WRONG);
-  out.push(`Von deinen ${players.length} Spielern ${inXi.length === 1 ? "steht" : "stehen"} ${inXi.length} in der voraussichtlichen Startelf.`
-    + (unsure.length ? ` ${unsure.length} davon bei Vereinen, deren Prognose oft danebenliegt.` : ""));
-
-  out.push(...outlookSentences(inXi));
 
   const matchups = players
     .filter((p) => p.matchup && Math.abs(p.matchup.index - 1) >= STANDS_OUT)
@@ -146,6 +120,7 @@ export function composeSummary(input: SummaryInput): string[] {
   if (clubs.length) {
     out.push(`Bei ${clubs.map((c) => c.name).join(" und ")} lag LigaInsider im Schnitt nur bei ${clubs.map((c) => c.hits).join(" bzw. ")} von 11 richtig.`);
   }
-  // The opening sentence alone tells the manager nothing new.
-  return out.length > 1 ? out : [];
+  const games = gameRows(inXi);
+  // How many are in the predicted XI alone tells the manager nothing new.
+  return games.length || out.length ? { inXi: inXi.length, total: players.length, games, notes: out } : undefined;
 }
