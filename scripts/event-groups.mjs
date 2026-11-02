@@ -5,14 +5,17 @@ import { writeFileSync } from "node:fs";
 import { env } from "node:process";
 
 const API = "https://api.kickbase.com";
-// First match wins, so the order matters: "Tor kassiert" is a mistake before it's attack, "(TW)" always keeper.
+// First match wins, so the order matters: the clean sheet bonus before everything ("Zu Null gespielt (TW)"),
+// "Tor kassiert" is a mistake before it's a goal, "(TW)" otherwise always keeper, goals and assists before shots.
 const RULES = [
+  ["cleansheet", /Zu Null/],
   ["keeper", /\(TW\)|Parade|gehalten|Torwart|Abwurf|Abschlag|Rauslaufen|abgewehrt/],
   ["mistake", /Karte|Foul|Ballverlust|vergeben|Eigentor|Fehler|verloren|Abseits|verursacht|verschossen|verschuldet|kassiert|Platzverweis|Handspiel|Ausgespielt|zu weit/],
   ["team", /Spiel gewonnen|Teamtor|Unentschieden/],
+  ["goals", /^Tor \(|^Torvorlage \(|Elfmeter verwandelt|Penalty verwandelt|Fernschusstor|Kopfballtor/],
   ["attack", /Tor|Schuss|schuss|Assist|Torvorlage|Pass des Todes|Großchance|Elfmeter|Penalty|Dribbling|ausgedribbelt|Aluminium|Latte|Pfosten|Eins-gegen-Eins|Gefoult/],
   ["duel", /[Zz]weikampf|Duell/],
-  ["defence", /Tackling|Abgefangen|abgefangen|Klärung|geklärt|Geklärt|Block|geblockt|Zu Null|Ballgewinn|Balleroberung|gestört/],
+  ["defence", /Tackling|Abgefangen|abgefangen|Klärung|geklärt|Geklärt|Block|geblockt|Ballgewinn|Balleroberung|gestört/],
   ["pass", /Pass|Flanke|Ecke|Freistoß|Vorlage/],
   ["time", /Minuten|Startelf|Einwechsl|[Ee]ingewechselt/],
 ];

@@ -1,6 +1,7 @@
 import type { HistMatch, HistPlayer } from "../../../scraper/kbHistory.ts";
-import { groupOf, type Group } from "./groups.ts";
-import { formBefore, RECENCY, venuePpg, weighted, type Form } from "./teamForm.ts";
+import type { Group } from "./groups.ts";
+import { sharesOf } from "./reliance.ts";
+import { formBefore, venuePpg, weighted, type Form } from "./teamForm.ts";
 
 export const MIN_GAMES = 4;
 /** The opponent's points per game at its venue then: from 1.7 strong, up to 1.0 weak. */
@@ -45,18 +46,7 @@ export function profileOf(p: HistPlayer, matches: Record<string, HistMatch>): Pr
     .sort((a, b) => b.date.localeCompare(a.date));
   if (games.length < MIN_GAMES) return undefined;
 
-  const byGroup: Partial<Record<Group, number>> = {};
-  let total = 0;
-  games.forEach(({ g }, k) => {
-    const w = RECENCY ** k;
-    for (const [eti, points] of Object.entries(g.events ?? {})) {
-      if (points <= 0) continue;
-      const group = groupOf(eti);
-      byGroup[group] = (byGroup[group] ?? 0) + points * w;
-      total += points * w;
-    }
-  });
-  const shares = Object.fromEntries(Object.entries(byGroup).map(([group, v]) => [group, total ? v / total : 0])) as Partial<Record<Group, number>>;
+  const shares = sharesOf(games.map(({ g }) => g));
   const top = (Object.entries(shares) as [Group, number][])
     .filter(([group]) => group !== "time" && group !== "team" && group !== "other")
     .sort((a, b) => b[1] - a[1])[0]?.[0] ?? "other";

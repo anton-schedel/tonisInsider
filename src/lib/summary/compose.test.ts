@@ -34,7 +34,7 @@ describe("summaryView", () => {
   const outlook = (team: string, opponent: string, home: boolean, win: number, cleanSheet?: number) => ({
     team, opponent, home, win, kickoff: KICKOFF, crest: `/img/clubs/${team}.png`, ...(cleanSheet !== undefined ? { cleanSheet } : {}),
   });
-  const xi = (name: string, o: ReturnType<typeof outlook>, extra: Partial<SummaryPlayer> = {}): SummaryPlayer => ({ name, inPredictedXi: true, outlook: o, ...extra });
+  const xi = (name: string, o: NonNullable<SummaryPlayer["outlook"]>, extra: Partial<SummaryPlayer> = {}): SummaryPlayer => ({ name, inPredictedXi: true, outlook: o, ...extra });
 
   it("is one row per game of his predicted starters, the best chance first", () => {
     const bvb = outlook("Dortmund", "Elversberg", true, 74);
@@ -48,6 +48,32 @@ describe("summaryView", () => {
       ["Bremen", 19, ["Friedl"]],
     ]);
     expect(view.games[0]).toMatchObject({ opponent: "Elversberg", home: true, kickoff: KICKOFF, crest: "/img/clubs/Dortmund.png" });
+  });
+
+  it("explains in a few words how the week looks, beyond the bars", () => {
+    const players = [
+      xi("Nmecha", outlook("Dortmund", "Elversberg", true, 74)),
+      xi("Seimen", outlook("Stuttgart", "Bremen", true, 62)),
+      xi("Schick", outlook("Leverkusen", "Köln", false, 45)),
+      xi("Friedl", outlook("Bremen", "Stuttgart", false, 19)),
+    ];
+    expect(summaryView(input(players))!.text).toEqual(["2 deiner 4 Starter spielen bei Favoriten, 1 bei einem klaren Außenseiter."]);
+  });
+
+  it("says when what a player's points depend on fits this week's game, or doesn't", () => {
+    const players = [
+      xi("Schick", { ...outlook("Leverkusen", "Köln", false, 55), goals: 2.3 }, { reliance: { kind: "goals", share: 0.4 } }),
+      xi("Caci", { ...outlook("Mainz", "Bayern", true, 17), goals: 0.8 }, { reliance: { kind: "goals", share: 0.27 } }),
+      xi("Friedl", outlook("Bremen", "Stuttgart", false, 19, 10), { reliance: { kind: "cleansheet", share: 0.09 }, position: 2 }),
+      xi("Seimen", outlook("Stuttgart", "Bremen", true, 62, 29), { reliance: { kind: "team", share: 0.2 }, position: 1 }),
+    ];
+    const view = summaryView(input(players))!;
+    expect(view.text.slice(1)).toEqual([
+      "Rückenwind: Schick lebt von Toren und Vorlagen, und Leverkusen werden bei Köln 2,3 Tore zugetraut; Seimen punktet viel über den Siegbonus, und Stuttgart gewinnt gegen Bremen mit 62 % Wahrscheinlichkeit.",
+      "Vorsicht: Friedl holt viele Punkte über zu Null, aber die Chance darauf liegt bei Stuttgart nur bei 10 %; Caci lebt von Toren und Vorlagen, aber Mainz werden gegen Bayern nur 0,8 Tore zugetraut.",
+    ]);
+    const notes = Object.fromEntries(view.games.flatMap((g) => g.players.map((p) => [p.name, p.note])));
+    expect(notes).toMatchObject({ Schick: "lebt von Toren", Friedl: "viele Zu-Null-Punkte", Seimen: "viel Siegbonus" });
   });
 
   it("notes where a player does clearly better or worse at this venue, and a good clean sheet chance for goalkeepers and defenders", () => {

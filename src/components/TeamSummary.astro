@@ -6,19 +6,26 @@ import type { SummaryView } from "../lib/summary/compose.ts";
 /**
  * The matchday at a glance (src/lib/summary/compose.ts): one row per game of the manager's predicted starters,
  * the best win chance first, so favourites sit on top and outsiders at the bottom; the bar is gold from 55 %.
- * Below, what stands out beyond the odds (matchups, rotation, LigaInsider's reliability).
+ * Above the rows a few sentences on how the week looks (what his players' points depend on against this week's
+ * odds); below, what stands out beyond the odds (matchups, rotation, LigaInsider's reliability).
  */
 interface Props {
   view: SummaryView | undefined;
+  class?: string;
 }
-const { view } = Astro.props;
+const { view, class: cls } = Astro.props;
 const FAVOURITE = 55;
 const dayTime = new Intl.DateTimeFormat("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const when = (iso: string) => dayTime.format(new Date(iso)).replace(".,", "");
 ---
 {view && (
-  <section class="mb-8">
+  <section class={cls}>
     <SectionHead title="Spieltag" class="mb-1">{view.inXi} von {view.total} in der Startelf</SectionHead>
+    {view.text.length > 0 && (
+      <div class="mt-1 mb-2 space-y-2 text-[15px] leading-snug text-pretty">
+        {view.text.map((s) => <p>{s}</p>)}
+      </div>
+    )}
     {view.games.length > 0 && (
       <ul class="divide-y divide-hairline">
         {view.games.map((g, i) => (

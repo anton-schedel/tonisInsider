@@ -22,6 +22,12 @@ const args = (history: KbHistory | undefined) => ({
 });
 
 describe("summaryInput", () => {
+  it("adds his team's expected goals from the odds", () => {
+    const odds = [{ home: "Union Berlin", away: "Borussia Dortmund", kickoff: "2026-11-07T14:30:00Z", chances: { home: 20, draw: 25, away: 55 }, books: 5 }];
+    const a = { ...args(undefined), outlook: new Map([["1", { win: 55 }]]), odds };
+    expect(summaryInput(a).players[0].outlook!.goals).toBeGreaterThan(1.3);
+  });
+
   it("gives each player this week's game with short club names, his win and clean sheet chance and his position", () => {
     const a = { ...args(undefined), outlook: new Map([["1", { win: 74, cleanSheet: 41 }]]) };
     const [one, two] = summaryInput(a).players;

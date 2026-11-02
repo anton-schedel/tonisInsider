@@ -17,4 +17,15 @@ describe("groupOf", () => {
     expect(groupOf(4132)).toBe("attack"); // Gefoult im letzten Drittel
     expect(groupOf(4198)).toBe("keeper"); // Ball im Stand abgewehrt
   });
+
+  it("keeps goals and assists, and the clean sheet bonus, apart (what a player's points depend on)", () => {
+    expect(groupOf(4288)).toBe("goals"); // Tor (MF)
+    expect(groupOf(4303)).toBe("goals"); // Torvorlage (MF)
+    expect(groupOf(4045)).toBe("goals"); // Elfmeter verwandelt
+    expect(groupOf(4333)).toBe("cleansheet"); // Zu Null gespielt (ABW)
+    expect(groupOf(4330)).toBe("cleansheet"); // Zu Null gespielt (TW)
+    expect(groupOf(4216)).toBe("attack"); // Torschuss (aufs Tor)
+    expect(groupOf(4204)).toBe("attack"); // Torschussvorlage
+    expect(groupOf(4249)).toBe("mistake"); // Tor kassiert
+  });
 });

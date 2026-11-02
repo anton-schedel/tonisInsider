@@ -9,6 +9,9 @@ import { contextOf, matchupIndex, MIN_FORM_GAMES, profileOf, venueIndex } from "
 import { reliabilityByClub, type Reliability } from "./reliability.ts";
 import { rotationRisk } from "./rotation.ts";
 import { formBefore } from "./teamForm.ts";
+import { relianceNorms, relianceOf, type Reliance } from "./reliance.ts";
+import { chancesFor, expectedGoals } from "../odds.ts";
+import type { OddsEvent } from "../../../scraper/odds.ts";
 import type { SummaryInput, SummaryPlayer } from "./compose.ts";
 
 const IN_XI = new Set<StartStatus>(["confirmed", "start", "contested", "doubtful"]);
@@ -33,6 +36,8 @@ export function summaryInput(args: {
   predictions: SavedPrediction[]; cupGames: CupGame[]; table: KbTeam[];
   /** The page's odds per Kickbase player id: his club's win chance and clean sheet chance, in whole percent. */
   outlook?: Map<string, { win?: number; cleanSheet?: number }>;
+  /** The Bundesliga odds, for his team's expected goals. */
+  odds?: OddsEvent[];
 }): SummaryInput {
   const { history, lineups, table } = args;
   const clubs = mapClubs(table, lineups);
@@ -58,16 +63,20 @@ export function summaryInput(args: {
 
     // This week's chances, from the odds the page has for its player cards.
     const chances = args.outlook?.get(p.kickbase.id);
+    const odds = upcoming && chancesFor(upcoming, args.odds);
+    const xg = odds && expectedGoals(odds);
     const outlook: SummaryPlayer["outlook"] = upcoming && chances?.win !== undefined ? {
       team: nameOf(p.kickbase.teamId) ?? p.lineup!.club.name,
       opponent: nameOf(opponentId) ?? (home ? upcoming.awayName : upcoming.homeName),
       home, win: chances.win, kickoff: upcoming.kickoff!,
       ...(p.lineup?.club.crest ? { crest: p.lineup.club.crest } : {}),
       ...(chances.cleanSheet !== undefined ? { cleanSheet: chances.cleanSheet } : {}),
+      ...(xg ? { goals: home ? xg.home : xg.away } : {}),
     } : undefined;
 
     const hp = history?.players[p.kickbase.id];
     const profile = history && hp ? profileOf(hp, history.matches) : undefined;
+    const reliance = history && profile ? relianceOf(profile.shares, p.kickbase.position, normsOnce(history)) : undefined;
     let matchup: SummaryPlayer["matchup"];
     let venue: SummaryPlayer["venue"];
     let rotation: SummaryPlayer["rotation"];
@@ -87,6 +96,7 @@ export function summaryInput(args: {
       ...base,
       ...(outlook ? { outlook } : {}),
       ...(profile ? { profile } : {}),
+      ...(reliance ? { reliance } : {}),
       ...(venue ? { venue } : {}),
       ...(matchup ? { matchup } : {}),
       ...(rotation ? { rotation } : {}),
@@ -107,4 +117,12 @@ function reliabilityOnce(history: KbHistory, predictions: SavedPrediction[], kbT
   const result = reliabilityByClub(predictions, history, kbTeamOf);
   reliabilityCache.set(history, { predictions, result });
   return result;
+}
+
+/** The position lines change only with the history: worked out once per history (per build). */
+const normsCache = new WeakMap<KbHistory, Map<number, Record<Reliance, number>>>();
+function normsOnce(history: KbHistory): Map<number, Record<Reliance, number>> {
+  let norms = normsCache.get(history);
+  if (!norms) normsCache.set(history, (norms = relianceNorms(history)));
+  return norms;
 }

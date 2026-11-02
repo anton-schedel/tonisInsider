@@ -110,7 +110,7 @@ async function load(token: string) {
   try {
     summary = summaryView(summaryInput({
       now: new Date(), players, history, lineups: snapshot?.lineups ?? [], table: g.__kbTable?.teams ?? [],
-      predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [], outlook,
+      predictions: snapshot?.state.predictions ?? [], cupGames: snapshot?.state.cupGames ?? [], outlook, odds: snapshot?.state.odds,
     }));
   } catch (err) {
     console.error("team summary", err);
@@ -205,7 +205,8 @@ let index = 0;
   {!error && league && players.length === 0 && <p class="empty-note">Keine Spieler in dieser Liga.</p>}
   {!error && !signedOut && !league && <p class="empty-note">Du bist in keiner Kickbase-Liga.</p>}
 
-  {!error && <TeamSummary view={summary} />}
+  {/* Without a lineup the summary leads; with one it follows the pitch. */}
+  {!error && starterCount === 0 && <TeamSummary view={summary} class="mb-8" />}
 
   {starterCount > 0 ? (
     <>
@@ -218,6 +219,7 @@ let index = 0;
         </SectionHead>
         <MyPitch lines={pitch.lines} cards={cards} fresh={fresh} />
       </section>
+      <TeamSummary view={summary} class="mt-8" />
       {benchPlayers.length > 0 && (
         <section class="mt-5">
           <SectionHead title="Bank" class="mb-1" />
