@@ -32,6 +32,12 @@ describe("predictionDue", () => {
     expect(predictionDue(lineups, saved, new Date("2026-11-06T18:10:00.000Z"))).toBeUndefined();
   });
 
+  it("saves the same matchday number again in the next season", () => {
+    const saved = [snapshotPrediction(lineups, 10, FRIDAY, new Date("2026-11-06T18:00:00.000Z"))];
+    const nextSeason = [lineup("borussia-dortmund", "2027-11-05T19:30:00.000Z")];
+    expect(predictionDue(nextSeason, saved, new Date("2027-11-05T18:00:00.000Z"))).toEqual({ matchday: 10, firstKickoff: "2027-11-05T19:30:00.000Z" });
+  });
+
   it("ignores lineups without a kickoff", () => {
     expect(predictionDue([lineup("a", undefined)], [], new Date("2026-11-06T18:00:00.000Z"))).toBeUndefined();
   });

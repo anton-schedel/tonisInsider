@@ -30,7 +30,9 @@ export function predictionDue(lineups: Lineup[], saved: SavedPrediction[], now: 
   }
   for (const [matchday, firstKickoff] of first) {
     const left = Date.parse(firstKickoff) - now.getTime();
-    if (left > 0 && left <= SAVE_BEFORE_MIN * MINUTE && !saved.some((p) => p.matchday === matchday)) return { matchday, firstKickoff };
+    // The same matchday number comes round every season: saved means saved for this kickoff (within a week).
+    const done = saved.some((p) => p.matchday === matchday && Math.abs(Date.parse(p.firstKickoff) - Date.parse(firstKickoff)) < 7 * 24 * HOUR);
+    if (left > 0 && left <= SAVE_BEFORE_MIN * MINUTE && !done) return { matchday, firstKickoff };
   }
   return undefined;
 }

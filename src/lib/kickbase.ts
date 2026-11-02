@@ -117,23 +117,26 @@ export async function teamSquad(fetchFn: Fetch, token: string, teamId: string): 
  */
 export type KbPerfMatch = {
   day: number; matchId: string; date: string; home: string; away: string; homeGoals?: number; awayGoals?: number;
+  /** The player's club in that match (he may have moved since). */
+  team?: string;
   points?: number; minutes?: number; state: number;
 };
 
-export async function performance(fetchFn: Fetch, token: string, playerId: string): Promise<KbPerfMatch[]> {
-  const r = await call<{ it?: { ti: string; ph?: { mi: string; day: number; md: string; t1: string; t2: string; t1g?: number | null; t2g?: number | null; p?: number | null; mp?: string | null; mdst?: number }[] }[] }>(
+export async function performance(fetchFn: Fetch, token: string, playerId: string): Promise<{ season: string; matches: KbPerfMatch[] }> {
+  const r = await call<{ it?: { ti: string; ph?: { mi: string; day: number; md: string; t1: string; t2: string; t1g?: number | null; t2g?: number | null; pt?: string | null; p?: number | null; mp?: string | null; mdst?: number }[] }[] }>(
     fetchFn, `/v4/competitions/1/players/${encodeURIComponent(playerId)}/performance`, { token },
   );
-  // Grouped by season, oldest first: this season is the last.
+  // Grouped by season ("2026/2027"): this season is the latest.
   const season = [...(r.it ?? [])].sort((a, b) => a.ti.localeCompare(b.ti)).at(-1);
-  return (season?.ph ?? []).map((m) => ({
+  return { season: season?.ti ?? "", matches: (season?.ph ?? []).map((m) => ({
     day: m.day, matchId: String(m.mi), date: m.md, home: String(m.t1), away: String(m.t2),
+    ...(m.pt ? { team: String(m.pt) } : {}),
     ...(typeof m.t1g === "number" ? { homeGoals: m.t1g } : {}),
     ...(typeof m.t2g === "number" ? { awayGoals: m.t2g } : {}),
     ...(typeof m.p === "number" ? { points: m.p } : {}),
     ...(m.mp ? { minutes: parseInt(m.mp, 10) } : {}),
     state: m.mdst ?? 0,
-  }));
+  })) };
 }
 
 export async function clubTable(fetchFn: Fetch, token: string): Promise<KbTeam[]> {

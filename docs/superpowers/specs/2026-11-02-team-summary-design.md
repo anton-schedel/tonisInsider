@@ -126,6 +126,13 @@ matchup point in the same direction most clearly.
   season with `"n": "Bundesliga"`), so a player's "usual starts" are Bundesliga starts. Checked with the test
   account on 2026-11-02.
 
+- **Ground truth for reliability:** Kickbase's start flag for the same match (every club, every match; joined by
+  club via `mapClubs` and kickoff date, player by name via `nameMatches` in `src/lib/match.ts`). LigaInsider's
+  confirmed-XI text is the fallback only.
+- **Point shares** are divided by the sum of the stored event points, not by the game's total: in ~5 % of games
+  Kickbase's total differs from its events by a few points.
+- **A player's club in a past match** is `HistGame.team` (Kickbase's `pt`), not his current club.
+
 ## Left to the builder
 
 - What exactly Kickbase's `st` values mean (started / came on / didn't play), and the event-type → group table.

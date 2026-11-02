@@ -6,7 +6,7 @@ import { run } from "./run.ts";
 import { lastingProblems } from "./problems.ts";
 import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
 import { coachDueIds, pullCoachPosts } from "./coach.ts";
-import { loadHistory, updateHistory, type KbHistory } from "./kbHistory.ts";
+import { historyDue, loadHistory, updateHistory, type KbHistory } from "./kbHistory.ts";
 import { KickbaseAuthError, clubTable, login, performance, playerCenter, teamSquad } from "../src/lib/kickbase.ts";
 
 const ROOT = process.cwd();
@@ -42,6 +42,7 @@ async function history(now: Date, budget: number): Promise<{ changed: boolean; p
   const password = process.env.KICKBASE_PASSWORD;
   if (!email || !password) return { changed: false };
   const h = loadHistory(existsSync(HISTORY_FILE) ? readFileSync(HISTORY_FILE, "utf8") : undefined);
+  if (!historyDue(h, now)) return { changed: false };
   const slow: typeof fetch = async (input, init) => {
     await new Promise((r) => setTimeout(r, 150));
     return fetch(input, init);
