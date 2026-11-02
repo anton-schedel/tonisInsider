@@ -16,7 +16,9 @@ describe("vault (AES-GCM)", () => {
   it("returns undefined for a wrong key, tampering or garbage", async () => {
     const sealed = await seal("geheim123", KEY);
     expect(await unseal(sealed, OTHER)).toBeUndefined();
-    expect(await unseal(sealed.slice(0, -2) + (sealed.endsWith("A") ? "BB" : "AA"), KEY)).toBeUndefined();
+    // A character in the middle: the last one is partly base64 padding, so changing it can leave the bytes as they are.
+    const i = Math.floor(sealed.length / 2);
+    expect(await unseal(sealed.slice(0, i) + (sealed[i] === "A" ? "B" : "A") + sealed.slice(i + 1), KEY)).toBeUndefined();
     expect(await unseal("nonsense", KEY)).toBeUndefined();
   });
   it("rejects keys that are not 32 bytes", async () => {
