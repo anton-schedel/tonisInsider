@@ -124,23 +124,33 @@ extension View {
 }
 
 private struct SiteRoutes: ViewModifier {
-    @Environment(FeedStore.self) private var store
-
     func body(content: Content) -> some View {
         content
-            .navigationDestination(for: ArticleRoute.self) { route in
-                if let article = store.feed?.articles.first(where: { $0.id == route.id }) {
-                    ArticleView(article: article)
-                } else {
-                    EmptyNote(text: "Diesen Beitrag gibt es nicht mehr.")
-                }
-            }
-            .navigationDestination(for: ClubRoute.self) { route in
-                if let feed = store.feed, let lineup = feed.lineup(slug: route.slug) {
-                    ClubView(lineup: lineup, feed: feed)
-                } else {
-                    EmptyNote(text: "Diese Aufstellung gibt es nicht mehr.")
-                }
-            }
+            .navigationDestination(for: ArticleRoute.self) { ArticleDestination(id: $0.id) }
+            .navigationDestination(for: ClubRoute.self) { ClubDestination(slug: $0.slug) }
+    }
+}
+
+struct ArticleDestination: View {
+    let id: Int
+    @Environment(FeedStore.self) private var store
+    var body: some View {
+        if let article = store.feed?.articles.first(where: { $0.id == id }) {
+            ArticleView(article: article)
+        } else {
+            EmptyNote(text: "Diesen Beitrag gibt es nicht mehr.")
+        }
+    }
+}
+
+struct ClubDestination: View {
+    let slug: String
+    @Environment(FeedStore.self) private var store
+    var body: some View {
+        if let feed = store.feed, let lineup = feed.lineup(slug: slug) {
+            ClubView(lineup: lineup, feed: feed)
+        } else {
+            EmptyNote(text: "Diese Aufstellung gibt es nicht mehr.")
+        }
     }
 }

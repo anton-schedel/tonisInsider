@@ -4,6 +4,13 @@ import SwiftUI
 /// text, a match report's grades, the link to the original, the comments.
 struct ArticleView: View {
     let article: Article
+    /// Parsed once, not on every redraw.
+    private let blocks: [ArticleBlock]
+
+    init(article: Article) {
+        self.article = article
+        blocks = articleBlocks(article.bodyHtml)
+    }
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -23,7 +30,7 @@ struct ArticleView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .padding(.bottom, 24)
                 }
-                ArticleText(blocks: articleBlocks(article.bodyHtml))
+                ArticleText(blocks: blocks)
                 ForEach(Array((article.ratings ?? []).enumerated()), id: \.offset) { _, team in
                     RatingsPitch(team: team)
                 }
@@ -51,6 +58,7 @@ struct ArticleView: View {
         }
         #endif
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.tiBackground)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { Analytics.screen("article") }

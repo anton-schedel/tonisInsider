@@ -26,8 +26,13 @@ final class FeedStore {
 
     /// The stored feed, if any (a broken file is ignored and replaced by the next refresh).
     func loadCached() async {
-        guard feed == nil, let data = try? Data(contentsOf: file), let cached = try? await Self.decode(data) else { return }
+        guard feed == nil, let cached = try? await Self.read(file) else { return }
         if feed == nil { feed = cached }
+    }
+
+    /// The stored feed, read and decoded off the main thread (a few MB).
+    @concurrent private static func read(_ file: URL) async throws -> AppFeed {
+        try AppFeed.decode(try Data(contentsOf: file))
     }
 
     private func index(_ feed: AppFeed) async {
@@ -44,8 +49,18 @@ final class FeedStore {
         try AppFeed.decode(data)
     }
 
+    private var running: Task<Void, Never>?
+
+    /// One refresh at a time; a pull while one runs waits for it (the spinner stays until the data is in).
     func refresh() async {
-        guard !isRefreshing else { return }
+        if let running { return await running.value }
+        let task = Task { await fetch() }
+        running = task
+        await task.value
+        running = nil
+    }
+
+    private func fetch() async {
         isRefreshing = true
         defer { isRefreshing = false }
         var request = URLRequest(url: AppConfig.siteURL.appending(path: "data/app-feed.json"))

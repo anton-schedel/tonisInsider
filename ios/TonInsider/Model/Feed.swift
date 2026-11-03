@@ -304,9 +304,9 @@ extension AppFeed {
         }
     }
 
-    /// A player's news, newest first (the player card shows the latest three).
-    func newsOf(player id: Int) -> [Article] {
-        articles.filter { $0.player?.id == id }
+    /// A player's news that is out, newest first (the player card shows the latest three).
+    func newsOf(player id: Int, now: Date = .now) -> [Article] {
+        visibleArticles(now: now).filter { $0.player?.id == id }
     }
 
     func lineup(slug: String) -> Lineup? { lineups.first { $0.club.slug == slug } }

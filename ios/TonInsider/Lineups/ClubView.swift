@@ -46,10 +46,11 @@ struct ClubView: View {
                 .padding(.bottom, 32)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.tiBackground)
         .navigationTitle(lineup.club.name)
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $card) { PlayerCardView(data: $0) }
+        .playerCard($card)
         #if DEBUG
         .task {
             // Screenshots: -TICard <row> opens the first player of that row's card.

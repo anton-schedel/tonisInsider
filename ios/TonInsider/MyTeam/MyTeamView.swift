@@ -8,6 +8,8 @@ struct MyTeamView: View {
     @Environment(Tabs.self) private var tabs
     @State private var card: PlayerCardData?
     @State private var logoutProblem: String?
+    @State private var loggingOut = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ScrollView {
@@ -34,8 +36,13 @@ struct MyTeamView: View {
             if let team = model.team { account.update(from: team) }
         }
         .task { await model.pollLive() }
-        .onChange(of: account.kickbase) { _, signedIn in if signedIn { Task { await model.load() } } }
-        .sheet(item: $card) { PlayerCardView(data: $0) }
+        .onChange(of: account.kickbase) { _, signedIn in
+            // Signed out (here, in Einstellungen or by the site): the old team goes, from the screen and the phone.
+            if signedIn { Task { await model.load() } } else { model.clear(); Task { await model.load() } }
+        }
+        // Back in the app: the team and its live state as they are now (points start without a pull).
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await model.load() } } }
+        .playerCard($card)
         .alert(logoutProblem ?? "", isPresented: Binding(get: { logoutProblem != nil }, set: { if !$0 { logoutProblem = nil } })) {}
         .withSiteRoutes()
     }
@@ -55,12 +62,15 @@ struct MyTeamView: View {
         } else {
             if let error = model.message ?? team.error { Text(error).foregroundStyle(Color.tiRed).padding(.bottom, 16) }
             if team.leagues.count > 1 {
-                Picker("Liga", selection: Binding(get: { team.leagueId ?? "" }, set: { id in Task { await model.choose(league: id) } })) {
+                Picker("Liga", selection: Binding(get: { model.leagueId ?? team.leagueId ?? "" }, set: { id in Task { await model.choose(league: id) } })) {
                     ForEach(team.leagues, id: \.id) { Text($0.name).tag($0.id) }
                 }
                 .pickerStyle(.segmented)
                 .padding(.bottom, 16)
             }
+            // A league picked whose team isn't here yet: the one shown fades back until it is.
+            let switching = model.loading && model.leagueId != nil && model.leagueId != team.leagueId
+            Group {
             if team.leagueId == nil && team.error == nil { EmptyNote(text: "Du bist in keiner Kickbase-Liga.") }
             else if team.players.isEmpty && team.error == nil { EmptyNote(text: "Keine Spieler in dieser Liga.") }
 
@@ -87,11 +97,19 @@ struct MyTeamView: View {
                     rows(bench, team: team)
                 }
             }
-            Button("Abmelden") {
-                Task {
-                    if let problem = await account.logOutKickbase() { logoutProblem = problem } else { await model.load() }
-                }
             }
+            .opacity(switching ? 0.4 : 1)
+            .animation(.easeOut(duration: 0.2), value: switching)
+            Button {
+                loggingOut = true
+                Task {
+                    if let problem = await account.logOutKickbase() { logoutProblem = problem }
+                    loggingOut = false
+                }
+            } label: {
+                if loggingOut { ProgressView() } else { Text("Abmelden") }
+            }
+            .disabled(loggingOut)
                 .buttonStyle(.destructiveQuiet).padding(.top, 32)
         }
     }

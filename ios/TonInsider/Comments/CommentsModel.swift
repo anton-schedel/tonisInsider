@@ -88,6 +88,10 @@ final class CommentsModel {
     private(set) var comments: [ThreadComment] = []
     private(set) var total = 0
     private(set) var loaded = false
+    /// The thread couldn't be loaded (offline): the screen says so and offers to try again.
+    private(set) var loadFailed = false
+    /// Comments and polls with a vote on its way: taps on them wait.
+    private var voting = Set<Int>()
     private(set) var loadingMore = false
     /// The last thing that went wrong, in the site's words (shown briefly).
     var message: String?
@@ -125,8 +129,9 @@ final class CommentsModel {
             comments = withMine(page.comments)
             total = page.total
             more = page.more
+            loadFailed = false
         } catch {
-            message = (error as? APIError)?.message
+            loadFailed = true
         }
         loaded = true
     }
@@ -150,7 +155,9 @@ final class CommentsModel {
 
     /// Up or back, shown at once; undone if the site says no.
     func toggleVote(_ id: Int) async {
-        guard let before = find(id) else { return }
+        guard !voting.contains(id), let before = find(id) else { return }
+        voting.insert(id)
+        defer { voting.remove(id) }
         update(id) { $0.voted.toggle(); $0.score += $0.voted ? 1 : -1 }
         do {
             switch thread {
@@ -167,7 +174,9 @@ final class CommentsModel {
     }
 
     func votePoll(comment id: Int, option: Int) async {
-        guard let poll = find(id)?.poll, !poll.hasVoted else { return }
+        guard !voting.contains(id), let poll = find(id)?.poll, !poll.hasVoted else { return }
+        voting.insert(id)
+        defer { voting.remove(id) }
         do {
             switch thread {
             case .own(let postId):

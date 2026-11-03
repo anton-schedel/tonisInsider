@@ -10,9 +10,9 @@ struct ScoutState: Codable, Equatable, Sendable {
     var seenAt: Date?
     var account = false
 
-    /// Scouted players with news since the list was last looked at.
-    func unseen(in feed: AppFeed) -> [Int] {
-        let newest = Dictionary(feed.articles.compactMap { a in a.player.map { ($0.id, a.publishedAt) } }, uniquingKeysWith: max)
+    /// Scouted players with news since the list was last looked at (posts scheduled for later don't count yet).
+    func unseen(in feed: AppFeed, now: Date = .now) -> [Int] {
+        let newest = Dictionary(feed.visibleArticles(now: now).compactMap { a in a.player.map { ($0.id, a.publishedAt) } }, uniquingKeysWith: max)
         return ids.filter { id in
             guard let news = newest[id] else { return false }
             let since = max(seenAt ?? .distantPast, added[String(id)] ?? .distantPast)
@@ -24,7 +24,10 @@ struct ScoutState: Codable, Equatable, Sendable {
 @Observable @MainActor
 final class ScoutStore {
     private(set) var state = ScoutState()
-    private(set) var message: String?
+    /// What went wrong last (shown briefly); cleared by the screen.
+    var message: String?
+    /// Players whose change is on its way: taps on them wait.
+    private var pending = Set<Int>()
 
     private let api: API
     private let defaults: UserDefaults
@@ -34,13 +37,16 @@ final class ScoutStore {
         self.api = api
         self.defaults = defaults
         self.signedIn = signedIn
-        state = local
+        // The account's last known list at once (also offline), else the phone's.
+        state = signedIn() ? last ?? local : local
     }
 
     func contains(_ id: Int) -> Bool { state.ids.contains(id) }
 
     func load() async {
-        guard signedIn(), var server = await call(nil) else { state = local; return }
+        guard signedIn() else { state = local; return }
+        // Not reachable: the list on screen stays (the site keeps its last known one too).
+        guard var server = await call(nil) else { return }
         // Players picked before logging in join the account's list.
         let before = local.ids.filter { !server.ids.contains($0) }
         if !before.isEmpty, let merged = await call(Change(add: before)) {
@@ -51,10 +57,16 @@ final class ScoutStore {
         state = server
     }
 
+    /// Shown at once; with an account the server's answer follows, and a failure puts it back.
     func set(_ id: Int, on: Bool) async {
+        guard !pending.contains(id) else { return }
         if state.account || signedIn() {
+            pending.insert(id)
+            defer { pending.remove(id) }
+            let before = state
+            state.ids = on ? [id] + state.ids.filter { $0 != id } : state.ids.filter { $0 != id }
             if let next = await call(on ? Change(add: [id]) : Change(remove: [id])) { state = next }
-            else { message = "Konnte nicht gespeichert werden." }
+            else { state = before; message = "Konnte nicht gespeichert werden." }
             return
         }
         var s = local
@@ -85,13 +97,20 @@ final class ScoutStore {
     private func call(_ change: Change?) async -> ScoutState? {
         do {
             let answer: Answer = if let change { try await api.post("api/scout/", json: change) } else { try await api.get("api/scout/") }
-            return ScoutState(ids: answer.ids, added: answer.added ?? [:], seenAt: answer.seenAt, account: true)
+            let s = ScoutState(ids: answer.ids, added: answer.added ?? [:], seenAt: answer.seenAt, account: true)
+            if let data = try? JSONEncoder.site.encode(s) { defaults.set(data, forKey: Keys.last) }
+            return s
         } catch {
             return nil
         }
     }
 
-    private enum Keys { static let list = "scoutList", added = "scoutAdded", seen = "scoutSeen" }
+    private enum Keys { static let list = "scoutList", added = "scoutAdded", seen = "scoutSeen", last = "scoutLast" }
+
+    /// The account's list as last seen from the server.
+    private var last: ScoutState? {
+        defaults.data(forKey: Keys.last).flatMap { try? JSONDecoder.site.decode(ScoutState.self, from: $0) }
+    }
 
     private var local: ScoutState {
         ScoutState(ids: defaults.array(forKey: Keys.list) as? [Int] ?? [],

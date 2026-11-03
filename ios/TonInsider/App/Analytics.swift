@@ -34,6 +34,12 @@ enum Analytics {
         PostHogSDK.shared.capture(event)
     }
 
+    /// Signed out of Kickbase: later events aren't his.
+    static func reset() {
+        guard enabled else { return }
+        PostHogSDK.shared.reset()
+    }
+
     /// The Kickbase account id: a stable identifier, as the website uses it.
     static func identify(_ userId: String?) {
         guard enabled, let userId, !userId.isEmpty else { return }

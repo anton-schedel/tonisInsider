@@ -18,6 +18,12 @@ struct PlayerCardData: Codable, Hashable, Identifiable, Sendable {
     var cleanSheet: Int?
     var win: Int?
     var news: [CardNews]?
+    /// His club's page ("/vereine/<slug>/"); Mein Team only, like the site's "Zum Verein".
+    var href: String?
+
+    var clubSlug: String? {
+        href.flatMap { $0.split(separator: "/").last.map(String.init) }
+    }
 
     struct CardNews: Codable, Hashable, Sendable { var id: Int; var title: String; var type: NewsType; var at: Date }
 
@@ -48,6 +54,8 @@ extension PlayerCardData {
 /// then his news; Scouten and Schließen stay at the bottom.
 struct PlayerCardView: View {
     let data: PlayerCardData
+    var openArticle: ((Int) -> Void)?
+    var openClub: ((String) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     /// A card chance from this much on is shown as a warning (PlayerCard.astro CARD_WARN).
@@ -78,6 +86,7 @@ struct PlayerCardView: View {
             }
             HStack(spacing: 10) {
                 if let id = data.id { ScoutButton(playerId: id) }
+                if let slug = data.clubSlug, let openClub { Button("Zum Verein") { openClub(slug) }.buttonStyle(.quiet) }
                 Button("Schließen") { dismiss() }.buttonStyle(.primary)
             }
             .padding(.horizontal, 20)
@@ -146,24 +155,61 @@ struct PlayerCardView: View {
     }
 
     @ViewBuilder private var news: some View {
-        if let news = data.news, !news.isEmpty {
+        // Posts scheduled for later appear from their minute, as everywhere else.
+        if let news = data.news?.filter({ $0.at <= .now }), !news.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 Text("News").font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.bottom, 2)
                 ForEach(Array(news.enumerated()), id: \.element.id) { index, n in
                     if index > 0 { Divider().overlay(Color.tiHairline) }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(n.title).font(.system(size: 15, weight: .semibold)).lineLimit(2)
-                        HStack(spacing: 6) {
-                            if let pill = n.type.pill { Pill(text: pill.label, tone: pill.tone) }
-                            Text(Berlin.shortDay(n.at)).font(.system(size: 12)).foregroundStyle(Color.tiMuted).monospacedDigit()
+                    Button { openArticle?(n.id) } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(n.title).font(.system(size: 15, weight: .semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                            HStack(spacing: 6) {
+                                if let pill = n.type.pill { Pill(text: pill.label, tone: pill.tone) }
+                                Text(Berlin.shortDay(n.at)).font(.system(size: 12)).foregroundStyle(Color.tiMuted).monospacedDigit()
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 10)
+                    .buttonStyle(.pressRow)
+                    .disabled(openArticle == nil)
                 }
             }
             .padding(.top, 12)
             .overlay(alignment: .top) { Rectangle().fill(Color.tiForeground.opacity(0.12)).frame(height: 1) }
             .padding(.top, 16)
         }
+    }
+}
+
+extension View {
+    /// Shows a player's card as a sheet; his news open the article, "Zum Verein" the club, once the sheet is down.
+    func playerCard(_ card: Binding<PlayerCardData?>) -> some View {
+        modifier(PlayerCardPresenter(card: card))
+    }
+}
+
+private struct PlayerCardPresenter: ViewModifier {
+    @Binding var card: PlayerCardData?
+    @State private var next: AnyHashable?
+    @State private var article: ArticleRoute?
+    @State private var club: ClubRoute?
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $card, onDismiss: {
+                // Pushed only once the sheet is gone, so the two animations don't collide.
+                if let route = next as? ArticleRoute { article = route }
+                if let route = next as? ClubRoute { club = route }
+                next = nil
+            }) { data in
+                PlayerCardView(data: data,
+                               openArticle: { next = ArticleRoute(id: $0); card = nil },
+                               openClub: { next = ClubRoute(slug: $0); card = nil })
+            }
+            .navigationDestination(item: $article) { ArticleDestination(id: $0.id) }
+            .navigationDestination(item: $club) { ClubDestination(slug: $0.slug) }
     }
 }

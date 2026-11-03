@@ -20,6 +20,7 @@ extension AppFeed {
         var out: [Int: PlayerEntry] = [:]
         // Each player's articles, looked up once for everyone (newest first, like the feed).
         let newsByPlayer = Dictionary(grouping: articles.filter { $0.player != nil }, by: { $0.player!.id })
+        // Posts scheduled for later stay in (the list is built once per feed); the screens show them from their minute.
         for lineup in lineups {
             let confirmedXI = confirmed.contains(lineup.club.id)
             let fullName = Dictionary((lineup.squad ?? []).map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
@@ -99,7 +100,7 @@ struct ScoutingView: View {
         .navigationTitle("Scouting")
         .tabRoot()
         .onDisappear { Task { await scout.markSeen() } }
-        .sheet(item: $card) { PlayerCardView(data: $0) }
+        .playerCard($card)
         .withSiteRoutes()
     }
 
@@ -138,7 +139,7 @@ struct ScoutingView: View {
                             .overlay { Crest(url: siteURL(p.crest), size: 18).pinned(.bottomTrailing, x: 4, y: 2) }
                         VStack(alignment: .leading, spacing: 3) {
                             Text(p.name).font(.system(size: 16, weight: .semibold))
-                            if latestNews, let news = p.card.news?.first {
+                            if latestNews, let news = p.card.news?.first(where: { $0.at <= .now }) {
                                 Text(news.title).font(.system(size: 13)).foregroundStyle(Color.tiMuted).lineLimit(1)
                             } else {
                                 Text(p.club).font(.system(size: 13)).foregroundStyle(Color.tiMuted)

@@ -22,7 +22,7 @@ struct RootView: View {
     @Environment(ScoutStore.self) private var scout
 
     /// Scouted players with news since the list was last looked at.
-    private var unseen: Int { feed.feed.map { scout.state.unseen(in: $0).count } ?? 0 }
+    private var unseen: Int { feed.feed.map { scout.state.unseen(in: $0, now: .now).count } ?? 0 }
 
     var body: some View {
         @Bindable var tabs = tabs

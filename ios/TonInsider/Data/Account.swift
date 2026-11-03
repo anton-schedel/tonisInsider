@@ -25,7 +25,10 @@ final class Account {
     }
 
     private func follow(_ flags: Set<String>) {
-        if kickbase != flags.contains("kb") { kickbase = flags.contains("kb") }
+        if kickbase != flags.contains("kb") {
+            kickbase = flags.contains("kb")
+            if !kickbase { Analytics.reset() }
+        }
         if !kickbase { kickbaseName = nil }
         if ligaInsider != flags.contains("li") { ligaInsider = flags.contains("li") }
         if !ligaInsider { ligaInsiderName = nil }
@@ -78,7 +81,7 @@ final class Account {
     /// nil when it worked; else the message (the session stays: the phone can't change the sealed token itself).
     @discardableResult
     func logOutKickbase() async -> String? {
-        await logOut("api/logout/") { $0.kickbase = false; $0.kickbaseName = nil }
+        await logOut("api/logout/") { $0.kickbase = false; $0.kickbaseName = nil; Analytics.reset() }
     }
 
     @discardableResult

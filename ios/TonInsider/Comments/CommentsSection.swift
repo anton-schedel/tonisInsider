@@ -39,8 +39,22 @@ struct CommentsSection: View {
                 .padding(.bottom, 8)
             }
 
+            if let message = model.message {
+                // Right where he wrote or tapped, not under the last comment.
+                Text(message).font(.system(size: 14, weight: .medium)).foregroundStyle(Color.tiRed)
+                    .padding(.bottom, 8)
+                    .transition(.opacity)
+                    .task(id: message) { try? await Task.sleep(for: .seconds(4)); withAnimation { model.message = nil } }
+            }
             if !model.loaded {
                 ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
+            } else if model.loadFailed && model.comments.isEmpty {
+                VStack(spacing: 10) {
+                    Text("Die Kommentare konnten nicht geladen werden.").font(.system(size: 15)).foregroundStyle(Color.tiMuted)
+                    Button("Nochmal versuchen") { Task { await model.load() } }.buttonStyle(.quiet).frame(width: 200)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             } else if model.comments.isEmpty {
                 Text("Noch keine Kommentare.").foregroundStyle(Color.tiMuted).padding(.vertical, 16)
             }
@@ -74,14 +88,8 @@ struct CommentsSection: View {
             }
         }
         .padding(.top, 32)
-        .task { await model.load() }
-        .overlay(alignment: .bottom) {
-            if let message = model.message {
-                Text(message).font(.system(size: 14, weight: .medium)).padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(.regularMaterial, in: Capsule())
-                    .task { try? await Task.sleep(for: .seconds(3)); model.message = nil }
-            }
-        }
+        // Once: coming back from another tab keeps the pages loaded with "more" and the place he was at.
+        .task { if !model.loaded { await model.load() } }
     }
 }
 
@@ -299,11 +307,17 @@ private struct ReplyField: View {
     let send: (String) async -> Bool
     @State private var text = ""
     @State private var busy = false
+    /// Decided once: the name field mustn't vanish while he types it.
+    @State private var needsName = false
     @FocusState private var focused: Bool
+
+    private var ready: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && (!isOwn || name.trimmingCharacters(in: .whitespaces).count >= 2)
+    }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            if isOwn && name.trimmingCharacters(in: .whitespaces).count < 2 {
+            if needsName {
                 TextField("Dein Name", text: $name).textContentType(.nickname).siteField()
             }
             TextField("Antwort an \(to)", text: $text, axis: .vertical).lineLimit(1...6).focused($focused).siteField()
@@ -315,11 +329,14 @@ private struct ReplyField: View {
                 }
             } label: { SendLabel() }
             .buttonStyle(.plain)
-            .opacity(busy || text.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 ? 0.4 : 1)
-            .disabled(busy || text.trimmingCharacters(in: .whitespacesAndNewlines).count < 2)
+            .opacity(busy || !ready ? 0.4 : 1)
+            .disabled(busy || !ready)
         }
         .padding(.top, 6)
-        .onAppear { focused = true }
+        .onAppear {
+            needsName = isOwn && name.trimmingCharacters(in: .whitespaces).count < 2
+            focused = true
+        }
     }
 }
 
