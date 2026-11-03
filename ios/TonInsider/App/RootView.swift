@@ -45,6 +45,7 @@ struct RootView: View {
             }
         }
         .environment(tabs)
+        .onChange(of: tabs.selected, initial: true) { _, tab in Analytics.screen(tab.rawValue) }
     }
 }
 

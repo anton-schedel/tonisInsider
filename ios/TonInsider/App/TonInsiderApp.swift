@@ -8,6 +8,7 @@ struct TonInsiderApp: App {
     @AppStorage("appearance") private var appearance: Appearance = .system
 
     init() {
+        Analytics.start()
         let account = Account()
         _account = State(initialValue: account)
         // The account's list once signed in to Kickbase or LigaInsider (the website's kbin/liin).

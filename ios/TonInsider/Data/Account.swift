@@ -45,6 +45,7 @@ final class Account {
             if let error = Self.error(in: result.location) { return error }
             guard result.location?.hasPrefix("/mein-team/") == true else { return Self.errors["unavailable"] }
             kickbase = true
+            Analytics.capture("kickbase_login_succeeded")
             if let team: AppTeam = try? await api.get("api/app/my-team/") { update(from: team) }
             return nil
         } catch {
@@ -81,6 +82,7 @@ final class Account {
         if team.signedOut != nil { kickbase = false; kickbaseName = nil; return }
         if team.error == nil { kickbase = true }
         if let name = team.account?.name { kickbaseName = name }
+        Analytics.identify(team.account?.userId)
     }
 
     private static func error(in location: String?) -> String? {

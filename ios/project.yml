@@ -12,16 +12,24 @@ settings:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
+packages:
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios
+    exactVersion: 3.92.0
 targets:
   TonInsider:
     type: application
     platform: iOS
     sources: [TonInsider]
+    dependencies:
+      - package: PostHog
     info:
       path: TonInsider/Info.plist
       properties:
         CFBundleDisplayName: TonInsider
         TISiteURL: $(SITE_URL)
+        TIPostHogToken: $(POSTHOG_PROJECT_TOKEN)
+        TIPostHogHost: $(POSTHOG_HOST)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false

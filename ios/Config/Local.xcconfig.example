@@ -3,3 +3,6 @@ DEVELOPMENT_TEAM = ABCDE12345
 BUNDLE_ID_PREFIX = com.example
 // The site, e.g. https:/$()/toninsider.example.workers.dev ("/$()/" because // starts a comment here).
 SITE_URL = https:/$()/example.workers.dev
+// Analytics (optional; empty: off): the same public values as the website's PUBLIC_POSTHOG_* repo variables.
+POSTHOG_PROJECT_TOKEN =
+POSTHOG_HOST = https:/$()/eu.i.posthog.com

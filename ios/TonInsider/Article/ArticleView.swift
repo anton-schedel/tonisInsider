@@ -42,6 +42,7 @@ struct ArticleView: View {
         }
         .background(Color.tiBackground)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { Analytics.screen("article") }
     }
 
     private var header: some View {
