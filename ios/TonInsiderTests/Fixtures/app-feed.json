@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-03T12:00:00.000Z",
+  "articles": [
+    { "id": 900000003, "url": "", "headline": "Später", "listHeadline": "Später", "category": "bundesliga", "newsType": "sonstiges",
+      "publishedAt": "2026-11-03T18:00:00.000Z", "bodyHtml": "<p>Noch nicht.</p>", "own": true, "fetchedAt": "2026-11-03T11:00:00.000Z" },
+    { "id": 900000002, "url": "", "headline": "Eigener Beitrag", "listHeadline": "Eigener Beitrag", "category": "bundesliga", "newsType": "sonstiges",
+      "publishedAt": "2026-11-03T10:00:00.000Z", "bodyHtml": "<p>Hallo <b>Liga</b>.</p>", "own": true, "pinnedUntil": "2026-11-04T00:00:00.000Z",
+      "fetchedAt": "2026-11-03T10:00:00.000Z" },
+    { "id": 420100, "url": "https://www.ligainsider.de/x_420100/", "headline": "Kane fit", "listHeadline": "Kane fit", "category": "bundesliga",
+      "newsType": "fit", "player": { "id": 1, "slug": "harry-kane", "name": "Harry Kane", "photo": "/img/players/1.jpg" },
+      "club": { "id": 1, "slug": "fc-bayern-muenchen", "name": "FC Bayern München", "crest": "/img/clubs/1.png" },
+      "publishedAt": "2026-11-01T23:30:00.000Z", "bodyHtml": "<p>Text</p>", "banner": null, "fetchedAt": "2026-11-01T23:31:00.000Z" },
+    { "id": 420099, "url": "https://www.ligainsider.de/x_420099/", "headline": "Spielbericht", "listHeadline": "Spielbericht", "category": "bundesliga",
+      "newsType": "sonstiges", "publishedAt": "2026-11-01T20:00:00.000Z", "bodyHtml": "",
+      "ratings": [ { "team": "FC Bayern München", "average": 2.5, "lines": [ [ { "player": { "id": 2, "slug": "neuer", "name": "Manuel Neuer", "grade": 2, "marks": [] } } ] ] } ],
+      "fetchedAt": "2026-11-01T20:01:00.000Z" }
+  ],
+  "pinned": [900000002, 900000003],
+  "lineups": [
+    { "club": { "id": 1, "slug": "fc-bayern-muenchen", "name": "FC Bayern München", "crest": "/img/clubs/1.png" },
+      "opponent": { "name": "1. FC Köln", "home": true }, "matchday": 10, "kickoff": "2026-11-07T14:30:00.000Z", "formation": "4-2-3-1",
+      "lines": [ [ { "id": 2, "slug": "neuer", "name": "Manuel Neuer", "status": "set" } ] ],
+      "squad": [ { "id": 2, "slug": "neuer", "name": "Manuel Neuer" } ], "updatedAt": "2026-11-03T09:00:00.000Z" }
+  ],
+  "commentCounts": { "420100": 12 },
+  "odds": [ { "home": "Bayern Munich", "away": "FC Koln", "kickoff": "2026-11-07T14:30:00Z", "chances": { "home": 78, "draw": 13, "away": 9 }, "books": 20 } ]
+}

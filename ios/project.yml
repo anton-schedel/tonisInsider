@@ -35,7 +35,11 @@ targets:
   TonInsiderTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [TonInsiderTests]
+    sources:
+      - path: TonInsiderTests
+        excludes: [Fixtures]
+      - path: TonInsiderTests/Fixtures
+        buildPhase: resources
     dependencies:
       - target: TonInsider
     settings:
