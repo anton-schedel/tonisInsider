@@ -29,7 +29,7 @@ struct RootView: View {
                 LineupsStack()
             }
             SwiftUI.Tab("Mein Team", systemImage: "person.crop.circle", value: Tab.myTeam) {
-                NavigationStack { Placeholder(title: "Mein Team") }
+                NavigationStack { MyTeamView() }
             }
             SwiftUI.Tab("Scouting", systemImage: "magnifyingglass", value: Tab.scouting) {
                 NavigationStack { Placeholder(title: "Scouting") }

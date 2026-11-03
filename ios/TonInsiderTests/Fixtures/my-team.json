@@ -1,0 +1,413 @@
+{
+ "leagues": [
+  {
+   "id": "11667010",
+   "name": "Liga 1"
+  }
+ ],
+ "leagueId": "11667010",
+ "points": 42,
+ "started": true,
+ "running": false,
+ "formation": "4-2-3",
+ "lines": [
+  [
+   "6085"
+  ],
+  [
+   "9642",
+   "7963",
+   "1996",
+   "3470"
+  ],
+  [
+   "3069",
+   "10789"
+  ],
+  [
+   "10113",
+   "2746",
+   "1920"
+  ]
+ ],
+ "bench": [
+  "1964",
+  "2736",
+  "7441",
+  "15502"
+ ],
+ "players": {
+  "1920": {
+   "id": "1920",
+   "name": "Guirassy",
+   "position": 4,
+   "image": "https://kickbase.b-cdn.net/content/file/f60de765e2e34fce8747b78399dca305.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "id": 10454,
+    "name": "Guirassy",
+    "photo": "/img/players/10454.jpg",
+    "crest": "/img/clubs/14.png",
+    "pos": "ST",
+    "match": "vs Eintracht Frankfurt · Sa. 24.10. 18:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/borussia-dortmund/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "1964": {
+   "id": "1964",
+   "name": "Götze",
+   "position": 2,
+   "image": "https://kickbase.b-cdn.net/content/file/211c165645f84bc08e3bac17e3ba0dcf.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "name": "Götze",
+    "photo": "https://kickbase.b-cdn.net/content/file/211c165645f84bc08e3bac17e3ba0dcf.png",
+    "crest": "/img/clubs/1249.png",
+    "pos": "ABW",
+    "match": "vs Hamburger SV · Sa. 24.10. 15:30",
+    "status": "Nicht in der Startelf",
+    "tone": "grey",
+    "href": "/vereine/sc-paderborn-07/"
+   },
+   "freshNews": false,
+   "status": "bench",
+   "note": "Bank"
+  },
+  "1996": {
+   "id": "1996",
+   "name": "Friedl",
+   "position": 2,
+   "image": "https://kickbase.b-cdn.net/content/file/7ab07056637e493d80590700542ee887.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T17:30:00Z"
+   },
+   "card": {
+    "id": 7047,
+    "name": "Friedl",
+    "photo": "/img/players/7047.jpg",
+    "crest": "/img/clubs/2.png",
+    "pos": "ABW",
+    "match": "@ 1. FSV Mainz 05 · Sa. 24.10. 15:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/sv-werder-bremen/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "2736": {
+   "id": "2736",
+   "name": "Bensebaini",
+   "position": 2,
+   "image": "https://kickbase.b-cdn.net/content/file/f2e48e2f879643559eb9d2cdb6db0d7a.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "name": "Bensebaini",
+    "photo": "https://kickbase.b-cdn.net/content/file/f2e48e2f879643559eb9d2cdb6db0d7a.png",
+    "crest": "/img/clubs/14.png",
+    "pos": "ABW",
+    "match": "vs Eintracht Frankfurt · Sa. 24.10. 18:30",
+    "status": "Nicht in der Startelf",
+    "tone": "grey",
+    "href": "/vereine/borussia-dortmund/"
+   },
+   "freshNews": false,
+   "status": "bench",
+   "note": "Bank"
+  },
+  "2746": {
+   "id": "2746",
+   "name": "Schick",
+   "position": 4,
+   "image": "https://kickbase.b-cdn.net/content/file/9f0daa3f23514ac7a72c46ba81396a95.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-08T14:30:00Z"
+   },
+   "card": {
+    "id": 7794,
+    "name": "Schick",
+    "photo": "/img/players/7794.jpg",
+    "crest": "/img/clubs/4.png",
+    "pos": "ST",
+    "match": "@ TSG Hoffenheim · So. 25.10. 15:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/bayer-04-leverkusen/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "3069": {
+   "id": "3069",
+   "name": "Nmecha",
+   "position": 3,
+   "image": "https://kickbase.b-cdn.net/content/file/f83b3a24df594aaf81be1d58da773656.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "id": 25090,
+    "name": "F. Nmecha",
+    "photo": "/img/players/25090.jpg",
+    "crest": "/img/clubs/14.png",
+    "pos": "MF",
+    "match": "vs Eintracht Frankfurt · Sa. 24.10. 18:30",
+    "status": "Alternative",
+    "tone": "yellow",
+    "href": "/vereine/borussia-dortmund/"
+   },
+   "freshNews": false,
+   "status": "alternative",
+   "note": "Alternative"
+  },
+  "3470": {
+   "id": "3470",
+   "name": "Caci",
+   "position": 2,
+   "image": "https://kickbase.b-cdn.net/content/file/5bb349b2622049a7aa73a59edcec1781.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "id": 26102,
+    "name": "Caci",
+    "photo": "/img/players/26102.jpg",
+    "crest": "/img/clubs/17.png",
+    "pos": "ABW",
+    "match": "vs SV Werder Bremen · Sa. 24.10. 15:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/1-fsv-mainz-05/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "6085": {
+   "id": "6085",
+   "name": "Seimen",
+   "position": 1,
+   "image": "https://kickbase.b-cdn.net/content/file/6d05c64ea8014ede879dd27ed387ef4e.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T17:30:00Z"
+   },
+   "card": {
+    "id": 35226,
+    "name": "Seimen",
+    "photo": "/img/players/35226.jpg",
+    "crest": "/img/clubs/12.png",
+    "pos": "TW",
+    "match": "vs Borussia Mönchengladbach · Fr. 23.10. 20:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/vfb-stuttgart/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "7441": {
+   "id": "7441",
+   "name": "Campbell",
+   "position": 3,
+   "image": "https://kickbase.b-cdn.net/content/file/669458754d454557bed29bb138f25294.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "name": "Campbell",
+    "photo": "https://kickbase.b-cdn.net/content/file/669458754d454557bed29bb138f25294.png",
+    "crest": "/img/clubs/1331.png",
+    "pos": "MF",
+    "match": "@ RB Leipzig · Sa. 24.10. 15:30",
+    "status": "Nicht in der Startelf",
+    "tone": "grey",
+    "href": "/vereine/sv-07-elversberg/",
+    "news": [
+     {
+      "id": 419497,
+      "title": "Campbell-Rückkehr gegen Leipzig nicht ausgeschlossen",
+      "type": "angeschlagen",
+      "at": "2026-10-22T16:19:00.000Z"
+     }
+    ]
+   },
+   "freshNews": false,
+   "status": "bench",
+   "note": "Bank"
+  },
+  "7963": {
+   "id": "7963",
+   "name": "Quansah",
+   "position": 2,
+   "image": "https://kickbase.b-cdn.net/content/file/c1361cbb456a4b23a8e3d178290141cd.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-08T14:30:00Z"
+   },
+   "card": {
+    "id": 36489,
+    "name": "Quansah",
+    "photo": "/img/players/36489.jpg",
+    "crest": "/img/clubs/4.png",
+    "pos": "ABW",
+    "match": "@ TSG Hoffenheim · So. 25.10. 15:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/bayer-04-leverkusen/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "9642": {
+   "id": "9642",
+   "name": "Matsima",
+   "position": 2,
+   "image": "https://kickbase.b-cdn.net/content/file/0337794cdbe74c759f6ea4c6ac9c796b.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "id": 26695,
+    "name": "Matsima",
+    "photo": "/img/players/26695.jpg",
+    "crest": "/img/clubs/21.png",
+    "pos": "ABW",
+    "match": "vs 1. FC Union Berlin · Sa. 24.10. 15:30",
+    "status": "Startelf",
+    "tone": "green",
+    "href": "/vereine/fc-augsburg/"
+   },
+   "freshNews": false,
+   "status": "start"
+  },
+  "10113": {
+   "id": "10113",
+   "name": "Gomis",
+   "position": 4,
+   "image": "https://kickbase.b-cdn.net/content/file/6fdc632f20f64bac905749a9c2b23a86.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "id": 36962,
+    "name": "Gomis",
+    "photo": "/img/players/36962.jpg",
+    "crest": "/img/clubs/1311.png",
+    "pos": "ST",
+    "match": "vs SV 07 Elversberg · Sa. 24.10. 15:30",
+    "status": "Startelf · Alt. Rômulo",
+    "tone": "yellow",
+    "href": "/vereine/rb-leipzig/"
+   },
+   "freshNews": false,
+   "status": "contested",
+   "note": "Alt: Rômulo",
+   "rival": "Rômulo"
+  },
+  "10789": {
+   "id": "10789",
+   "name": "Karl",
+   "position": 3,
+   "image": "https://kickbase.b-cdn.net/content/file/64b2f60104dd4a96af2c8b9d4af6f07d.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "id": 38411,
+    "name": "Karl",
+    "photo": "/img/players/38411.jpg",
+    "crest": "/img/clubs/1.png",
+    "pos": "MF",
+    "match": "@ SC Freiburg · So. 25.10. 17:30",
+    "status": "Alternative",
+    "tone": "yellow",
+    "href": "/vereine/fc-bayern-muenchen/"
+   },
+   "freshNews": false,
+   "status": "alternative",
+   "note": "Alternative"
+  },
+  "15502": {
+   "id": "15502",
+   "name": "Binder",
+   "position": 3,
+   "image": "https://kickbase.b-cdn.net/content/file/bd4ad2cb101841eab3aa5641a51ee891.png",
+   "live": {
+    "state": 0,
+    "kickoff": "2026-11-07T14:30:00Z"
+   },
+   "card": {
+    "name": "Binder",
+    "photo": "https://kickbase.b-cdn.net/content/file/bd4ad2cb101841eab3aa5641a51ee891.png",
+    "crest": "/img/clubs/1.png",
+    "pos": "MF",
+    "match": "@ SC Freiburg · So. 25.10. 17:30",
+    "status": "Nicht in der Startelf",
+    "tone": "grey",
+    "href": "/vereine/fc-bayern-muenchen/"
+   },
+   "freshNews": false,
+   "status": "bench",
+   "note": "Bank"
+  }
+ },
+ "summary": {
+  "inXi": 8,
+  "total": 9,
+  "text": [
+   "6 deiner 9 Starter spielen bei Favoriten."
+  ],
+  "games": [
+   {
+    "team": "Bayern",
+    "opponent": "Köln",
+    "home": true,
+    "win": 78,
+    "kickoff": "2026-11-07T14:30:00Z",
+    "crest": "/img/clubs/1.png",
+    "players": [
+     {
+      "name": "Kane",
+      "note": "lebt von Toren, 2,0 Tore erwartet"
+     }
+    ]
+   },
+   {
+    "team": "Mainz",
+    "opponent": "Bayern",
+    "home": false,
+    "win": 12,
+    "kickoff": "2026-11-08T16:30:00Z",
+    "players": [
+     {
+      "name": "Caci"
+     }
+    ]
+   }
+  ],
+  "notes": [
+   "Hinweis"
+  ]
+ }
+}

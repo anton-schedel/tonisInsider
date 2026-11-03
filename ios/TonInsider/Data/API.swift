@@ -19,7 +19,14 @@ enum APIError: Error, Equatable {
 /// The site's API, as the app: every request says so (X-TonInsider-App) and carries the session token; a new token
 /// in the answer replaces the stored one (src/lib/appSession.ts). Redirects aren't followed: logins answer with one.
 final class API: Sendable {
-    static let shared = API(session: URLSession(configuration: .ephemeral), tokens: KeychainTokenStore())
+    static let shared: API = {
+        let tokens = KeychainTokenStore()
+        #if DEBUG
+        // Screenshots in the simulator: launch with -TIToken <a session token>.
+        if let token = UserDefaults.standard.string(forKey: "TIToken") { tokens.token = token }
+        #endif
+        return API(session: URLSession(configuration: .ephemeral), tokens: tokens)
+    }()
 
     private let session: URLSession
     private let tokens: TokenStore
