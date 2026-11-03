@@ -80,7 +80,7 @@ struct FixtureCard: View {
         }
         .frame(maxWidth: .infinity)
         if let slug, lineup != nil, slug != current {
-            NavigationLink(value: ClubRoute(slug: slug)) { content }.buttonStyle(.plain)
+            NavigationLink(value: ClubRoute(slug: slug)) { content }.buttonStyle(.press)
         } else {
             content
         }

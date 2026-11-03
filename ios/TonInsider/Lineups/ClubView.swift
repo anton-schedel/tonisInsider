@@ -30,7 +30,7 @@ struct ClubView: View {
                         NavigationLink(value: ArticleRoute(id: article.id)) {
                             ArticleRow(article: article, comments: feed.commentCounts[String(article.id)], withDay: true, now: context.date)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressRow)
                         if index < shown - 1 { Divider().overlay(Color.tiHairline) }
                     }
                     if news.count > shown {
@@ -109,6 +109,10 @@ struct LineupPitch: View {
             let shown = showAlternative ? player.alternative ?? main : main
             let note: String? = showAlternative ? "statt \(player.name)"
                 : player.status == .doubtful ? (player.statusLabel ?? "Fraglich") : player.alternative.map { "Alt: \($0.name)" }
+            Button {
+                let status = showAlternative ? ("Alternative für \(player.name)", Tone.yellow) : player.start(confirmed: confirmed)
+                open(PlayerCardData(shown, lineup: lineup, feed: feed, pos: pos, status: status))
+            } label: {
             PitchFace(photo: siteURL(shown.photo), name: shown.name, note: confirmed ? nil : note,
                       noteColor: player.status == .doubtful && !showAlternative ? PitchColor.yellow : .white.opacity(0.7),
                       alt: showAlternative) {
@@ -119,10 +123,8 @@ struct LineupPitch: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture {
-                let status = showAlternative ? ("Alternative für \(player.name)", Tone.yellow) : player.start(confirmed: confirmed)
-                open(PlayerCardData(shown, lineup: lineup, feed: feed, pos: pos, status: status))
             }
+            .buttonStyle(.press)
         }
     }
 }

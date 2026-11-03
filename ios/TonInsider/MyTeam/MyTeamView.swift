@@ -99,7 +99,7 @@ struct MyTeamView: View {
     private func rows(_ players: [AppTeam.Player], team: AppTeam) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(players.enumerated()), id: \.element.id) { index, p in
-                Button { card = p.card } label: { MyPlayerRow(player: p) }.buttonStyle(.plain)
+                Button { card = p.card } label: { MyPlayerRow(player: p) }.buttonStyle(.pressRow)
                 if index < players.count - 1 { Divider().overlay(Color.tiHairline) }
             }
         }
@@ -115,6 +115,7 @@ private struct MyPitchFace: View {
 
     var body: some View {
         let live = (player.live?.state ?? 0) > 0
+        Button(action: open) {
         PitchFace(photo: siteURL(player.card.photo ?? player.image), name: player.card.name,
                   note: live ? nil : player.note,
                   noteColor: player.status == .bench ? PitchColor.red : PitchColor.yellow,
@@ -128,7 +129,8 @@ private struct MyPitchFace: View {
             if player.freshNews { PitchBadge.news }
         }
         .contentShape(Rectangle())
-        .onTapGesture(perform: open)
+        }
+        .buttonStyle(.press)
     }
 
     private var dot: Color {

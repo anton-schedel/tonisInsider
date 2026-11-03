@@ -43,6 +43,7 @@ private struct RatedSpotView: View {
             guard spot.sub != nil else { return }
             withAnimation(.easeInOut(duration: 0.2)) { showSub.toggle() }
         }
+        .sensoryFeedback(.selection, trigger: showSub)
     }
 
     /// Goals and assists, cards (errors aren't shown).

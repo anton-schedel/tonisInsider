@@ -161,3 +161,23 @@ extension View {
         toolbar(.hidden, for: .navigationBar)
     }
 }
+
+/// Instant feedback for anything tappable that isn't a regular button (players, rows, cards): it gives a little
+/// under the finger and a light tick, then springs back (the site's .press).
+struct PressStyle: ButtonStyle {
+    var scale: CGFloat = 0.95
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
+            .sensoryFeedback(.selection, trigger: configuration.isPressed) { _, pressed in pressed }
+    }
+}
+
+extension ButtonStyle where Self == PressStyle {
+    static var press: PressStyle { PressStyle() }
+    /// For whole rows: a smaller give, so a wide row doesn't jump.
+    static var pressRow: PressStyle { PressStyle(scale: 0.985) }
+}

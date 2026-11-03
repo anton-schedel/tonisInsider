@@ -148,7 +148,7 @@ struct ScoutingView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressRow)
                 ScoutButton(playerId: p.id, compact: true)
             }
             .padding(.vertical, 10)
@@ -177,7 +177,7 @@ struct ScoutButton: View {
                     .foregroundStyle(on ? Color.tiGold : Color.tiForeground)
             }
         }
-        .buttonStyle(.plain)
-        .sensoryFeedback(.selection, trigger: on)
+        .buttonStyle(.press)
+        .sensoryFeedback(.success, trigger: on) { _, now in now }
     }
 }

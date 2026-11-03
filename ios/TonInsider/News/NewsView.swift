@@ -63,7 +63,7 @@ struct NewsView: View {
             NavigationLink(value: ArticleRoute(id: article.id)) {
                 ArticleRow(article: article, comments: feed.commentCounts[String(article.id)], withDay: withDay, now: now)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressRow)
             if index < articles.count - 1 { Divider().overlay(Color.tiHairline) }
         }
     }

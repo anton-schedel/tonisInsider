@@ -52,6 +52,26 @@ struct ThreadPoll: Hashable, Decodable {
     struct Option: Hashable, Decodable { var id: Int?; var label: String; var pct: Int }
 
     var hasVoted: Bool { voted == true || mine != nil }
+
+    /// The poll right after this phone's vote: one more for that answer, percentages whole and adding up to 100.
+    func with(vote option: Int) -> ThreadPoll {
+        var counts = options.map { Double($0.pct) * Double(total) / 100 }.map { $0.rounded() }
+        if let i = options.firstIndex(where: { $0.id == option }) { counts[i] += 1 }
+        let sum = counts.reduce(0, +)
+        var next = self
+        next.total = total + 1
+        next.voted = true
+        next.mine = option
+        if sum > 0 {
+            // Largest remainder: floor every share, then give the missing points to the biggest leftovers.
+            let exact = counts.map { $0 * 100 / sum }
+            var pct = exact.map { Int($0.rounded(.down)) }
+            let order = exact.indices.sorted { exact[$0] - Double(pct[$0]) > exact[$1] - Double(pct[$1]) }
+            for i in order.prefix(100 - pct.reduce(0, +)) { pct[i] += 1 }
+            for i in next.options.indices { next.options[i].pct = pct[i] }
+        }
+        return next
+    }
 }
 
 private struct ThreadPage: Decodable {
@@ -73,18 +93,36 @@ final class CommentsModel {
     var message: String?
     private var more: Cursor?
     private let api: API
+    /// LigaInsider says only that he voted in a poll, not for what: the phone remembers it (the site: localStorage).
+    private let votes: UserDefaults
 
     var hasMore: Bool { more != nil }
 
-    init(thread: CommentThread, api: API = .shared) {
+    init(thread: CommentThread, api: API = .shared, votes: UserDefaults = .standard) {
         self.thread = thread
         self.api = api
+        self.votes = votes
+    }
+
+    private static let votesKey = "liPollVotes"
+    private var remembered: [String: Int] { votes.dictionary(forKey: Self.votesKey) as? [String: Int] ?? [:] }
+
+    /// His answers in LigaInsider polls, from what the phone remembers.
+    private func withMine(_ list: [ThreadComment]) -> [ThreadComment] {
+        let known = remembered
+        guard !known.isEmpty else { return list }
+        return list.map { c in
+            var c = c
+            if let id = c.poll?.votingId, let option = known[String(id)], c.poll?.mine == nil { c.poll?.mine = option }
+            c.replies = withMine(c.replies)
+            return c
+        }
     }
 
     func load() async {
         do {
             let page: ThreadPage = try await api.get(base)
-            comments = page.comments
+            comments = withMine(page.comments)
             total = page.total
             more = page.more
         } catch {
@@ -103,7 +141,7 @@ final class CommentsModel {
                 .init(name: "moffset", value: "\(cursor.moffset)"), .init(name: "cursor", value: "\(cursor.cursor)"),
             ])
             let known = Set(comments.map(\.id))
-            comments += page.comments.filter { !known.contains($0.id) }
+            comments += withMine(page.comments.filter { !known.contains($0.id) })
             more = page.more
         } catch {
             message = (error as? APIError)?.message
@@ -138,28 +176,39 @@ final class CommentsModel {
             case .liga:
                 guard let votingId = poll.votingId else { return }
                 let _: LigaAnswer = try await api.post("api/li-comment/", json: LigaAction.pollVote(votingId, option: option, thread: thread))
-                await load()
+                var known = remembered
+                known[String(votingId)] = option
+                votes.set(known, forKey: Self.votesKey)
+                // LigaInsider's answer has no result: worked out here like the site (commentUi.ts withVote).
+                update(id) { $0.poll = $0.poll?.with(vote: option) }
             }
         } catch {
             message = (error as? APIError)?.message
         }
     }
 
-    /// A comment, a reply (parent) or a poll; own posts need a name. True when it went through.
+    /// A comment, a reply (parent) or a poll; own posts need a name, `author` is the LigaInsider name. True when
+    /// it went through. The new comment goes in where it belongs, so pages loaded with "more" stay (only a new
+    /// LigaInsider poll needs the thread again, for its voting id).
     @discardableResult
-    func send(text: String, parent: Int? = nil, poll: (question: String, options: [String])? = nil, name: String? = nil) async -> Bool {
+    func send(text: String, parent: Int? = nil, poll: (question: String, options: [String])? = nil, name: String? = nil, author: String? = nil) async -> Bool {
         do {
             switch thread {
             case .own(let postId):
                 let body = OwnPost(name: name ?? "", text: text, parent: parent, poll: poll.map { .init(question: $0.question, options: $0.options) })
-                let _: OwnPostAnswer = try await api.post("api/own-comments/\(postId)/", json: body)
+                let answer: OwnPostAnswer = try await api.post("api/own-comments/\(postId)/", json: body)
+                if let saved = answer.comment { insert(saved, under: parent) } else { await load() }
             case .liga:
                 let action: LigaAction = if let poll { .poll(poll.question, options: poll.options, thread: thread) }
                     else if let parent { .reply(parent, text: text, thread: thread) }
                     else { .comment(text, thread: thread) }
-                let _: LigaAnswer = try await api.post("api/li-comment/", json: action)
+                let answer: LigaAnswer = try await api.post("api/li-comment/", json: action)
+                if poll == nil, let id = answer.commentId {
+                    insert(ThreadComment(id: id, user: author ?? "Du", date: .now, text: text), under: parent)
+                } else {
+                    await load()
+                }
             }
-            await load()
             return true
         } catch {
             message = (error as? APIError)?.message
@@ -171,6 +220,15 @@ final class CommentsModel {
         switch thread {
         case .liga(let key, _): "api/comments/\(key)/"
         case .own(let postId): "api/own-comments/\(postId)/"
+        }
+    }
+
+    private func insert(_ comment: ThreadComment, under parent: Int?) {
+        total += 1
+        if let parent, let i = comments.firstIndex(where: { $0.id == parent }) {
+            comments[i].replies.append(comment)
+        } else {
+            comments.insert(comment, at: 0)
         }
     }
 
@@ -200,8 +258,8 @@ private struct OwnPost: Encodable {
     let name: String; let text: String; let parent: Int?; let poll: NewPoll?
     struct NewPoll: Encodable { let question: String; let options: [String] }
 }
-private struct OwnPostAnswer: Decodable { let ok: Bool? }
-private struct LigaAnswer: Decodable { let ok: Bool? }
+private struct OwnPostAnswer: Decodable { let ok: Bool?; let comment: ThreadComment? }
+private struct LigaAnswer: Decodable { let ok: Bool?; let commentId: Int? }
 
 private struct LigaAction: Encodable {
     var thread: String

@@ -26,7 +26,7 @@ struct CommentsSection: View {
 
             if canWrite {
                 Composer(isOwn: isOwn, name: $ownName) { text, poll in
-                    await model.send(text: text, poll: poll, name: ownName)
+                    await model.send(text: text, poll: poll, name: ownName, author: account.ligaInsiderName)
                 }
                 .padding(.bottom, 8)
             } else {
@@ -48,10 +48,10 @@ struct CommentsSection: View {
                 ForEach(Array(model.comments.enumerated()), id: \.element.id) { index, comment in
                     if index > 0 { Divider().overlay(Color.tiHairline) }
                     VStack(alignment: .leading, spacing: 12) {
-                        CommentRow(comment: comment, model: model, reply: false, canWrite: canWrite, name: $ownName)
+                        CommentRow(comment: comment, model: model, reply: false, canWrite: canWrite, name: $ownName, author: account.ligaInsiderName)
                         if !comment.replies.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
-                                ForEach(comment.replies) { CommentRow(comment: $0, model: model, reply: true, canWrite: canWrite, name: $ownName) }
+                                ForEach(comment.replies) { CommentRow(comment: $0, model: model, reply: true, canWrite: canWrite, name: $ownName, author: account.ligaInsiderName) }
                             }
                             .padding(.leading, 12)
                             .overlay(alignment: .leading) { Rectangle().fill(Color.tiHairline).frame(width: 2) }
@@ -92,6 +92,8 @@ private struct CommentRow: View {
     /// Our own posts for everyone, LigaInsider's with a LigaInsider login: reply and vote in polls.
     let canWrite: Bool
     @Binding var name: String
+    /// His LigaInsider name, shown on a reply until the thread loads again.
+    var author: String?
     @State private var replying = false
 
     var body: some View {
@@ -120,7 +122,7 @@ private struct CommentRow: View {
                 }
                 if replying {
                     ReplyField(isOwn: { if case .own = model.thread { true } else { false } }(), name: $name, to: comment.user) { text in
-                        let ok = await model.send(text: text, parent: comment.id, name: name)
+                        let ok = await model.send(text: text, parent: comment.id, name: name, author: author)
                         if ok { withAnimation(.snappy(duration: 0.25)) { replying = false } }
                         return ok
                     }
@@ -158,7 +160,7 @@ private struct VoteButton: View {
             .foregroundStyle(voted ? Color.tiBackground : Color.tiForeground)
             .background(voted ? Color.tiForeground : Color.tiSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press)
         .accessibilityLabel(voted ? "Deine Stimme" : "Hochvoten")
         .sensoryFeedback(.impact(weight: .light), trigger: voted)
     }
@@ -195,7 +197,7 @@ private struct PollView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay { if mine { RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.tiForeground, lineWidth: 1.5) } }
                 if !poll.hasVoted && canVote, let id = option.id {
-                    Button { vote(id) } label: { row.contentShape(Rectangle()) }.buttonStyle(.plain)
+                    Button { vote(id) } label: { row.contentShape(Rectangle()) }.buttonStyle(.pressRow)
                 } else {
                     row
                 }
