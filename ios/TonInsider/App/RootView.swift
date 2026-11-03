@@ -21,7 +21,7 @@ struct RootView: View {
                 NavigationStack { Placeholder(title: "Scouting") }
             }
             SwiftUI.Tab("Einstellungen", systemImage: "gearshape", value: Tab.settings) {
-                NavigationStack { Placeholder(title: "Einstellungen") }
+                NavigationStack { SettingsView() }
             }
         }
     }
