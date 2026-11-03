@@ -1,0 +1,3 @@
+// Settings shared by every build. Account-specific values (team, bundle id prefix, site URL) live in the
+// git-ignored Local.xcconfig next to this file; see Local.xcconfig.example and ios/README.md.
+#include? "Local.xcconfig"

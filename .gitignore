@@ -18,3 +18,8 @@ scraper/__fixtures__/
 
 # Player photos for the team avatars: private, never in git or on the site.
 photos/
+
+# iOS app: account-specific config and generated project
+ios/Config/Local.xcconfig
+ios/*.xcodeproj
+ios/build/

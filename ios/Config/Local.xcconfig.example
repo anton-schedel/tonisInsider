@@ -1,0 +1,5 @@
+// Copy to Local.xcconfig (git-ignored) and fill in. Never commit the real file: the repo is public.
+DEVELOPMENT_TEAM = ABCDE12345
+BUNDLE_ID_PREFIX = com.example
+// The site, e.g. https:/$()/toninsider.example.workers.dev ("/$()/" because // starts a comment here).
+SITE_URL = https:/$()/example.workers.dev
