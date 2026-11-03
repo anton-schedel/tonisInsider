@@ -96,6 +96,11 @@ export function pinnedArticles(now = new Date()): Article[] {
   return [...own, ...(load().state.pinned ?? []).flatMap((id) => byId.get(id) ?? [])];
 }
 
+/** The scraper's state as of the build (odds, comment counts, …). */
+export function state(): State {
+  return load().state;
+}
+
 export function lastUpdate(): string | undefined {
   return load().state.lastChangeAt;
 }
