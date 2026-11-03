@@ -5,7 +5,11 @@ import Observation
 /// (the site's static files carry an ETag, so an unchanged feed costs a 304). A failed refresh keeps what's shown.
 @Observable @MainActor
 final class FeedStore {
-    private(set) var feed: AppFeed?
+    private(set) var feed: AppFeed? {
+        didSet { if let feed { Task { await index(feed) } } }
+    }
+    /// Every squad player with his card (search, scout list), built in the background whenever the feed changes.
+    private(set) var players: [Int: PlayerEntry] = [:]
     private(set) var isRefreshing = false
     private(set) var lastError: Error?
 
@@ -24,6 +28,15 @@ final class FeedStore {
     func loadCached() async {
         guard feed == nil, let data = try? Data(contentsOf: file), let cached = try? await Self.decode(data) else { return }
         if feed == nil { feed = cached }
+    }
+
+    private func index(_ feed: AppFeed) async {
+        let built = await Self.players(of: feed)
+        if self.feed?.generatedAt == feed.generatedAt { players = built }
+    }
+
+    @concurrent private static func players(of feed: AppFeed) async -> [Int: PlayerEntry] {
+        Dictionary(feed.allPlayers().map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
     /// The feed is a few MB: read off the main thread, so scrolling never stutters while it comes in.

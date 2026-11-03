@@ -50,6 +50,16 @@ struct ClubView: View {
         .navigationTitle(lineup.club.name)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $card) { PlayerCardView(data: $0) }
+        #if DEBUG
+        .task {
+            // Screenshots: -TICard <row> opens the first player of that row's card.
+            let row = UserDefaults.standard.integer(forKey: "TICard")
+            if row > 0, row <= lineup.lines.count, let p = lineup.lines[row - 1].first {
+                card = PlayerCardData(PlayerRef(id: p.id, slug: p.slug, name: p.name, photo: p.photo), lineup: lineup, feed: feed,
+                                      pos: rowPosition(row - 1, rows: lineup.lines.count), status: p.start(confirmed: feed.confirmed.contains(lineup.club.id)))
+            }
+        }
+        #endif
     }
 }
 
@@ -100,16 +110,14 @@ struct LineupPitch: View {
             let note: String? = showAlternative ? "statt \(player.name)"
                 : player.status == .doubtful ? (player.statusLabel ?? "Fraglich") : player.alternative.map { "Alt: \($0.name)" }
             PitchFace(photo: siteURL(shown.photo), name: shown.name, note: confirmed ? nil : note,
-                      noteColor: player.status == .doubtful && !showAlternative ? Color(light: 0xFFD60A, dark: 0xFFD60A) : .white.opacity(0.7)) {
-                HStack(spacing: 2) {
-                    if !confirmed {
-                        Circle().fill(player.status == .doubtful ? Color(light: 0xFFD60A, dark: 0xFFD60A) : Color(light: 0x30D158, dark: 0x30D158))
-                            .frame(width: 10, height: 10).overlay(Circle().stroke(.white, lineWidth: 1.5))
-                    }
-                    if player.alternative != nil && !confirmed {
-                        Text("⇄").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                            .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { showAlternative.toggle() } }
-                    }
+                      noteColor: player.status == .doubtful && !showAlternative ? PitchColor.yellow : .white.opacity(0.7),
+                      alt: showAlternative) {
+                if confirmed { PitchBadge.s11 }
+                else { PitchBadge.dot(player.status == .doubtful ? PitchColor.yellow : PitchColor.green) }
+                if player.alternative != nil && !confirmed {
+                    PitchBadge.swap(top: false)
+                        .contentShape(Rectangle().inset(by: -8))
+                        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { showAlternative.toggle() } }
                 }
             }
             .contentShape(Rectangle())

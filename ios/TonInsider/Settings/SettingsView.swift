@@ -1,62 +1,92 @@
 import SwiftUI
 
-enum Appearance: String, CaseIterable {
-    case system, light, dark
-    var label: String { switch self { case .system: "System"; case .light: "Hell"; case .dark: "Dunkel" } }
-    var scheme: ColorScheme? { switch self { case .system: nil; case .light: .light; case .dark: .dark } }
+/// Hell or Dunkel once chosen; until then the iPhone's own setting (like the website).
+enum Appearance: String {
+    case light, dark
+    var label: String { self == .light ? "Hell" : "Dunkel" }
+    var scheme: ColorScheme { self == .light ? .light : .dark }
 }
 
 /// Einstellungen (src/pages/einstellungen.astro): appearance, the Kickbase and the LigaInsider login.
 struct SettingsView: View {
     @Environment(Account.self) private var account
-    @AppStorage("appearance") private var appearance: Appearance = .system
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("appearance") private var appearance: Appearance?
     @State private var logoutProblem: String?
 
     var body: some View {
-        Form {
-            Section("Darstellung") {
-                Picker("Darstellung", selection: $appearance) {
-                    ForEach(Appearance.allCases, id: \.self) { Text($0.label).tag($0) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 36) {
+                section("Darstellung") {
+                    Picker("Darstellung", selection: Binding(
+                        get: { appearance ?? (colorScheme == .dark ? .dark : .light) },
+                        set: { appearance = $0 }
+                    )) {
+                        Text("Hell").tag(Appearance.light)
+                        Text("Dunkel").tag(Appearance.dark)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
+                section("Kickbase") {
+                    if account.kickbase {
+                        SignedIn(name: account.kickbaseName) { logoutProblem = await account.logOutKickbase() }
+                    } else {
+                        LoginForm(intro: "Für dein Team, die Aufstellungen und die passenden News.",
+                                  userPrompt: "Kickbase E-Mail", userType: .emailAddress) { user, password in
+                            await account.logInKickbase(email: user, password: password)
+                        }
+                    }
+                }
+                section("LigaInsider") {
+                    if account.ligaInsider {
+                        SignedIn(name: account.ligaInsiderName) { logoutProblem = await account.logOutLigaInsider() }
+                    } else {
+                        LoginForm(intro: "Zum Kommentieren, Antworten, Hochvoten und für Umfragen.",
+                                  userPrompt: "Benutzername oder E-Mail", userType: .username) { user, password in
+                            await account.logInLigaInsider(username: user, password: password)
+                        }
+                    }
+                }
             }
-            Section {
-                if account.kickbase {
-                    signedIn(name: account.kickbaseName) { logoutProblem = await account.logOutKickbase() }
-                } else {
-                    LoginForm(intro: "Für dein Team, die Aufstellungen und die passenden News.",
-                              userPrompt: "Kickbase E-Mail", userType: .emailAddress) { user, password in
-                        await account.logInKickbase(email: user, password: password)
-                    }
-                }
-            } header: { Text("Kickbase") }
-            Section {
-                if account.ligaInsider {
-                    signedIn(name: account.ligaInsiderName) { logoutProblem = await account.logOutLigaInsider() }
-                } else {
-                    LoginForm(intro: "Zum Kommentieren, Antworten, Hochvoten und für Umfragen.",
-                              userPrompt: "Benutzername oder E-Mail", userType: .username) { user, password in
-                        await account.logInLigaInsider(username: user, password: password)
-                    }
-                }
-            } header: { Text("LigaInsider") }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
-        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.tiBackground)
         .navigationTitle("Einstellungen")
         .alert(logoutProblem ?? "", isPresented: Binding(get: { logoutProblem != nil }, set: { if !$0 { logoutProblem = nil } })) {}
     }
 
-    private func signedIn(name: String?, logOut: @escaping () async -> Void) -> some View {
-        Group {
-            if let name { Text("Angemeldet als **\(name)**.") } else { Text("Angemeldet.") }
-            Button("Abmelden", role: .destructive) { Task { await logOut() } }
+    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.system(size: 15, weight: .semibold))
+            content()
         }
     }
 }
 
+private struct SignedIn: View {
+    let name: String?
+    let logOut: () async -> Void
+    @State private var busy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let name { Text("Angemeldet als **\(name)**.").font(.system(size: 15)) } else { Text("Angemeldet.").font(.system(size: 15)) }
+            Button {
+                busy = true
+                Task { await logOut(); busy = false }
+            } label: {
+                if busy { ProgressView() } else { Text("Abmelden") }
+            }
+            .buttonStyle(.quiet)
+            .disabled(busy)
+        }
+    }
+}
+
+/// Two fields and, a little apart, the black button: it can't be taken for a third field.
 private struct LoginForm: View {
     let intro: String
     let userPrompt: String
@@ -67,29 +97,45 @@ private struct LoginForm: View {
     @State private var password = ""
     @State private var busy = false
     @State private var error: String?
+    @FocusState private var focus: Field?
+    private enum Field { case user, password }
 
     var body: some View {
-        Text(intro).foregroundStyle(Color.tiMuted)
-        TextField(userPrompt, text: $user)
-            .textContentType(userType)
-            .keyboardType(userType == .emailAddress ? .emailAddress : .default)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-        SecureField("Passwort", text: $password).textContentType(.password)
-        if let error { Text(error).foregroundStyle(Color.tiRed) }
-        Button {
-            busy = true
-            Task {
-                error = await submit(user.trimmingCharacters(in: .whitespaces), password)
-                if error == nil { password = "" }
-                busy = false
+        VStack(alignment: .leading, spacing: 12) {
+            Text(intro).font(.system(size: 15)).foregroundStyle(Color.tiMuted)
+            TextField(userPrompt, text: $user)
+                .textContentType(userType)
+                .keyboardType(userType == .emailAddress ? .emailAddress : .default)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.next)
+                .focused($focus, equals: .user)
+                .onSubmit { focus = .password }
+                .siteField()
+            SecureField("Passwort", text: $password)
+                .textContentType(.password)
+                .submitLabel(.go)
+                .focused($focus, equals: .password)
+                .onSubmit(send)
+                .siteField()
+            if let error { Text(error).font(.system(size: 14)).foregroundStyle(Color.tiRed) }
+            Button(action: send) {
+                if busy { ProgressView().tint(Color.tiBackground) } else { Text("Anmelden") }
             }
-        } label: {
-            HStack {
-                Text("Anmelden").fontWeight(.semibold)
-                if busy { Spacer(); ProgressView() }
-            }
+            .buttonStyle(.primary)
+            .disabled(busy || user.trimmingCharacters(in: .whitespaces).isEmpty || password.isEmpty)
+            .padding(.top, 4)
         }
-        .disabled(busy || user.isEmpty || password.isEmpty)
+    }
+
+    private func send() {
+        guard !busy, !user.isEmpty, !password.isEmpty else { return }
+        busy = true
+        focus = nil
+        Task {
+            error = await submit(user.trimmingCharacters(in: .whitespaces), password)
+            if error == nil { password = "" }
+            busy = false
+        }
     }
 }

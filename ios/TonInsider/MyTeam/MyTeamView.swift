@@ -105,8 +105,9 @@ struct MyTeamView: View {
     }
 }
 
-/// A player on Mein Team's pitch (MyPitch.astro): the dot answers "will he start?" (S11 once confirmed), ⇄ when
-/// LigaInsider names a rival, a newspaper for fresh news, his club's crest; from kickoff on his points instead of the note.
+/// A player on Mein Team's pitch (MyPitch.astro): the dot answers "will he start?" (S11 once confirmed), ⇄ top left
+/// when LigaInsider names a rival, a newspaper for fresh news, his club's crest bottom left; from kickoff on his
+/// points under the photo instead of the note.
 private struct MyPitchFace: View {
     let player: AppTeam.Player
     let open: () -> Void
@@ -115,32 +116,15 @@ private struct MyPitchFace: View {
         let live = (player.live?.state ?? 0) > 0
         PitchFace(photo: siteURL(player.card.photo ?? player.image), name: player.card.name,
                   note: live ? nil : player.note,
-                  noteColor: player.status == .bench ? Color(light: 0xFF6961, dark: 0xFF6961) : .white.opacity(0.7)) {
-            HStack(spacing: 2) {
-                if player.status == .confirmed {
-                    Text("S11").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
-                        .padding(.horizontal, 4).padding(.vertical, 1).background(Color(light: 0x248A3D, dark: 0x248A3D), in: Capsule())
-                } else {
-                    Circle().fill(dot).frame(width: 10, height: 10).overlay(Circle().stroke(.white, lineWidth: 1.5))
-                }
-                if player.rival != nil { Text("⇄").font(.system(size: 11, weight: .bold)).foregroundStyle(.white) }
-                if player.freshNews { Image(systemName: "newspaper.fill").font(.system(size: 10)).foregroundStyle(.white) }
+                  noteColor: player.status == .bench ? PitchColor.red : PitchColor.yellow,
+                  points: live ? player.live?.points.map(String.init) ?? "–" : nil) {
+            if player.status == .confirmed { PitchBadge.s11 } else { PitchBadge.dot(dot) }
+            if player.rival != nil { PitchBadge.swap(top: true) }
+            if let crest = player.card.crest {
+                Crest(url: siteURL(crest), size: 20).shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                    .pinned(.bottomLeading, x: -4, y: 2)
             }
-        }
-        .overlay(alignment: .top) {
-            ZStack(alignment: .bottomLeading) {
-                Color.clear.frame(width: Pitch<EmptyView>.photo, height: Pitch<EmptyView>.photo)
-                if let crest = player.card.crest { Crest(url: siteURL(crest), size: 20).offset(x: -4, y: 2) }
-            }
-        }
-        .overlay(alignment: .top) {
-            if live {
-                Text(player.live?.points.map { "\($0)" } ?? "–")
-                    .font(.system(size: 12, weight: .bold)).monospacedDigit().foregroundStyle(.white)
-                    .padding(.horizontal, 6).padding(.vertical, 1)
-                    .background(.black.opacity(0.45), in: Capsule())
-                    .offset(y: Pitch<EmptyView>.photo - 6)
-            }
+            if player.freshNews { PitchBadge.news }
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
@@ -148,9 +132,9 @@ private struct MyPitchFace: View {
 
     private var dot: Color {
         switch player.status {
-        case .start: Color(light: 0x30D158, dark: 0x30D158)
-        case .contested, .doubtful, .alternative: Color(light: 0xFFD60A, dark: 0xFFD60A)
-        case .bench: Color(light: 0xFF453A, dark: 0xFF453A)
+        case .start: PitchColor.green
+        case .contested, .doubtful, .alternative: PitchColor.yellow
+        case .bench: PitchColor.redDot
         default: .white.opacity(0.5)
         }
     }

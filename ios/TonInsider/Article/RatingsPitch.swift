@@ -31,14 +31,13 @@ private struct RatedSpotView: View {
         let player = showSub ? spot.sub ?? spot.player : spot.player
         let minute = spot.minute.map { "\($0)'" } ?? ""
         let note: String? = spot.sub.map { sub in showSub ? "ab \(minute) · für \(spot.player.name)" : "bis \(minute) · \(sub.name)" }
-        PitchFace(photo: siteURL(player.photo), name: player.name, note: note) {
-            HStack(spacing: 2) {
-                if let grade = player.grade { GradeBadge(grade: grade) } else { GradeBadge(grade: nil) }
-                if spot.sub != nil { Text("⇄").font(.system(size: 10, weight: .bold)).foregroundStyle(.white) }
-            }
-            .font(.system(size: 11, weight: .bold))
+        PitchFace(photo: siteURL(player.photo), name: player.name, note: note, alt: showSub) {
+            GradeBadge(grade: player.grade).font(.system(size: 10.5, weight: .heavy))
+                .overlay(Capsule().stroke(.white, lineWidth: 2))
+                .pinned(.bottomTrailing, x: 8, y: 3)
+            marks(player).pinned(.topTrailing, x: 6, y: -4)
+            if spot.sub != nil { PitchBadge.swap(top: false) }
         }
-        .overlay(alignment: .topLeading) { marks(player).offset(x: 2, y: 0) }
         .contentShape(Rectangle())
         .onTapGesture {
             guard spot.sub != nil else { return }

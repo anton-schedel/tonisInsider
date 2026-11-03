@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One player of the league for the search and the scout list (src/lib/players.ts PlayerEntry).
-struct PlayerEntry: Identifiable, Hashable {
+struct PlayerEntry: Identifiable, Hashable, Sendable {
     var id: Int
     var name: String
     var club: String
@@ -55,12 +55,11 @@ struct ScoutingView: View {
     @State private var card: PlayerCardData?
 
     var body: some View {
-        let players = feedStore.feed?.allPlayers() ?? []
-        let byId = Dictionary(players.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let byId = feedStore.players
         List {
             if !query.trimmingCharacters(in: .whitespaces).isEmpty {
                 let q = fold(query.trimmingCharacters(in: .whitespaces))
-                let hits = players.filter { $0.key.contains(q) }.sorted { ($0.rank, $0.name) < ($1.rank, $1.name) }
+                let hits = byId.values.filter { $0.key.contains(q) }.sorted { ($0.rank, $0.name) < ($1.rank, $1.name) }
                 Section {
                     if hits.isEmpty { Text("Kein Spieler gefunden.").foregroundStyle(Color.tiMuted) }
                     ForEach(hits.prefix(40)) { row($0) }
@@ -99,7 +98,9 @@ struct ScoutingView: View {
         .background(Color.tiBackground)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Spieler oder Verein suchen")
         .navigationTitle("Scouting")
-        .task { await scout.load() }
+        .overlay {
+            if byId.isEmpty && feedStore.feed != nil { ProgressView() }
+        }
         .onDisappear { Task { await scout.markSeen() } }
         .sheet(item: $card) { PlayerCardView(data: $0) }
         .withSiteRoutes()
@@ -145,8 +146,8 @@ struct ScoutButton: View {
                 Image(systemName: on ? "star.fill" : "star").foregroundStyle(on ? Color.tiGold : Color.tiMuted).font(.system(size: 18))
             } else {
                 Label(on ? "Gescoutet" : "Scouten", systemImage: on ? "star.fill" : "star")
-                    .font(.system(size: 15, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
-                    .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12))
+                    .font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .foregroundStyle(on ? Color.tiGold : Color.tiForeground)
             }
         }

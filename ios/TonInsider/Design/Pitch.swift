@@ -71,19 +71,32 @@ private struct PitchMarkings: View {
     }
 }
 
-/// A player on the pitch: photo, name under it (white with a soft shadow), an optional short note.
-struct PitchFace<Badge: View>: View {
+/// A player on the pitch (PitchFace.astro): photo with a white ring (yellow for an alternative or substitute),
+/// its badges each pinned to a corner of the photo, an optional points chip right under it, the name, a short note.
+struct PitchFace<Badges: View>: View {
     let photo: URL?
     let name: String
     var note: String?
     var noteColor: Color = .white.opacity(0.7)
-    @ViewBuilder var badge: Badge
+    /// An alternative or substitute.
+    var alt = false
+    /// Kickbase points, from kickoff on ("–" when he didn't play).
+    var points: String?
+    /// Laid over the photo: place each with .pinned(…).
+    @ViewBuilder var badges: Badges
 
     var body: some View {
         VStack(spacing: 3) {
             Avatar(url: photo, name: name, size: Pitch<EmptyView>.photo)
-                .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 1.5))
-                .overlay(alignment: .topTrailing) { badge.offset(x: 6, y: -4) }
+                .overlay(Circle().stroke(alt ? PitchColor.yellow : .white.opacity(0.8), lineWidth: 2))
+                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                .overlay { badges }
+            if let points {
+                Text(points).font(.system(size: 11.5, weight: .bold)).monospacedDigit().foregroundStyle(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 1)
+                    .background(Color(light: 0x0A0C10, dark: 0x0A0C10).opacity(0.78), in: Capsule())
+                    .padding(.top, 1)
+            }
             Text(name)
                 .font(.system(size: 12, weight: .semibold))
                 .lineLimit(2)
@@ -92,12 +105,52 @@ struct PitchFace<Badge: View>: View {
                 .shadow(color: .black.opacity(0.55), radius: 1, y: 1)
             if let note {
                 Text(note)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(noteColor)
                     .shadow(color: .black.opacity(0.55), radius: 1, y: 1)
             }
         }
+    }
+}
+
+/// The bright colours that read on the grass (.pitch in global.css), the same in light and dark mode.
+enum PitchColor {
+    static let green = Color(light: 0x30D158, dark: 0x30D158)
+    static let yellow = Color(light: 0xFFD60A, dark: 0xFFD60A)
+    static let red = Color(light: 0xFF6961, dark: 0xFF6961)
+    static let redDot = Color(light: 0xFF453A, dark: 0xFF453A)
+}
+
+/// The badges of a pitch photo (global.css .start-dot, .s11-badge, .swap-hint, .news-badge).
+@MainActor
+enum PitchBadge {
+    /// Will he start: green, yellow, red; white ring like on the photo.
+    static func dot(_ color: Color) -> some View {
+        Circle().fill(color).frame(width: 14, height: 14).overlay(Circle().stroke(.white, lineWidth: 2))
+            .pinned(.topTrailing)
+    }
+
+    static var s11: some View {
+        Text("S11").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+            .padding(.horizontal, 4).frame(height: 15)
+            .background(PitchColor.green, in: Capsule()).overlay(Capsule().stroke(.white, lineWidth: 2))
+            .pinned(.topTrailing, x: 8, y: -3)
+    }
+
+    /// ⇄: someone else may play here (tap flips where the screen allows it).
+    static func swap(top: Bool) -> some View {
+        Text("⇄").font(.system(size: 11, weight: .bold)).foregroundStyle(.black)
+            .frame(width: 18, height: 18).background(PitchColor.yellow, in: Circle())
+            .overlay(Circle().stroke(.white, lineWidth: 2))
+            .pinned(top ? .topLeading : .bottomLeading, x: -2, y: top ? -2 : 2)
+    }
+
+    static var news: some View {
+        Image(systemName: "newspaper.fill").font(.system(size: 10)).foregroundStyle(Color(light: 0x1D1D1F, dark: 0x1D1D1F))
+            .frame(width: 19, height: 19).background(.white, in: Circle())
+            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+            .pinned(.bottomTrailing, x: 6, y: 2)
     }
 }

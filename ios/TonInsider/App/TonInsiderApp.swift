@@ -5,7 +5,7 @@ struct TonInsiderApp: App {
     @State private var feed = FeedStore()
     @State private var account: Account
     @State private var scout: ScoutStore
-    @AppStorage("appearance") private var appearance: Appearance = .system
+    @AppStorage("appearance") private var appearance: Appearance?
 
     init() {
         Analytics.start()
@@ -23,8 +23,9 @@ struct TonInsiderApp: App {
                 .environment(account)
                 .environment(scout)
                 .onChange(of: account.kickbase || account.ligaInsider) { Task { await scout.load() } }
-                .preferredColorScheme(appearance.scheme)
+                .preferredColorScheme(appearance?.scheme)
                 .tint(Color.tiForeground)
+                .task { await scout.load() }
                 .task {
                     await feed.loadCached()
                     // While the app is open: a fresh feed every 5 minutes (the scraper's pace).

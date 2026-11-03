@@ -56,10 +56,13 @@ enum Tone {
 struct Pill: View {
     let text: String
     let tone: Tone
+    /// The player card's bigger one (.pill-lg).
+    var large = false
 
     var body: some View {
         Text(text)
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: large ? 12.5 : 11.5, weight: .semibold))
+            .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .foregroundStyle(tone.foreground)
@@ -92,5 +95,43 @@ struct EmptyNote: View {
     let text: String
     var body: some View {
         Text(text).foregroundStyle(Color.tiMuted).frame(maxWidth: .infinity).padding(.vertical, 40)
+    }
+}
+
+/// The site's buttons (.btn in global.css): primary black on white (white on black in dark mode), quiet grey.
+struct SiteButtonStyle: ButtonStyle {
+    enum Kind { case primary, quiet, destructive }
+    var kind: Kind = .primary
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16, weight: .semibold))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(kind == .primary ? Color.tiBackground : kind == .destructive ? Color.tiRed : Color.tiForeground)
+            .background(kind == .primary ? Color.tiForeground : Color.tiSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == SiteButtonStyle {
+    static var primary: SiteButtonStyle { SiteButtonStyle(kind: .primary) }
+    static var quiet: SiteButtonStyle { SiteButtonStyle(kind: .quiet) }
+    static var destructiveQuiet: SiteButtonStyle { SiteButtonStyle(kind: .destructive) }
+}
+
+extension View {
+    /// A text field as the site draws it (.field): grey, rounded, no border.
+    func siteField() -> some View {
+        padding(.horizontal, 16).padding(.vertical, 13)
+            .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .font(.system(size: 16))
+    }
+
+    /// Places a badge at a corner of the view it overlays, nudged outwards like the site's photo badges.
+    func pinned(_ alignment: Alignment, x: CGFloat = 0, y: CGFloat = 0) -> some View {
+        frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment).offset(x: x, y: y)
     }
 }

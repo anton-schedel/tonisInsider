@@ -34,7 +34,7 @@ struct CommentsSection: View {
                 HStack {
                     Text("Melde dich mit LigaInsider an, um mitzureden.").foregroundStyle(Color.tiMuted)
                     Spacer()
-                    Button("Anmelden") { tabs.selected = .settings }.buttonStyle(.bordered)
+                    Button("Anmelden") { tabs.selected = .settings }.buttonStyle(.primary).frame(width: 120)
                 }
                 .font(.system(size: 15))
                 .padding(.bottom, 8)
@@ -46,12 +46,20 @@ struct CommentsSection: View {
                 Text("Noch keine Kommentare.").foregroundStyle(Color.tiMuted).padding(.vertical, 16)
             }
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(model.comments) { comment in
-                    CommentRow(comment: comment, model: model, canWrite: canWrite) { replyTo = $0 }
-                    ForEach(comment.replies) { reply in
-                        CommentRow(comment: reply, model: model, canWrite: false) { _ in }.padding(.leading, 28)
+                ForEach(Array(model.comments.enumerated()), id: \.element.id) { index, comment in
+                    if index > 0 { Divider().overlay(Color.tiHairline) }
+                    VStack(alignment: .leading, spacing: 12) {
+                        CommentRow(comment: comment, model: model, reply: false, canWrite: canWrite) { replyTo = $0 }
+                        if !comment.replies.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(comment.replies) { CommentRow(comment: $0, model: model, reply: true, canWrite: false) { _ in } }
+                            }
+                            .padding(.leading, 12)
+                            .overlay(alignment: .leading) { Rectangle().fill(Color.tiHairline).frame(width: 2) }
+                            .padding(.leading, 15)
+                        }
                     }
-                    Divider().overlay(Color.tiHairline)
+                    .padding(.vertical, 14)
                 }
             }
             if model.hasMore {
@@ -81,38 +89,37 @@ struct CommentsSection: View {
 private struct CommentRow: View {
     let comment: ThreadComment
     let model: CommentsModel
+    let reply: Bool
     let canWrite: Bool
-    let reply: (ThreadComment) -> Void
+    let onReply: (ThreadComment) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(comment.user).font(.system(size: 14, weight: .semibold))
-                Text("· \(relative(comment.date))").font(.system(size: 13)).foregroundStyle(Color.tiMuted)
-            }
-            if comment.poll == nil || comment.text != comment.poll?.question {
-                Text(comment.text).font(.system(size: 15)).textSelection(.enabled)
-            }
-            if let poll = comment.poll {
-                PollView(poll: poll) { option in Task { await model.votePoll(comment: comment.id, option: option) } }
-            }
-            HStack(spacing: 18) {
-                Button {
-                    Task { await model.toggleVote(comment.id) }
-                } label: {
-                    Label("\(comment.score)", systemImage: comment.voted ? "arrow.up.circle.fill" : "arrow.up.circle")
-                        .monospacedDigit()
-                        .foregroundStyle(comment.voted ? Color.tiGold : Color.tiMuted)
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 10) {
+                    Text(initials(comment.user).isEmpty ? "?" : initials(comment.user))
+                        .font(.system(size: reply ? 10 : 11, weight: .semibold)).foregroundStyle(Color.tiMuted)
+                        .frame(width: reply ? 28 : 32, height: reply ? 28 : 32)
+                        .background(Color.tiSurface, in: Circle())
+                    Text(comment.user).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                    Text(relative(comment.date)).font(.system(size: 12)).foregroundStyle(Color.tiMuted).fixedSize()
                 }
-                .sensoryFeedback(.impact(weight: .light), trigger: comment.voted)
+                if comment.poll == nil || comment.text != comment.poll?.question {
+                    Text(comment.text).font(.system(size: 15)).lineSpacing(3).textSelection(.enabled)
+                }
+                if let poll = comment.poll {
+                    PollView(poll: poll) { option in Task { await model.votePoll(comment: comment.id, option: option) } }
+                        .padding(.top, 4)
+                }
                 if canWrite {
-                    Button("Antworten") { reply(comment) }.foregroundStyle(Color.tiMuted)
+                    Button("Antworten") { onReply(comment) }
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.tiMuted).buttonStyle(.plain)
+                        .padding(.top, 2)
                 }
             }
-            .font(.system(size: 13, weight: .medium))
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VoteButton(voted: comment.voted, score: comment.score) { Task { await model.toggleVote(comment.id) } }
         }
-        .padding(.vertical, 12)
     }
 
     private func relative(_ date: Date) -> String {
@@ -121,6 +128,29 @@ private struct CommentRow: View {
         if minutes < 60 { return "vor \(minutes) Min." }
         if minutes < 24 * 60 { return "vor \(minutes / 60) Std." }
         return Berlin.full(date)
+    }
+}
+
+/// ▲ with the count, a finger-sized grey tile; filled once this phone voted (.vote-btn in global.css).
+private struct VoteButton: View {
+    let voted: Bool
+    let score: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: "arrowtriangle.up.fill").font(.system(size: 12, weight: .bold))
+                    .symbolEffect(.bounce, value: voted)
+                if score != 0 { Text("\(score)").font(.system(size: 12, weight: .bold)).monospacedDigit() }
+            }
+            .frame(width: 44, height: 48)
+            .foregroundStyle(voted ? Color.tiBackground : Color.tiForeground)
+            .background(voted ? Color.tiForeground : Color.tiSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(voted ? "Deine Stimme" : "Hochvoten")
+        .sensoryFeedback(.impact(weight: .light), trigger: voted)
     }
 }
 
@@ -213,10 +243,10 @@ private struct Composer: View {
                         busy = false
                     }
                 } label: {
-                    Text("Senden").font(.system(size: 15, weight: .semibold))
+                    Text("Senden")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.tiForeground)
+                .buttonStyle(.primary)
+                .frame(width: 120)
                 .disabled(busy || !ready)
             }
         }
@@ -231,9 +261,5 @@ private struct Composer: View {
 }
 
 private extension View {
-    func field() -> some View {
-        padding(.horizontal, 12).padding(.vertical, 10)
-            .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 10))
-            .font(.system(size: 15))
-    }
+    func field() -> some View { siteField() }
 }
