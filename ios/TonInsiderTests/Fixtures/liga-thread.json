@@ -1,0 +1,7 @@
+{ "total": 3, "more": { "offset": 10, "goffset": 0, "moffset": 0, "cursor": 5 },
+  "comments": [
+    { "id": 11, "user": "nutzer1", "date": "2026-11-03T10:00:00.000Z", "text": "Erster", "score": 4, "vote": 1,
+      "replies": [ { "id": 12, "user": "nutzer2", "date": "2026-11-03T10:05:00.000Z", "text": "Antwort", "score": 0, "vote": 0, "replies": [] } ] },
+    { "id": 13, "user": "nutzer3", "date": "2026-11-03T09:00:00.000Z", "text": "Wer spielt?", "score": 1, "vote": 0, "replies": [],
+      "poll": { "question": "Wer spielt?", "total": 20, "voted": false, "votingId": 77, "options": [ { "label": "A", "pct": 60, "id": 1 }, { "label": "B", "pct": 40, "id": 2 } ] } }
+  ] }

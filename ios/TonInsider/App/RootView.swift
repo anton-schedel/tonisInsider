@@ -1,13 +1,20 @@
 import SwiftUI
 
+/// The selected tab, shared so a screen can send the reader elsewhere (e.g. to the logins).
+@Observable @MainActor
+final class Tabs {
+    enum Tab: String { case news, lineups, myTeam, scouting, settings }
+    var selected: Tab = .news
+}
+
 /// The website's five tabs, each with its own navigation stack (so every tab keeps its place).
 struct RootView: View {
-    enum Tab: String { case news, lineups, myTeam, scouting, settings }
-
-    @SceneStorage("tab") private var tab: Tab = .news
+    typealias Tab = Tabs.Tab
+    @State private var tabs = Tabs()
 
     var body: some View {
-        TabView(selection: $tab) {
+        @Bindable var tabs = tabs
+        TabView(selection: $tabs.selected) {
             SwiftUI.Tab("News", systemImage: "newspaper", value: Tab.news) {
                 NavigationStack { NewsView() }
             }
@@ -24,6 +31,7 @@ struct RootView: View {
                 NavigationStack { SettingsView() }
             }
         }
+        .environment(tabs)
     }
 }
 

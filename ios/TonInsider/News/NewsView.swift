@@ -74,7 +74,7 @@ struct NewsView: View {
     private func dayTitle(_ date: Date, now: Date) -> Text {
         let parts = Berlin.dayLabel(date, now: now).components(separatedBy: " · ")
         guard parts.count == 2 else { return Text(parts[0]) }
-        return Text("\(parts[0]) ") + Text(parts[1]).fontWeight(.regular).foregroundStyle(Color.tiMuted)
+        return Text("\(parts[0]) \(Text(parts[1]).fontWeight(.regular).foregroundStyle(Color.tiMuted))")
     }
 }
 

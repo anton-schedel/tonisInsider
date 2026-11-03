@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One article or post (src/pages/artikel/[id].astro): who it's about, headline, date and source, banner,
-/// text, a match report's grades, the link to the original. Comments follow (Task 8).
+/// text, a match report's grades, the link to the original, the comments.
 struct ArticleView: View {
     let article: Article
     @Environment(\.openURL) private var openURL
@@ -35,6 +35,7 @@ struct ArticleView: View {
                     .buttonStyle(.plain)
                     .padding(.top, 24)
                 }
+                CommentsSection(thread: article.isOwn ? .own(postId: article.id) : .liga(key: String(article.id), page: article.url))
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)

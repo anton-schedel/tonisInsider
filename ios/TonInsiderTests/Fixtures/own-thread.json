@@ -1,0 +1,5 @@
+{ "total": 2, "comments": [
+    { "id": 5, "user": "Toni", "date": "2026-11-03T11:00:00.000Z", "text": "Wer gewinnt?", "score": 3, "voted": true, "replies": [],
+      "poll": { "question": "Wer gewinnt?", "total": 10, "options": [ { "id": 1, "label": "Wir", "pct": 70 }, { "id": 2, "label": "Die", "pct": 30 } ], "mine": 1 } },
+    { "id": 6, "user": "Gast", "date": "2026-11-03T11:10:00.000Z", "text": "Hallo", "score": 0, "voted": false, "replies": [] }
+  ] }
