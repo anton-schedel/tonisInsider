@@ -7,6 +7,7 @@ struct MyTeamView: View {
     @Environment(Account.self) private var account
     @Environment(Tabs.self) private var tabs
     @State private var card: PlayerCardData?
+    @State private var logoutProblem: String?
 
     var body: some View {
         ScrollView {
@@ -33,6 +34,7 @@ struct MyTeamView: View {
         .task { await model.pollLive() }
         .onChange(of: account.kickbase) { _, signedIn in if signedIn { Task { await model.load() } } }
         .sheet(item: $card) { PlayerCardView(data: $0) }
+        .alert(logoutProblem ?? "", isPresented: Binding(get: { logoutProblem != nil }, set: { if !$0 { logoutProblem = nil } })) {}
         .withSiteRoutes()
     }
 
@@ -49,7 +51,7 @@ struct MyTeamView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 40)
         } else {
-            if let error = team.error { Text(error).foregroundStyle(Color.tiRed).padding(.bottom, 16) }
+            if let error = model.message ?? team.error { Text(error).foregroundStyle(Color.tiRed).padding(.bottom, 16) }
             if team.leagues.count > 1 {
                 Picker("Liga", selection: Binding(get: { team.leagueId ?? "" }, set: { id in Task { await model.choose(league: id) } })) {
                     ForEach(team.leagues, id: \.id) { Text($0.name).tag($0.id) }
@@ -83,7 +85,11 @@ struct MyTeamView: View {
                     rows(bench, team: team)
                 }
             }
-            Button("Abmelden", role: .destructive) { Task { await account.logOutKickbase(); await model.load() } }
+            Button("Abmelden", role: .destructive) {
+                Task {
+                    if let problem = await account.logOutKickbase() { logoutProblem = problem } else { await model.load() }
+                }
+            }
                 .font(.system(size: 14, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 10)
                 .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12)).buttonStyle(.plain).padding(.top, 32)
         }

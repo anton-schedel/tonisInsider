@@ -10,6 +10,7 @@ enum Appearance: String, CaseIterable {
 struct SettingsView: View {
     @Environment(Account.self) private var account
     @AppStorage("appearance") private var appearance: Appearance = .system
+    @State private var logoutProblem: String?
 
     var body: some View {
         Form {
@@ -23,7 +24,7 @@ struct SettingsView: View {
             }
             Section {
                 if account.kickbase {
-                    signedIn(name: account.kickbaseName) { await account.logOutKickbase() }
+                    signedIn(name: account.kickbaseName) { logoutProblem = await account.logOutKickbase() }
                 } else {
                     LoginForm(intro: "Für dein Team, die Aufstellungen und die passenden News.",
                               userPrompt: "Kickbase E-Mail", userType: .emailAddress) { user, password in
@@ -33,7 +34,7 @@ struct SettingsView: View {
             } header: { Text("Kickbase") }
             Section {
                 if account.ligaInsider {
-                    signedIn(name: account.ligaInsiderName) { await account.logOutLigaInsider() }
+                    signedIn(name: account.ligaInsiderName) { logoutProblem = await account.logOutLigaInsider() }
                 } else {
                     LoginForm(intro: "Zum Kommentieren, Antworten, Hochvoten und für Umfragen.",
                               userPrompt: "Benutzername oder E-Mail", userType: .username) { user, password in
@@ -45,6 +46,7 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.tiBackground)
         .navigationTitle("Einstellungen")
+        .alert(logoutProblem ?? "", isPresented: Binding(get: { logoutProblem != nil }, set: { if !$0 { logoutProblem = nil } })) {}
     }
 
     private func signedIn(name: String?, logOut: @escaping () async -> Void) -> some View {

@@ -11,7 +11,7 @@ final class Account {
     var ligaInsiderName: String? { didSet { save() } }
 
     private let defaults: UserDefaults
-    private let api: API
+    let api: API
 
     init(api: API = .shared, defaults: UserDefaults = .standard) {
         self.api = api
@@ -20,6 +20,15 @@ final class Account {
         kickbaseName = defaults.string(forKey: "kbName")
         ligaInsider = defaults.bool(forKey: "li")
         ligaInsiderName = defaults.string(forKey: "liName")
+        // Every answer of the site says which logins the session holds: the flags follow it.
+        api.onSession { [weak self] flags in await self?.follow(flags) }
+    }
+
+    private func follow(_ flags: Set<String>) {
+        if kickbase != flags.contains("kb") { kickbase = flags.contains("kb") }
+        if !kickbase { kickbaseName = nil }
+        if ligaInsider != flags.contains("li") { ligaInsider = flags.contains("li") }
+        if !ligaInsider { ligaInsiderName = nil }
     }
 
     private func save() {
@@ -57,6 +66,7 @@ final class Account {
         do {
             let result = try await api.postForm("api/li-login/", fields: ["username": username, "password": password, "next": "/"])
             if let error = Self.error(in: result.location) { return error }
+            guard result.status == 303, result.location == "/" else { return Self.errors["li-unavailable"] }
             ligaInsider = true
             ligaInsiderName = username.trimmingCharacters(in: .whitespaces)
             return nil
@@ -65,16 +75,26 @@ final class Account {
         }
     }
 
-    func logOutKickbase() async {
-        _ = try? await api.postForm("api/logout/", fields: ["next": "/"])
-        kickbase = false
-        kickbaseName = nil
+    /// nil when it worked; else the message (the session stays: the phone can't change the sealed token itself).
+    @discardableResult
+    func logOutKickbase() async -> String? {
+        await logOut("api/logout/") { $0.kickbase = false; $0.kickbaseName = nil }
     }
 
-    func logOutLigaInsider() async {
-        _ = try? await api.postForm("api/li-logout/", fields: ["next": "/"])
-        ligaInsider = false
-        ligaInsiderName = nil
+    @discardableResult
+    func logOutLigaInsider() async -> String? {
+        await logOut("api/li-logout/") { $0.ligaInsider = false; $0.ligaInsiderName = nil }
+    }
+
+    private func logOut(_ path: String, done: (Account) -> Void) async -> String? {
+        do {
+            let result = try await api.postForm(path, fields: ["next": "/"])
+            guard result.status == 303 else { return "Abmelden hat nicht geklappt. Versuch es gleich nochmal." }
+            done(self)
+            return nil
+        } catch {
+            return (error as? APIError)?.message ?? APIError.offline.message
+        }
     }
 
     /// Mein Team knows best whether the Kickbase session still holds.

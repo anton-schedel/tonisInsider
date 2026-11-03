@@ -21,9 +21,14 @@ final class FeedStore {
     }
 
     /// The stored feed, if any (a broken file is ignored and replaced by the next refresh).
-    func loadCached() {
-        guard feed == nil, let data = try? Data(contentsOf: file) else { return }
-        feed = try? AppFeed.decode(data)
+    func loadCached() async {
+        guard feed == nil, let data = try? Data(contentsOf: file), let cached = try? await Self.decode(data) else { return }
+        if feed == nil { feed = cached }
+    }
+
+    /// The feed is a few MB: read off the main thread, so scrolling never stutters while it comes in.
+    @concurrent private static func decode(_ data: Data) async throws -> AppFeed {
+        try AppFeed.decode(data)
     }
 
     func refresh() async {
@@ -40,7 +45,7 @@ final class FeedStore {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 304 { lastError = nil; return }
             guard status == 200 else { throw URLError(.badServerResponse) }
-            let fresh = try AppFeed.decode(data)
+            let fresh = try await Self.decode(data)
             feed = fresh
             lastError = nil
             try? data.write(to: file, options: .atomic)

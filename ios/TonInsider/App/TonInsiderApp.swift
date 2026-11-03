@@ -26,7 +26,7 @@ struct TonInsiderApp: App {
                 .preferredColorScheme(appearance.scheme)
                 .tint(Color.tiForeground)
                 .task {
-                    feed.loadCached()
+                    await feed.loadCached()
                     // While the app is open: a fresh feed every 5 minutes (the scraper's pace).
                     while !Task.isCancelled {
                         await feed.refresh()

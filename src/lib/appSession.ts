@@ -7,6 +7,8 @@ import { seal, unseal } from "./vault.ts";
 export const APP_HEADER = "x-toninsider-app";
 /** A new token, whenever the response changed the session. */
 export const TOKEN_HEADER = "x-app-token";
+/** Which logins the session holds after this response ("kb", "li", comma-separated): the app's flags follow it. */
+export const SESSION_HEADER = "x-app-session";
 
 type Jar = Record<string, string>;
 
@@ -47,8 +49,8 @@ export async function fromCookieResponse(response: Response, jar: Jar, key: stri
   const cookies = response.headers.getSetCookie();
   const headers = new Headers(response.headers);
   headers.delete("set-cookie");
+  const next = { ...jar };
   if (cookies.length) {
-    const next = { ...jar };
     for (const line of cookies) {
       const [pair, ...attrs] = line.split(";");
       const eq = pair!.indexOf("=");
@@ -59,6 +61,8 @@ export async function fromCookieResponse(response: Response, jar: Jar, key: stri
     }
     headers.set(TOKEN_HEADER, await seal(JSON.stringify(next), key));
   }
+  // The site's readable login flags (session.ts LOGGED_IN_COOKIE, LI_LOGGED_IN_COOKIE).
+  headers.set(SESSION_HEADER, [next.kbin === "1" && "kb", next.liin === "1" && "li"].filter(Boolean).join(","));
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 

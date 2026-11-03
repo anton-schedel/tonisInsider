@@ -34,8 +34,10 @@ final class MyTeamModel {
         defer { loading = false }
         do {
             let fresh: AppTeam = try await api.get("api/app/my-team/", query: leagueId.map { [URLQueryItem(name: "league", value: $0)] } ?? [])
-            team = fresh
             message = fresh.error
+            // Kickbase not reachable: the team on screen stays, with the message above it.
+            if fresh.error != nil, fresh.signedOut == nil, team?.players.isEmpty == false { return }
+            team = fresh
             if fresh.signedOut == nil, fresh.error == nil, let data = try? JSONEncoder.site.encode(fresh) {
                 try? data.write(to: file(leagueId), options: .atomic)
                 if leagueId == nil { try? data.write(to: file(fresh.leagueId), options: .atomic) }

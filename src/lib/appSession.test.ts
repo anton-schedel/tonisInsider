@@ -66,6 +66,15 @@ describe("app session", () => {
     expect(await out.text()).toBe("{}");
   });
 
+  it("tells the app which logins the session holds", async () => {
+    const both = await fromCookieResponse(new Response("{}"), { kbin: "1", liin: "1", kb: "t" }, KEY);
+    expect(both.headers.get("x-app-session")).toBe("kb,li");
+    // A logout's deletions count: the answer says what's left.
+    const out = await fromCookieResponse(new Response(null, { status: 303, headers: [["set-cookie", "kbin=; Max-Age=0"]] }), { kbin: "1", liin: "1" }, KEY);
+    expect(out.headers.get("x-app-session")).toBe("li");
+    expect((await fromCookieResponse(new Response("{}"), {}, KEY)).headers.get("x-app-session")).toBe("");
+  });
+
   it("keeps redirects", async () => {
     const res = new Response(null, { status: 303, headers: [["location", "/mein-team/"], ["set-cookie", "kb=t2; Path=/"]] });
     const out = await fromCookieResponse(res, {}, KEY);

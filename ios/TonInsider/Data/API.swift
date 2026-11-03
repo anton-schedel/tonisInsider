@@ -31,6 +31,10 @@ final class API: Sendable {
     private let session: URLSession
     private let tokens: TokenStore
     private let noRedirects = NoRedirects()
+    private let sessionListener = Locked<(@Sendable (Set<String>) async -> Void)?>(nil)
+
+    /// Called with the logins the session holds ("kb", "li") whenever the site says (X-App-Session).
+    func onSession(_ listener: @escaping @Sendable (Set<String>) async -> Void) { sessionListener.value = listener }
 
     init(session: URLSession, tokens: TokenStore) {
         self.session = session
@@ -67,9 +71,6 @@ final class API: Sendable {
         return (response.statusCode, response.value(forHTTPHeaderField: "Location"))
     }
 
-    /// Forgets the session on the phone (after the site's logout, or when it can't be reached).
-    func forget() { tokens.token = nil }
-
     private func url(_ path: String, _ query: [URLQueryItem]) -> URL {
         let url = AppConfig.siteURL.appending(path: path)
         return query.isEmpty ? url : url.appending(queryItems: query)
@@ -78,7 +79,8 @@ final class API: Sendable {
     private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         var request = request
         request.setValue("1", forHTTPHeaderField: "X-TonInsider-App")
-        if let token = tokens.token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let sent = tokens.token
+        if let sent { request.setValue("Bearer \(sent)", forHTTPHeaderField: "Authorization") }
         let data: Data, response: URLResponse
         do {
             (data, response) = try await session.data(for: request, delegate: noRedirects)
@@ -86,7 +88,10 @@ final class API: Sendable {
             throw APIError.offline
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.offline }
-        if let fresh = http.value(forHTTPHeaderField: "X-App-Token") { tokens.token = fresh }
+        if let fresh = http.value(forHTTPHeaderField: "X-App-Token") { tokens.replace(old: sent, new: fresh) }
+        if let flags = http.value(forHTTPHeaderField: "X-App-Session"), let listener = sessionListener.value {
+            await listener(Set(flags.split(separator: ",").map(String.init)))
+        }
         return (data, http)
     }
 
@@ -106,4 +111,15 @@ final class API: Sendable {
 private final class NoRedirects: NSObject, URLSessionTaskDelegate, Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest) async -> URLRequest? { nil }
+}
+
+/// A value behind a lock (the API is shared across threads).
+final class Locked<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: T
+    init(_ value: T) { stored = value }
+    var value: T {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
 }

@@ -98,7 +98,7 @@ extension NetworkTests {
             #expect(store.lastError != nil)
             // A new launch shows the stored feed at once.
             let again = FeedStore(session: StubProtocol.session(), directory: dir)
-            again.loadCached()
+            await again.loadCached()
             #expect(again.feed?.articles.count == 6)
         }
 
