@@ -5,6 +5,7 @@ import PitchField from "./PitchField.astro";
 import NewsBadge from "./NewsBadge.astro";
 import KbPoints from "./KbPoints.astro";
 import { slotStyle } from "../lib/pitch.ts";
+import { pitchNote } from "../lib/myTeam.ts";
 
 interface Props {
   lines: MyPlayer[][];
@@ -15,13 +16,13 @@ interface Props {
 }
 const { lines, cards, fresh = new Set() } = Astro.props;
 // The dot answers "will my player start?" according to LigaInsider's predicted lineup; "Bank" is the red note.
-const TONE: Record<StartStatus, { dot: string; note?: string }> = {
+const TONE: Record<StartStatus, { dot: string }> = {
   confirmed: { dot: "dot-green" },
   start: { dot: "dot-green" },
   contested: { dot: "dot-yellow" },
-  doubtful: { dot: "dot-yellow", note: "Fraglich" },
-  alternative: { dot: "dot-yellow", note: "Alternative" },
-  bench: { dot: "dot-red", note: "Bank" },
+  doubtful: { dot: "dot-yellow" },
+  alternative: { dot: "dot-yellow" },
+  bench: { dot: "dot-red" },
   unknown: { dot: "dot-muted" },
 };
 ---
@@ -30,7 +31,7 @@ const TONE: Record<StartStatus, { dot: string; note?: string }> = {
     line.map((p, j) => {
       const tone = TONE[p.status];
       const name = p.ligainsider?.name ?? p.kickbase.name;
-      const note = p.status === "contested" && p.rival ? `Alt: ${p.rival}` : p.status === "doubtful" && p.statusLabel ? p.statusLabel : tone.note;
+      const note = pitchNote(p);
       return (
         <div class="absolute" style={slotStyle(i, lines.length, j, line.length)}>
           <button type="button" data-card={cards.get(p.kickbase.id)} class="press flex w-full flex-col items-center text-center">

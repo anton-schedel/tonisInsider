@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The iOS app's Swift sources aren't pages: their words mustn't become CSS classes. */
+@source not "../../ios";
 
 /* Colours follow iOS system colours. Light is the default; dark with data-theme="dark" (the switch in Einstellungen). */
 :root {

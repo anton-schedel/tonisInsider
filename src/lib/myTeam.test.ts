@@ -55,6 +55,17 @@ describe("appTeam", () => {
     expect(t.points).toBe(12);
   });
 
+  it("gives each player his start status and the pitch's note", () => {
+    const doubtful: MyPlayer = { ...player("a", 1), status: "doubtful", statusLabel: "Knie" };
+    const contested: MyPlayer = { ...player("b", 2), status: "contested", rival: "Müller" };
+    const bench: MyPlayer = { ...player("c", 3), status: "bench" };
+    const t = appTeam(result([doubtful, contested, bench, player("d", 4)], 4), jar(), Date.now());
+    expect([t.players.a?.status, t.players.a?.note]).toEqual(["doubtful", "Knie"]);
+    expect([t.players.b?.status, t.players.b?.note]).toEqual(["contested", "Alt: Müller"]);
+    expect([t.players.c?.status, t.players.c?.note]).toEqual(["bench", "Bank"]);
+    expect(t.players.d?.note).toBeUndefined();
+  });
+
   it("marks fresh news", () => {
     const fresh = { id: 1, title: "x", type: "verletzung" as const, at: new Date().toISOString() };
     const t = appTeam(result([player("a", 1)], 1, { cardNews: new Map([["a", [fresh]]]) }), jar(), Date.now());

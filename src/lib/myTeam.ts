@@ -1,7 +1,7 @@
 // Mein Team's data: the manager's Kickbase squad matched with LigaInsider, the odds and the matchday summary.
 // The page (src/pages/mein-team.astro) renders it; /api/app/my-team/ serves it to the iOS app (appTeam).
 import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbLeague, type KbLive, type KbPlayer, type KbTeam } from "./kickbase.ts";
-import { articlePlayer, mapClubs, matchSquad, pitchLines, type MyPlayer } from "./match.ts";
+import { articlePlayer, mapClubs, matchSquad, pitchLines, type MyPlayer, type StartStatus } from "./match.ts";
 import { toFixtures } from "./fixtures.ts";
 import { chancesFor } from "./odds.ts";
 import { matchInsights, type PlayerInsight } from "./scorers.ts";
@@ -177,7 +177,17 @@ export function cardFor(p: MyPlayer, data: Pick<MyTeamData, "outlook" | "cardNew
   };
 }
 
-export type AppPlayer = { id: string; name: string; position: number; image?: string; live?: KbLive; card: CardData; freshNews: boolean };
+/** The short note under a player on Mein Team's pitch (MyPitch.astro): will he start? */
+export function pitchNote(p: MyPlayer): string | undefined {
+  if (p.status === "contested" && p.rival) return `Alt: ${p.rival}`;
+  if (p.status === "doubtful" && p.statusLabel) return p.statusLabel;
+  return ({ doubtful: "Fraglich", alternative: "Alternative", bench: "Bank" } as Partial<Record<StartStatus, string>>)[p.status];
+}
+
+export type AppPlayer = {
+  id: string; name: string; position: number; image?: string; live?: KbLive; card: CardData; freshNews: boolean;
+  status: StartStatus; note?: string; rival?: string;
+};
 
 /** Mein Team for the iOS app: the page's view of the data, as JSON (players by Kickbase id). */
 export type AppTeam = {
@@ -224,6 +234,9 @@ export function appTeam(result: MyTeamResult, cookies: CookieJar, now: number): 
       ...(p.kickbase.live ? { live: p.kickbase.live } : {}),
       card: cardFor(p, result.data),
       freshNews: hasFreshNews(result.data.cardNews.get(p.kickbase.id), now),
+      status: p.status,
+      ...(pitchNote(p) ? { note: pitchNote(p) } : {}),
+      ...(p.rival ? { rival: p.rival } : {}),
     }])),
     ...(summary ? { summary } : {}),
     ...(name || userId ? { account: { ...(name ? { name } : {}), ...(userId ? { userId } : {}) } } : {}),
