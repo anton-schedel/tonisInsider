@@ -11,12 +11,60 @@ struct AppFeed: Codable, Sendable {
     /// Ids pinned on top, in order.
     var pinned: [Int]
     var lineups: [Lineup]
+    /// The coming matchday's matches, with what the odds say (worked out on the server like the site does).
+    var fixtures: [Fixture] = []
+    /// Odds per LigaInsider player id, for the player card.
+    var insights: [String: PlayerInsight] = [:]
+    /// Clubs whose XI LigaInsider confirmed for the coming match.
+    var confirmed: [Int] = []
     var commentCounts: [String: Int]
     var odds: [OddsEvent]?
+
+    private enum CodingKeys: String, CodingKey {
+        case version, generatedAt, articles, pinned, lineups, fixtures, insights, confirmed, commentCounts, odds
+    }
+
+    /// Fields added later may be missing in a feed stored by an older version.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decode(Int.self, forKey: .version)
+        generatedAt = try c.decode(Date.self, forKey: .generatedAt)
+        articles = try c.decode([Article].self, forKey: .articles)
+        pinned = try c.decode([Int].self, forKey: .pinned)
+        lineups = try c.decode([Lineup].self, forKey: .lineups)
+        fixtures = try c.decodeIfPresent([Fixture].self, forKey: .fixtures) ?? []
+        insights = try c.decodeIfPresent([String: PlayerInsight].self, forKey: .insights) ?? [:]
+        confirmed = try c.decodeIfPresent([Int].self, forKey: .confirmed) ?? []
+        commentCounts = try c.decodeIfPresent([String: Int].self, forKey: .commentCounts) ?? [:]
+        odds = try c.decodeIfPresent([OddsEvent].self, forKey: .odds)
+    }
 
     static func decode(_ data: Data) throws -> AppFeed {
         try JSONDecoder.site.decode(AppFeed.self, from: data)
     }
+}
+
+/// A match of the coming matchday (src/lib/appFeed.ts AppFixture).
+struct Fixture: Codable, Hashable, Sendable {
+    /// Club slugs; nil when that club has no lineup page.
+    var home: String?
+    var away: String?
+    var homeName: String
+    var awayName: String
+    var kickoff: Date?
+    var matchday: Int?
+    var chances: OddsEvent.Chances?
+    var tip: Score?
+    var cleanSheet: Score?
+
+    struct Score: Codable, Hashable, Sendable { var home: Int; var away: Int }
+}
+
+/// A player's chances from the odds, in whole percent: scores, scores or assists, gets a card.
+struct PlayerInsight: Codable, Hashable, Sendable {
+    var goal: Int?
+    var scorer: Int?
+    var card: Int?
 }
 
 struct Ref: Codable, Hashable, Sendable {
@@ -222,4 +270,44 @@ func siteURL(_ path: String?) -> URL? {
     guard let path, !path.isEmpty else { return nil }
     if path.hasPrefix("http") { return URL(string: path) }
     return URL(string: path, relativeTo: AppConfig.siteURL)?.absoluteURL
+}
+
+extension Lineup {
+    /// Where the lineup page's comments hang ("t…", src/lib/comments.ts threadKey).
+    var threadKey: String? { comments.map { "t\($0.tmid)-\($0.optauuid)-\($0.teamid)" } }
+
+    /// "vs Bayern · Sa. 07.11. 15:30" (src/lib/card.ts matchLine).
+    var matchLine: String? {
+        guard let opponent else { return nil }
+        let when = kickoff.map { " · \(Berlin.shortDay($0)) \(Berlin.time($0))" } ?? ""
+        return "\(opponent.home ? "vs" : "@") \(opponent.name)\(when)"
+    }
+}
+
+extension LineupPlayer {
+    /// The predicted starter's line on his card (src/lib/card.ts startStatus).
+    func start(confirmed: Bool) -> (String, Tone) {
+        if confirmed { return ("S11", .green) }
+        if status == .doubtful { return ("Fraglich\(statusLabel.map { " · \($0)" } ?? "")", .yellow) }
+        if let alternative { return ("Startelf · Alt. \(alternative.name)", .green) }
+        return ("Startelf", .green)
+    }
+}
+
+extension AppFeed {
+    /// A club page's news: the last 7 days, without those about players on its pitch (they're in their cards).
+    func clubNews(_ lineup: Lineup, now: Date) -> [Article] {
+        let onPitch = Set(lineup.lines.flatMap { $0 }.flatMap { [$0.id] + ($0.alternative.map { [$0.id] } ?? []) })
+        let since = now.addingTimeInterval(-7 * 86400)
+        return visibleArticles(now: now).filter {
+            $0.club?.id == lineup.club.id && !($0.player.map { onPitch.contains($0.id) } ?? false) && $0.publishedAt >= since
+        }
+    }
+
+    /// A player's news, newest first (the player card shows the latest three).
+    func newsOf(player id: Int) -> [Article] {
+        articles.filter { $0.player?.id == id }
+    }
+
+    func lineup(slug: String) -> Lineup? { lineups.first { $0.club.slug == slug } }
 }

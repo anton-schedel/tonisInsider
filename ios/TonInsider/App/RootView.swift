@@ -5,6 +5,13 @@ import SwiftUI
 final class Tabs {
     enum Tab: String { case news, lineups, myTeam, scouting, settings }
     var selected: Tab = .news
+
+    init() {
+        #if DEBUG
+        // Screenshots: launch with -TITab lineups
+        if let raw = UserDefaults.standard.string(forKey: "TITab"), let tab = Tab(rawValue: raw) { selected = tab }
+        #endif
+    }
 }
 
 /// The website's five tabs, each with its own navigation stack (so every tab keeps its place).
@@ -19,7 +26,7 @@ struct RootView: View {
                 NavigationStack { NewsView() }
             }
             SwiftUI.Tab("Aufstellungen", systemImage: "sportscourt", value: Tab.lineups) {
-                NavigationStack { Placeholder(title: "Aufstellungen") }
+                LineupsStack()
             }
             SwiftUI.Tab("Mein Team", systemImage: "person.crop.circle", value: Tab.myTeam) {
                 NavigationStack { Placeholder(title: "Mein Team") }
@@ -44,5 +51,19 @@ private struct Placeholder: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.tiBackground)
             .navigationTitle(title)
+    }
+}
+
+/// The lineups tab's stack; in DEBUG, -TIClub <slug> opens a club right away (screenshots).
+private struct LineupsStack: View {
+    @State private var path: [ClubRoute] = {
+        #if DEBUG
+        if let slug = UserDefaults.standard.string(forKey: "TIClub") { return [ClubRoute(slug: slug)] }
+        #endif
+        return []
+    }()
+
+    var body: some View {
+        NavigationStack(path: $path) { LineupsView() }
     }
 }

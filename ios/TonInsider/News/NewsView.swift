@@ -14,13 +14,7 @@ struct NewsView: View {
         .background(Color.tiBackground)
         .navigationTitle("News")
         .refreshable { await store.refresh() }
-        .navigationDestination(for: ArticleRoute.self) { route in
-            if let article = store.feed?.articles.first(where: { $0.id == route.id }) {
-                ArticleView(article: article)
-            } else {
-                EmptyNote(text: "Diesen Beitrag gibt es nicht mehr.")
-            }
-        }
+        .withSiteRoutes()
     }
 
     @ViewBuilder private func content(now: Date) -> some View {

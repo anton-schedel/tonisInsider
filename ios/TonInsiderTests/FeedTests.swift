@@ -41,9 +41,9 @@ let berlinNow = ISO8601DateFormatter().date(from: "2026-11-03T12:00:00Z")!
 struct FeedTests {
     @Test func decodesTheFixture() throws {
         let feed = try AppFeed.decode(try fixture("app-feed"))
-        #expect(feed.articles.count == 4)
-        #expect(feed.articles[2].player?.name == "Harry Kane")
-        #expect(feed.articles[3].ratings?.first?.lines.first?.first?.player.grade == 2)
+        #expect(feed.articles.count == 6)
+        #expect(feed.articles.first { $0.id == 420100 }?.player?.name == "Harry Kane")
+        #expect(feed.articles.first { $0.id == 420099 }?.ratings?.first?.lines.first?.first?.player.grade == 2)
         #expect(feed.lineups.first?.opponent?.home == true)
         #expect(feed.odds?.first?.chances.home == 78)
         #expect(feed.commentCounts["420100"] == 12)
@@ -67,7 +67,7 @@ struct FeedTests {
         let groups = feed.dayGroups(now: berlinNow)
         // 23:30 UTC on 1 Nov is 00:30 on 2 Nov in Berlin; the match report at 20:00 UTC stays on 1 Nov.
         // The pinned own post is only on top while pinned (like the web's NewsFeed), in the feed afterwards.
-        #expect(groups.map { $0.items.map(\.id) } == [[420100], [420099]])
+        #expect(groups.map { $0.items.map(\.id) } == [[420050, 420100], [420099], [420040]])
         #expect(feed.dayGroups(now: berlinNow.addingTimeInterval(86400)).first?.items.first?.id == 900000002)
     }
 
@@ -76,15 +76,15 @@ struct FeedTests {
         StubProtocol.handler = { _ in (response(200, ["ETag": "\"a\""]), try fixture("app-feed")) }
         let store = FeedStore(session: StubProtocol.session(), directory: dir)
         await store.refresh()
-        #expect(store.feed?.articles.count == 4)
+        #expect(store.feed?.articles.count == 6)
         StubProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
         await store.refresh()
-        #expect(store.feed?.articles.count == 4)
+        #expect(store.feed?.articles.count == 6)
         #expect(store.lastError != nil)
         // A new launch shows the stored feed at once.
         let again = FeedStore(session: StubProtocol.session(), directory: dir)
         again.loadCached()
-        #expect(again.feed?.articles.count == 4)
+        #expect(again.feed?.articles.count == 6)
     }
 
     @Test func notModifiedKeepsTheFeed() async throws {
@@ -99,7 +99,7 @@ struct FeedTests {
         }
         await store.refresh()
         #expect(sent == "\"a\"")
-        #expect(store.feed?.articles.count == 4)
+        #expect(store.feed?.articles.count == 6)
         #expect(store.lastError == nil)
     }
 }
