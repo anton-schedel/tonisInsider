@@ -6,12 +6,19 @@ struct ClubRoute: Hashable { let slug: String }
 struct LineupsView: View {
     @Environment(FeedStore.self) private var store
 
+    private var title: String {
+        store.feed?.lineups.first { $0.matchday != nil }?.matchday.map { "\($0). Spieltag" } ?? "Aufstellungen"
+    }
+
     var body: some View {
         ScrollView {
             if let feed = store.feed {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Voraussichtliche Aufstellungen. Tippe auf ein Team.")
-                        .font(.system(size: 14)).foregroundStyle(Color.tiMuted)
+                    VStack(alignment: .leading, spacing: 0) {
+                        PageHeader(title: title)
+                        Text("Voraussichtliche Aufstellungen. Tippe auf ein Team.")
+                            .font(.system(size: 14)).foregroundStyle(Color.tiMuted)
+                    }
                     if feed.fixtures.isEmpty { EmptyNote(text: "Noch keine Aufstellungen.") }
                     ForEach(Array(feed.fixtures.enumerated()), id: \.offset) { _, fixture in
                         FixtureCard(fixture: fixture, feed: feed)
@@ -24,7 +31,8 @@ struct LineupsView: View {
             }
         }
         .background(Color.tiBackground)
-        .navigationTitle(store.feed?.lineups.first { $0.matchday != nil }?.matchday.map { "\($0). Spieltag" } ?? "Aufstellungen")
+        .navigationTitle(title)
+        .tabRoot()
         .refreshable { await store.refresh() }
         .withSiteRoutes()
     }

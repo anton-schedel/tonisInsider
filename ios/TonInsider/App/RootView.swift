@@ -28,7 +28,7 @@ struct RootView: View {
         @Bindable var tabs = tabs
         TabView(selection: $tabs.selected) {
             SwiftUI.Tab("News", systemImage: "newspaper", value: Tab.news) {
-                NavigationStack { NewsView() }
+                NewsStack()
             }
             SwiftUI.Tab("Aufstellungen", systemImage: "sportscourt", value: Tab.lineups) {
                 LineupsStack()
@@ -60,5 +60,20 @@ private struct LineupsStack: View {
 
     var body: some View {
         NavigationStack(path: $path) { LineupsView() }
+    }
+}
+
+/// The news tab's stack; in DEBUG, -TIArticle <id> opens an article right away (screenshots).
+private struct NewsStack: View {
+    @State private var path: [ArticleRoute] = {
+        #if DEBUG
+        let id = UserDefaults.standard.integer(forKey: "TIArticle")
+        if id > 0 { return [ArticleRoute(id: id)] }
+        #endif
+        return []
+    }()
+
+    var body: some View {
+        NavigationStack(path: $path) { NewsView() }
     }
 }

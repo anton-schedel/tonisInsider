@@ -7,6 +7,7 @@ struct ArticleView: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
+        ScrollViewReader { scroller in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header.padding(.bottom, 16)
@@ -36,9 +37,19 @@ struct ArticleView: View {
                     .padding(.top, 24)
                 }
                 CommentsSection(thread: article.isOwn ? .own(postId: article.id) : .liga(key: String(article.id), page: article.url))
+                    .id("comments")
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)
+        }
+        #if DEBUG
+        // Screenshots: -TIComments YES scrolls to the comments.
+        .task {
+            guard UserDefaults.standard.bool(forKey: "TIComments") else { return }
+            try? await Task.sleep(for: .seconds(2))
+            scroller.scrollTo("comments", anchor: .top)
+        }
+        #endif
         }
         .background(Color.tiBackground)
         .navigationBarTitleDisplayMode(.inline)

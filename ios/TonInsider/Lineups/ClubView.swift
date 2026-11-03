@@ -115,9 +115,7 @@ struct LineupPitch: View {
                 if confirmed { PitchBadge.s11 }
                 else { PitchBadge.dot(player.status == .doubtful ? PitchColor.yellow : PitchColor.green) }
                 if player.alternative != nil && !confirmed {
-                    PitchBadge.swap(top: false)
-                        .contentShape(Rectangle().inset(by: -8))
-                        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { showAlternative.toggle() } }
+                    PitchBadge.swap(top: false) { withAnimation(.easeInOut(duration: 0.2)) { showAlternative.toggle() } }
                 }
             }
             .contentShape(Rectangle())

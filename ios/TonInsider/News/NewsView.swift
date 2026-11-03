@@ -13,6 +13,7 @@ struct NewsView: View {
         }
         .background(Color.tiBackground)
         .navigationTitle("News")
+        .tabRoot()
         .refreshable { await store.refresh() }
         .withSiteRoutes()
     }
@@ -23,6 +24,7 @@ struct NewsView: View {
             let groups = feed.dayGroups(now: now)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    PageHeader(title: "News", logo: true)
                     if !pinned.isEmpty {
                         Section {
                             rows(pinned, feed: feed, withDay: true, now: now)
@@ -46,6 +48,7 @@ struct NewsView: View {
             }
         } else if store.lastError != nil {
             VStack(spacing: 12) {
+                PageHeader(title: "News", logo: true).padding(.horizontal, 16)
                 EmptyNote(text: "Die News konnten nicht geladen werden.")
                 Button("Nochmal versuchen") { Task { await store.refresh() } }.buttonStyle(.bordered)
             }
@@ -94,6 +97,7 @@ struct DayBand<Content: View>: View {
 private struct SkeletonFeed: View {
     var body: some View {
         VStack(spacing: 0) {
+            PageHeader(title: "News", logo: true)
             ForEach(0..<7, id: \.self) { _ in
                 HStack(spacing: 16) {
                     Circle().fill(Color.tiSurface).frame(width: 64, height: 64)

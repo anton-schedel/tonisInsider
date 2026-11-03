@@ -12,6 +12,7 @@ struct MyTeamView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                PageHeader(title: "Mein Team")
                 if let team = model.team {
                     content(team)
                 } else if model.loading {
@@ -25,6 +26,7 @@ struct MyTeamView: View {
         }
         .background(Color.tiBackground)
         .navigationTitle("Mein Team")
+        .tabRoot()
         .refreshable { await model.load() }
         .task {
             model.loadCached()
@@ -85,13 +87,12 @@ struct MyTeamView: View {
                     rows(bench, team: team)
                 }
             }
-            Button("Abmelden", role: .destructive) {
+            Button("Abmelden") {
                 Task {
                     if let problem = await account.logOutKickbase() { logoutProblem = problem } else { await model.load() }
                 }
             }
-                .font(.system(size: 14, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 10)
-                .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12)).buttonStyle(.plain).padding(.top, 32)
+                .buttonStyle(.destructiveQuiet).padding(.top, 32)
         }
     }
 

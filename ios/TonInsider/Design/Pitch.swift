@@ -139,11 +139,17 @@ enum PitchBadge {
             .pinned(.topTrailing, x: 8, y: -3)
     }
 
-    /// ⇄: someone else may play here (tap flips where the screen allows it).
-    static func swap(top: Bool) -> some View {
+    /// ⇄: someone else may play here. With an action it flips to him; its tap area is the badge (a little
+    /// bigger than it looks), never the photo, which opens the card.
+    static func swap(top: Bool, action: (() -> Void)? = nil) -> some View {
         Text("⇄").font(.system(size: 11, weight: .bold)).foregroundStyle(.black)
             .frame(width: 18, height: 18).background(PitchColor.yellow, in: Circle())
             .overlay(Circle().stroke(.white, lineWidth: 2))
+            .padding(8)
+            .contentShape(Circle())
+            .onTapGesture { action?() }
+            .allowsHitTesting(action != nil)
+            .padding(-8)
             .pinned(top ? .topLeading : .bottomLeading, x: -2, y: top ? -2 : 2)
     }
 

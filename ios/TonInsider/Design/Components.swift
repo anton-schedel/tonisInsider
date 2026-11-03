@@ -135,3 +135,29 @@ extension View {
         frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment).offset(x: x, y: y)
     }
 }
+
+/// A tab's title as the website draws it (Base.astro header): 28 pt bold, close under the status bar, our wordmark
+/// on the right where the site shows it (News, Einstellungen). Replaces the system's large title, which left a lot
+/// of space above it.
+struct PageHeader: View {
+    let title: String
+    var logo = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(title).font(.system(size: 28, weight: .bold)).tracking(-0.84).lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            if logo { Image("Wordmark").resizable().scaledToFit().frame(height: 26).accessibilityLabel("TonInsider") }
+        }
+        .frame(minHeight: 44)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+}
+
+extension View {
+    /// A tab's root screen: our own header instead of the navigation bar (pushed pages keep theirs).
+    func tabRoot() -> some View {
+        toolbar(.hidden, for: .navigationBar)
+    }
+}

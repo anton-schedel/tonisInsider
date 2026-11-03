@@ -28,7 +28,8 @@ struct PlayerCardData: Codable, Hashable, Identifiable, Sendable {
 
 extension PlayerCardData {
     /// A predicted starter (or his alternative) on a club's pitch.
-    init(_ p: PlayerRef, lineup: Lineup, feed: AppFeed, pos: String?, status: (String, Tone)) {
+    /// `news`: his articles when already looked up (the scouting list does it once for everyone).
+    init(_ p: PlayerRef, lineup: Lineup, feed: AppFeed, pos: String?, status: (String, Tone), news: [Article]? = nil) {
         let fixture = feed.fixtures.first { $0.home == lineup.club.slug || $0.away == lineup.club.slug }
         let home = fixture?.home == lineup.club.slug
         let insight = feed.insights[String(p.id)]
@@ -37,7 +38,7 @@ extension PlayerCardData {
             tone: "\(status.1)", pos: pos, goal: insight?.goal, scorer: insight?.scorer, card: insight?.card,
             cleanSheet: fixture?.cleanSheet.map { home ? $0.home : $0.away },
             win: fixture?.chances.map { home ? $0.home : $0.away },
-            news: feed.newsOf(player: p.id).prefix(3).map { CardNews(id: $0.id, title: $0.headline, type: $0.newsType, at: $0.publishedAt) }
+            news: (news ?? feed.newsOf(player: p.id)).prefix(3).map { CardNews(id: $0.id, title: $0.headline, type: $0.newsType, at: $0.publishedAt) }
         )
     }
 }

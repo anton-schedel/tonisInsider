@@ -16,7 +16,8 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 36) {
+            VStack(alignment: .leading, spacing: 28) {
+                PageHeader(title: "Einstellungen", logo: true).padding(.bottom, -12)
                 section("Darstellung") {
                     Picker("Darstellung", selection: Binding(
                         get: { appearance ?? (colorScheme == .dark ? .dark : .light) },
@@ -49,12 +50,12 @@ struct SettingsView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
             .padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Color.tiBackground)
         .navigationTitle("Einstellungen")
+        .tabRoot()
         .alert(logoutProblem ?? "", isPresented: Binding(get: { logoutProblem != nil }, set: { if !$0 { logoutProblem = nil } })) {}
     }
 
@@ -80,7 +81,7 @@ private struct SignedIn: View {
             } label: {
                 if busy { ProgressView() } else { Text("Abmelden") }
             }
-            .buttonStyle(.quiet)
+            .buttonStyle(.destructiveQuiet)
             .disabled(busy)
         }
     }

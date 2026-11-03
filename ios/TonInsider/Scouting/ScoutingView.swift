@@ -18,12 +18,14 @@ extension AppFeed {
     /// Every squad player with the card his club page would show; full names, so a search finds first names too.
     func allPlayers() -> [PlayerEntry] {
         var out: [Int: PlayerEntry] = [:]
+        // Each player's articles, looked up once for everyone (newest first, like the feed).
+        let newsByPlayer = Dictionary(grouping: articles.filter { $0.player != nil }, by: { $0.player!.id })
         for lineup in lineups {
             let confirmedXI = confirmed.contains(lineup.club.id)
             let fullName = Dictionary((lineup.squad ?? []).map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
             func add(_ p: PlayerRef, rank: Int, pos: String?, status: (String, Tone)) {
                 guard out[p.id] == nil else { return }
-                var card = PlayerCardData(p, lineup: lineup, feed: self, pos: pos, status: status)
+                var card = PlayerCardData(p, lineup: lineup, feed: self, pos: pos, status: status, news: newsByPlayer[p.id] ?? [])
                 card.name = fullName[p.id] ?? p.name
                 out[p.id] = PlayerEntry(id: p.id, name: card.name, club: lineup.club.name, photo: p.photo, crest: lineup.club.crest,
                                         rank: rank, card: card, key: fold("\(card.name) \(lineup.club.name)"))
@@ -47,87 +49,110 @@ func fold(_ s: String) -> String {
 }
 
 /// Scouting (src/pages/scouting.astro): search every squad player; the scout list with its players' news;
-/// without one, players in this week's news to start with.
+/// without one, players in this week's news to start with. The player list is built in the background (FeedStore).
 struct ScoutingView: View {
     @Environment(FeedStore.self) private var feedStore
     @Environment(ScoutStore.self) private var scout
     @State private var query = ""
     @State private var card: PlayerCardData?
+    @FocusState private var searching: Bool
 
     var body: some View {
         let byId = feedStore.players
-        List {
-            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
-                let q = fold(query.trimmingCharacters(in: .whitespaces))
-                let hits = byId.values.filter { $0.key.contains(q) }.sorted { ($0.rank, $0.name) < ($1.rank, $1.name) }
-                Section {
-                    if hits.isEmpty { Text("Kein Spieler gefunden.").foregroundStyle(Color.tiMuted) }
-                    ForEach(hits.prefix(40)) { row($0) }
-                    if hits.count > 40 { Text("\(hits.count - 40) weitere: genauer suchen.").font(.system(size: 12)).foregroundStyle(Color.tiMuted) }
-                }
-            } else {
-                Section {
+        let q = fold(query.trimmingCharacters(in: .whitespaces))
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                PageHeader(title: "Scouting")
+                searchField.padding(.bottom, 12)
+                if !q.isEmpty {
+                    let hits = byId.values.filter { $0.key.contains(q) }.sorted { ($0.rank, $0.name) < ($1.rank, $1.name) }
+                    if byId.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24) }
+                    else if hits.isEmpty { EmptyNote(text: "Kein Spieler gefunden.") }
+                    rows(Array(hits.prefix(40)), latestNews: false)
+                    if hits.count > 40 {
+                        Text("\(hits.count - 40) weitere: genauer suchen.").font(.system(size: 12)).foregroundStyle(Color.tiMuted)
+                            .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    }
+                } else {
+                    SectionTitle(title: "Scoutliste", detail: scout.state.ids.isEmpty ? nil : "\(scout.state.ids.count)")
+                        .padding(.top, 16).padding(.bottom, 4)
                     if scout.state.ids.isEmpty {
                         Text("Beobachte Spieler, die du nicht im Team hast: Ihre News landen hier, und der Tab zeigt dir, wenn es Neues gibt.")
-                            .foregroundStyle(Color.tiMuted)
+                            .font(.system(size: 15)).foregroundStyle(Color.tiMuted).padding(.vertical, 4)
+                        let suggest = suggestions(byId)
+                        if !suggest.isEmpty {
+                            Text("Gerade in den News").font(.system(size: 15, weight: .semibold)).padding(.top, 20).padding(.bottom, 4)
+                            rows(suggest, latestNews: true)
+                        }
+                    } else {
+                        rows(scout.state.ids.compactMap { byId[$0] }, latestNews: true)
                     }
-                    ForEach(scout.state.ids.compactMap { byId[$0] }) { row($0, latestNews: true) }
-                } header: {
-                    HStack {
-                        Text("Scoutliste")
-                        Spacer()
-                        if !scout.state.ids.isEmpty { Text("\(scout.state.ids.count)").monospacedDigit() }
-                    }
-                } footer: {
                     Text(scout.state.account ? "Gespeichert mit deinem Konto, auch auf der Website." : "Nur auf diesem iPhone gespeichert. Melde dich an, um sie mit der Website zu teilen.")
-                        .font(.system(size: 12)).foregroundStyle(Color.tiMuted)
-                }
-                if scout.state.ids.isEmpty, let feed = feedStore.feed {
-                    // Something to scout right away: players in this week's news.
-                    let week = Date.now.addingTimeInterval(-7 * 86400)
-                    let ids = feed.visibleArticles(now: .now).filter { $0.publishedAt >= week }.compactMap { $0.player?.id }
-                    let suggest = ids.reduce(into: [Int]()) { if !$0.contains($1) { $0.append($1) } }.prefix(8).compactMap { byId[$0] }
-                    if !suggest.isEmpty {
-                        Section("Gerade in den News") { ForEach(suggest) { row($0, latestNews: true) } }
-                    }
+                        .font(.system(size: 12)).foregroundStyle(Color.tiMuted).padding(.top, 12)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 32)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.immediately)
         .background(Color.tiBackground)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Spieler oder Verein suchen")
         .navigationTitle("Scouting")
-        .overlay {
-            if byId.isEmpty && feedStore.feed != nil { ProgressView() }
-        }
+        .tabRoot()
         .onDisappear { Task { await scout.markSeen() } }
         .sheet(item: $card) { PlayerCardView(data: $0) }
         .withSiteRoutes()
     }
 
-    private func row(_ p: PlayerEntry, latestNews: Bool = false) -> some View {
-        HStack(spacing: 12) {
-            Button { card = p.card } label: {
-                HStack(spacing: 12) {
-                    Avatar(url: siteURL(p.photo), name: p.name, size: 44)
-                        .overlay(alignment: .bottomTrailing) { Crest(url: siteURL(p.crest), size: 18).offset(x: 4, y: 2) }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(p.name).font(.system(size: 16, weight: .semibold))
-                        if latestNews, let news = p.card.news?.first {
-                            Text(news.title).font(.system(size: 13)).foregroundStyle(Color.tiMuted).lineLimit(1)
-                        } else {
-                            Text(p.club).font(.system(size: 13)).foregroundStyle(Color.tiMuted)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
+    /// The site's search field (.search-field): grey, rounded, a clear button while there's text.
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.tiMuted)
+            TextField("Spieler oder Verein suchen", text: $query)
+                .textInputAutocapitalization(.never).autocorrectionDisabled().submitLabel(.search).focused($searching)
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Color.tiMuted) }
+                    .buttonStyle(.plain).accessibilityLabel("Suche leeren")
             }
-            .buttonStyle(.plain)
-            ScoutButton(playerId: p.id, compact: true)
         }
-        .listRowBackground(Color.tiBackground)
+        .font(.system(size: 16))
+        .padding(.horizontal, 14).frame(height: 44)
+        .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// Something to scout right away: players in this week's news.
+    private func suggestions(_ byId: [Int: PlayerEntry]) -> [PlayerEntry] {
+        guard let feed = feedStore.feed else { return [] }
+        let week = Date.now.addingTimeInterval(-7 * 86400)
+        var seen = Set<Int>()
+        return feed.visibleArticles(now: .now).filter { $0.publishedAt >= week }.compactMap { $0.player?.id }
+            .filter { seen.insert($0).inserted }.prefix(8).compactMap { byId[$0] }
+    }
+
+    private func rows(_ players: [PlayerEntry], latestNews: Bool) -> some View {
+        ForEach(Array(players.enumerated()), id: \.element.id) { index, p in
+            if index > 0 { Divider().overlay(Color.tiHairline).padding(.leading, 56) }
+            HStack(spacing: 12) {
+                Button { card = p.card } label: {
+                    HStack(spacing: 12) {
+                        Avatar(url: siteURL(p.photo), name: p.name, size: 44)
+                            .overlay { Crest(url: siteURL(p.crest), size: 18).pinned(.bottomTrailing, x: 4, y: 2) }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(p.name).font(.system(size: 16, weight: .semibold))
+                            if latestNews, let news = p.card.news?.first {
+                                Text(news.title).font(.system(size: 13)).foregroundStyle(Color.tiMuted).lineLimit(1)
+                            } else {
+                                Text(p.club).font(.system(size: 13)).foregroundStyle(Color.tiMuted)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                ScoutButton(playerId: p.id, compact: true)
+            }
+            .padding(.vertical, 10)
+        }
     }
 }
 
@@ -144,6 +169,7 @@ struct ScoutButton: View {
         } label: {
             if compact {
                 Image(systemName: on ? "star.fill" : "star").foregroundStyle(on ? Color.tiGold : Color.tiMuted).font(.system(size: 18))
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
             } else {
                 Label(on ? "Gescoutet" : "Scouten", systemImage: on ? "star.fill" : "star")
                     .font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 48)
