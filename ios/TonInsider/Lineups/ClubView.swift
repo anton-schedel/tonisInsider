@@ -79,17 +79,11 @@ struct LineupPitch: View {
 
     var body: some View {
         Pitch(lines: lineup.lines.map { Array($0.indices) }, mirror: true) { i, j in
-            Slot(player: lineup.lines[i][j], pos: Self.position(row: i, rows: lineup.lines.count), lineup: lineup, feed: feed,
+            Slot(player: lineup.lines[i][j], pos: rowPosition(i, rows: lineup.lines.count), lineup: lineup, feed: feed,
                  confirmed: confirmed, open: open)
         }
     }
 
-    /// TW for the first line, ST for the last, ABW and MF between (src/lib/card.ts rowPosition).
-    static func position(row: Int, rows: Int) -> String {
-        if row == 0 { return "TW" }
-        if row == rows - 1 { return "ST" }
-        return row == 1 ? "ABW" : "MF"
-    }
 
     private struct Slot: View {
         let player: LineupPlayer

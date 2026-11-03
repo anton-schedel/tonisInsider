@@ -110,9 +110,3 @@ struct PlayerCardView: View {
         .presentationDragIndicator(.visible)
     }
 }
-
-/// Stand-in until the scout list exists (Task 11).
-struct ScoutButton: View {
-    let playerId: Int
-    var body: some View { EmptyView() }
-}

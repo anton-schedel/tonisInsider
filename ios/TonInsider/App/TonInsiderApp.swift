@@ -3,8 +3,16 @@ import SwiftUI
 @main
 struct TonInsiderApp: App {
     @State private var feed = FeedStore()
-    @State private var account = Account()
+    @State private var account: Account
+    @State private var scout: ScoutStore
     @AppStorage("appearance") private var appearance: Appearance = .system
+
+    init() {
+        let account = Account()
+        _account = State(initialValue: account)
+        // The account's list once signed in to Kickbase or LigaInsider (the website's kbin/liin).
+        _scout = State(initialValue: ScoutStore { account.kickbase || account.ligaInsider })
+    }
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -12,6 +20,8 @@ struct TonInsiderApp: App {
             RootView()
                 .environment(feed)
                 .environment(account)
+                .environment(scout)
+                .onChange(of: account.kickbase || account.ligaInsider) { Task { await scout.load() } }
                 .preferredColorScheme(appearance.scheme)
                 .tint(Color.tiForeground)
                 .task {

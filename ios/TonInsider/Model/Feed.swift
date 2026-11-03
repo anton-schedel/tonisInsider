@@ -311,3 +311,10 @@ extension AppFeed {
 
     func lineup(slug: String) -> Lineup? { lineups.first { $0.club.slug == slug } }
 }
+
+/// TW for the first line, ST for the last, ABW and MF between (src/lib/card.ts rowPosition).
+func rowPosition(_ row: Int, rows: Int) -> String {
+    if row == 0 { return "TW" }
+    if row == rows - 1 { return "ST" }
+    return row == 1 ? "ABW" : "MF"
+}

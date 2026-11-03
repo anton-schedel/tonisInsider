@@ -18,6 +18,11 @@ final class Tabs {
 struct RootView: View {
     typealias Tab = Tabs.Tab
     @State private var tabs = Tabs()
+    @Environment(FeedStore.self) private var feed
+    @Environment(ScoutStore.self) private var scout
+
+    /// Scouted players with news since the list was last looked at.
+    private var unseen: Int { feed.feed.map { scout.state.unseen(in: $0).count } ?? 0 }
 
     var body: some View {
         @Bindable var tabs = tabs
@@ -32,25 +37,14 @@ struct RootView: View {
                 NavigationStack { MyTeamView() }
             }
             SwiftUI.Tab("Scouting", systemImage: "magnifyingglass", value: Tab.scouting) {
-                NavigationStack { Placeholder(title: "Scouting") }
+                NavigationStack { ScoutingView() }
             }
+            .badge(unseen)
             SwiftUI.Tab("Einstellungen", systemImage: "gearshape", value: Tab.settings) {
                 NavigationStack { SettingsView() }
             }
         }
         .environment(tabs)
-    }
-}
-
-/// Stands in for a tab until its screen exists.
-private struct Placeholder: View {
-    let title: String
-    var body: some View {
-        Text(title)
-            .foregroundStyle(Color.tiMuted)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.tiBackground)
-            .navigationTitle(title)
     }
 }
 
