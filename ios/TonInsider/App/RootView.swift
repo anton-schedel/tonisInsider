@@ -9,7 +9,7 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $tab) {
             SwiftUI.Tab("News", systemImage: "newspaper", value: Tab.news) {
-                NavigationStack { Placeholder(title: "News") }
+                NavigationStack { NewsView() }
             }
             SwiftUI.Tab("Aufstellungen", systemImage: "sportscourt", value: Tab.lineups) {
                 NavigationStack { Placeholder(title: "Aufstellungen") }

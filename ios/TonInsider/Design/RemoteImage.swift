@@ -4,12 +4,14 @@ import SwiftUI
 struct RemoteImage: View {
     let url: URL?
     var contentMode: ContentMode = .fill
+    /// The grey placeholder behind (crests sit on the page without one).
+    var placeholder = true
 
     @State private var image: UIImage?
 
     var body: some View {
         ZStack {
-            Color.tiSurface
+            if placeholder { Color.tiSurface }
             if let image {
                 Image(uiImage: image)
                     .resizable()

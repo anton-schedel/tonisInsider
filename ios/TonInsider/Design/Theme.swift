@@ -14,6 +14,10 @@ extension Color {
     static let tiYellow = Color(light: 0xA05A00, dark: 0xFFD60A)
     static let tiGreen = Color(light: 0x248A3D, dark: 0x30D158)
     static let tiGrey = Color(light: 0x6E6E73, dark: 0xA1A1A6)
+    static let tiRedBackground = Color(light: 0xFFEBE9, dark: 0x3A1513)
+    static let tiYellowBackground = Color(light: 0xFFF4D6, dark: 0x2F2A10)
+    static let tiGreenBackground = Color(light: 0xE3F7E8, dark: 0x0F2F17)
+    static let tiGreyBackground = Color(light: 0xF0F0F2, dark: 0x1F1F21)
     static let tiLive = Color(light: 0xFF453A, dark: 0xFF453A)
     /// The pitch's two grass stripes, the same in light and dark mode (.pitch in global.css).
     static let tiPitch = Color(light: 0x2F8C46, dark: 0x2F8C46)

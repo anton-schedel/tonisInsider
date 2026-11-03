@@ -180,6 +180,37 @@ enum Berlin {
         return c
     }()
 
+    private static func format() -> Date.FormatStyle {
+        Date.FormatStyle(locale: Locale(identifier: "de_DE"), calendar: calendar, timeZone: timeZone)
+    }
+
+    /// "13:00"
+    static func time(_ date: Date) -> String {
+        date.formatted(format().hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    }
+
+    /// "Di. 03.11."
+    static func shortDay(_ date: Date) -> String {
+        // Foundation writes "Di", the site (Intl) "Di.".
+        var weekday = date.formatted(format().weekday(.abbreviated))
+        if !weekday.hasSuffix(".") { weekday += "." }
+        let day = date.formatted(format().day(.twoDigits).month(.twoDigits))
+        return "\(weekday) \(day)"
+    }
+
+    /// "Heute · Di. 03.11.", "Gestern · Mo. 02.11.", else "Sa. 31.10." (src/lib/format.ts dayLabel).
+    static func dayLabel(_ date: Date, now: Date) -> String {
+        let label = shortDay(date)
+        if dayKey(date) == dayKey(now) { return "Heute · \(label)" }
+        if dayKey(date) == dayKey(now.addingTimeInterval(-86400)) { return "Gestern · \(label)" }
+        return label
+    }
+
+    /// "03.11.2026 · 13:00" (fullDate)
+    static func full(_ date: Date) -> String {
+        "\(date.formatted(format().day(.twoDigits).month(.twoDigits).year())) · \(time(date))"
+    }
+
     static func dayKey(_ date: Date) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
