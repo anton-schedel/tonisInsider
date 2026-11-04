@@ -45,7 +45,7 @@ async function watchNews(env: Env): Promise<void> {
       .catch((): { seen?: number } => ({})),
   ]);
   if (!html || !newsWaiting(newestListed(html), version.seen)) return;
-  // Not again right after a run (it may be one the scraper skips, or the site's deploy still on its way);
+  // Not while a run is on its way, and at most 3 starts in 10 minutes (lib/newsWatch.ts runRecently);
   // unknown (GitHub not reachable): no early start, the 5-minute run comes anyway.
   const runs = await latestRuns(fetch, env.GH_DISPATCH_TOKEN);
   if (!runs || runRecently(runs, Date.now())) return;

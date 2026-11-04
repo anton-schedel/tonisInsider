@@ -32,12 +32,19 @@ describe("newsWaiting", () => {
 });
 
 describe("runRecently", () => {
-  const now = Date.parse("2026-11-04T12:10:00Z");
-  it("a run queued, running or started in the last 4 minutes holds the next one back", () => {
-    expect(runRecently([{ status: "completed", created_at: "2026-11-04T12:07:00Z" }], now)).toBe(true);
-    expect(runRecently([{ status: "in_progress", created_at: "2026-11-04T11:50:00Z" }], now)).toBe(true);
-    expect(runRecently([{ status: "queued", created_at: "2026-11-04T11:50:00Z" }], now)).toBe(true);
-    expect(runRecently([{ status: "completed", created_at: "2026-11-04T12:05:30Z" }], now)).toBe(false);
-    expect(runRecently([], now)).toBe(false);
+  const now = Date.parse("2026-11-04T12:37:00Z");
+  const run = (created_at: string, status = "completed") => ({ status, created_at });
+  it("holds back while a run waits or runs, or right after one started", () => {
+    expect(runRecently([run("2026-11-04T11:50:00Z", "in_progress")], now)).toBe(true);
+    expect(runRecently([run("2026-11-04T11:50:00Z", "queued")], now)).toBe(true);
+    expect(runRecently([run("2026-11-04T12:36:00Z")], now)).toBe(true);
+  });
+
+  it("lets one early run in between the 5-minute slots (today's 12:35 article would have been in at 12:37)", () => {
+    expect(runRecently([run("2026-11-04T12:35:06Z"), run("2026-11-04T12:30:06Z"), run("2026-11-04T12:25:38Z")], now)).toBe(false);
+  });
+
+  it("no more than 3 runs in 10 minutes: a check that's wrong costs at most one extra run", () => {
+    expect(runRecently([run("2026-11-04T12:35:06Z"), run("2026-11-04T12:32:00Z"), run("2026-11-04T12:30:06Z")], now)).toBe(true);
   });
 });

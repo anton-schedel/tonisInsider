@@ -22,12 +22,20 @@ export function newsWaiting(listed: number | undefined, seen: number | undefined
   return listed !== undefined && seen !== undefined && listed > seen;
 }
 
-/** The brake: within 4 minutes of a run's start, or while one waits or runs, no other one (never one per minute). */
-export const RUN_GAP_MS = 4 * 60_000;
+/**
+ * The brake: none while a run waits or runs or right after one started, and no more than 3 starts in 10 minutes
+ * (the 5-minute slots make 2): one early run fits between the slots, and a check that goes wrong costs at most
+ * one extra run per 10 minutes — never one per minute.
+ */
+const JUST_STARTED_MS = 90_000;
+const WINDOW_MS = 10 * 60_000;
+const MAX_IN_WINDOW = 3;
 export type WorkflowRun = { status: string; created_at: string };
 
 export function runRecently(runs: WorkflowRun[], now: number): boolean {
-  return runs.some((r) => r.status === "queued" || r.status === "in_progress" || r.status === "waiting" || now - Date.parse(r.created_at) < RUN_GAP_MS);
+  const age = (r: WorkflowRun) => now - Date.parse(r.created_at);
+  return runs.some((r) => r.status === "queued" || r.status === "in_progress" || r.status === "waiting" || age(r) < JUST_STARTED_MS)
+    || runs.filter((r) => age(r) < WINDOW_MS).length >= MAX_IN_WINDOW;
 }
 
 /** LigaInsider's overview, or undefined when it can't be read (then the 5-minute run catches up). */

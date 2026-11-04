@@ -28,7 +28,7 @@ export async function dispatchScrape(fetchFn: typeof fetch, token: string | unde
 /** The scrape workflow's latest runs (to hold back a start right after another one). */
 export async function latestRuns(fetchFn: typeof fetch, token: string | undefined): Promise<{ status: string; created_at: string }[] | undefined> {
   if (!token) return undefined;
-  const res = await fetchFn(WORKFLOW_DISPATCH_URL.replace(/dispatches$/, "runs?per_page=3"), {
+  const res = await fetchFn(WORKFLOW_DISPATCH_URL.replace(/dispatches$/, "runs?per_page=5"), {
     headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "tonisinsider-cron", "x-github-api-version": "2022-11-28" },
   });
   if (!res.ok) return undefined;
