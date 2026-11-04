@@ -13,8 +13,17 @@ export function writeSnapshot(store: Store, file: string): void {
   writeFileSync(file, JSON.stringify(snapshot));
 }
 
-/** What the site's open pages poll to notice updates: the newest Bundesliga article and the last change. */
-export type Version = { newest?: number; updated?: string };
+/**
+ * What the site's open pages poll to notice updates: the newest Bundesliga article (by time) and the last change.
+ * seen: the highest article id the scraper knows, skipped ones included — what the Worker's minute check compares
+ * LigaInsider's overview with (src/lib/newsWatch.ts); ids don't follow the time, so `newest` can't serve.
+ */
+export type Version = { newest?: number; seen?: number; updated?: string };
+
+export function seenArticleId(articles: Pick<Article, "id">[], state: Pick<State, "unavailable" | "invalid">): number | undefined {
+  const ids = [...articles.map((a) => a.id), ...Object.keys(state.unavailable ?? {}).map(Number), ...Object.keys(state.invalid ?? {}).map(Number)];
+  return ids.length ? Math.max(...ids) : undefined;
+}
 
 export function newestArticleId(articles: Article[]): number | undefined {
   return articles
@@ -23,7 +32,9 @@ export function newestArticleId(articles: Article[]): number | undefined {
 }
 
 export function writeVersion(store: Store, file: string): void {
-  const version: Version = { newest: newestArticleId(store.articles()), updated: store.state().lastChangeAt };
+  const version: Version = {
+    newest: newestArticleId(store.articles()), seen: seenArticleId(store.articles(), store.state()), updated: store.state().lastChangeAt,
+  };
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(version));
 }

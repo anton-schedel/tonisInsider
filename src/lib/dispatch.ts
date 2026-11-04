@@ -24,3 +24,13 @@ export async function dispatchScrape(fetchFn: typeof fetch, token: string | unde
   });
   if (!res.ok) throw new Error(`GitHub workflow dispatch failed: HTTP ${res.status}`);
 }
+
+/** The scrape workflow's latest runs (to hold back a start right after another one). */
+export async function latestRuns(fetchFn: typeof fetch, token: string | undefined): Promise<{ status: string; created_at: string }[] | undefined> {
+  if (!token) return undefined;
+  const res = await fetchFn(WORKFLOW_DISPATCH_URL.replace(/dispatches$/, "runs?per_page=3"), {
+    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "tonisinsider-cron", "x-github-api-version": "2022-11-28" },
+  });
+  if (!res.ok) return undefined;
+  return ((await res.json()) as { workflow_runs?: { status: string; created_at: string }[] }).workflow_runs ?? [];
+}

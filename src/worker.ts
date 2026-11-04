@@ -1,18 +1,16 @@
 // Worker entry: Astro serves the site (fetch); a Cloudflare cron trigger (wrangler.jsonc) keeps it fresh.
 import { handle } from "@astrojs/cloudflare/handler";
-import { dispatchScrape } from "./lib/dispatch.ts";
+import { dispatchScrape, latestRuns } from "./lib/dispatch.ts";
 import { runDueJobs } from "./lib/coachBotJob.ts";
 import { modelFromEnv } from "./lib/coachBots.ts";
 import { fromCookieResponse, isAppRequest, toCookieRequest } from "./lib/appSession.ts";
-import { fetchOverview, newestListed, newsWaiting } from "./lib/newsWatch.ts";
+import { fetchOverview, newestListed, newsWaiting, runRecently } from "./lib/newsWatch.ts";
 import type { D1 } from "cloudflare:workers";
 
 type Env = {
   GH_DISPATCH_TOKEN?: string; COMMENTS?: D1; CREDENTIALS_KEY?: string; ASSETS: { fetch(req: Request | string): Promise<Response> };
 } & Parameters<typeof modelFromEnv>[0];
 
-/** The run started for an article the site doesn't have yet (kept an hour, so a skipped article isn't retried every minute). */
-const STARTED = "https://news-watch.internal/started";
 
 export default {
   // The iOS app's requests carry its session as a token (lib/appSession.ts); everything else as before.
@@ -42,13 +40,14 @@ export default {
 async function watchNews(env: Env): Promise<void> {
   const [html, version] = await Promise.all([
     fetchOverview(fetch),
-    env.ASSETS.fetch("https://assets.local/data/version.json").then((r) => (r.ok ? (r.json() as Promise<{ newest?: number }>) : {})).catch(() => ({})),
+    env.ASSETS.fetch("https://assets.local/data/version.json")
+      .then((r): Promise<{ seen?: number }> => (r.ok ? (r.json() as Promise<{ seen?: number }>) : Promise.resolve({})))
+      .catch((): { seen?: number } => ({})),
   ]);
-  if (!html) return;
-  const listed = newestListed(html);
-  const cache = (caches as unknown as { default: Cache }).default;
-  const started = Number(await (await cache.match(STARTED))?.text()) || undefined;
-  if (!newsWaiting(listed, (version as { newest?: number }).newest, started)) return;
+  if (!html || !newsWaiting(newestListed(html), version.seen)) return;
+  // Not again right after a run (it may be one the scraper skips, or the site's deploy still on its way);
+  // unknown (GitHub not reachable): no early start, the 5-minute run comes anyway.
+  const runs = await latestRuns(fetch, env.GH_DISPATCH_TOKEN);
+  if (!runs || runRecently(runs, Date.now())) return;
   await dispatchScrape(fetch, env.GH_DISPATCH_TOKEN);
-  await cache.put(STARTED, new Response(String(listed), { headers: { "cache-control": "max-age=3600" } }));
 }

@@ -17,10 +17,17 @@ export function newestListed(html: string): number | undefined {
   return newest;
 }
 
-/** A run is worth starting: LigaInsider lists a newer article than the site has, and none was started for it yet. */
-export function newsWaiting(listed: number | undefined, ours: number | undefined, started: number | undefined): boolean {
-  if (listed === undefined || ours === undefined) return false;
-  return listed > ours && listed !== started;
+/** A run is worth starting: LigaInsider lists an article newer than the highest id the scraper knows (version.json seen). */
+export function newsWaiting(listed: number | undefined, seen: number | undefined): boolean {
+  return listed !== undefined && seen !== undefined && listed > seen;
+}
+
+/** The brake: within 4 minutes of a run's start, or while one waits or runs, no other one (never one per minute). */
+export const RUN_GAP_MS = 4 * 60_000;
+export type WorkflowRun = { status: string; created_at: string };
+
+export function runRecently(runs: WorkflowRun[], now: number): boolean {
+  return runs.some((r) => r.status === "queued" || r.status === "in_progress" || r.status === "waiting" || now - Date.parse(r.created_at) < RUN_GAP_MS);
 }
 
 /** LigaInsider's overview, or undefined when it can't be read (then the 5-minute run catches up). */

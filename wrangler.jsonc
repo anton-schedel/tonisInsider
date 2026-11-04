@@ -8,6 +8,7 @@
   "d1_databases": [
     { "binding": "COMMENTS", "database_name": "tonisinsider-comments", "database_id": "b1c9699c-44aa-4592-8990-db27053ae88d" }
   ],
-  // Every 5 minutes: start the scrape workflow on GitHub (see src/worker.ts).
-  "triggers": { "crons": ["*/5 * * * *"] }
+  // Every minute: the scrape workflow on GitHub every 5 minutes, in between a quick look for new articles
+  // that starts it at once — at most one run per 4 minutes (see src/worker.ts).
+  "triggers": { "crons": ["* * * * *"] }
 }

@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "./store.ts";
-import { restoreFromSite, writeSnapshot, writeVersion } from "./snapshot.ts";
+import { restoreFromSite, seenArticleId, writeSnapshot, writeVersion } from "./snapshot.ts";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Article } from "./types.ts";
 
@@ -62,6 +62,16 @@ describe("writeVersion", () => {
     store.putState({ lastChangeAt: "2026-10-07T12:01:00.000Z" });
     const file = join(dir, "public", "data", "version.json");
     writeVersion(store, file);
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ newest: 7, updated: "2026-10-07T12:01:00.000Z" });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ newest: 7, seen: 9, updated: "2026-10-07T12:01:00.000Z" });
+  });
+});
+
+describe("seenArticleId", () => {
+  it("the highest article id the scraper knows, skipped ones included (not the latest by time)", () => {
+    const a = (id: number, publishedAt: string) => ({ id, category: "bundesliga", publishedAt }) as Article;
+    // 420283 came out after 420288: LigaInsider's ids don't follow the time.
+    expect(seenArticleId([a(420288, "2026-11-04T10:00:00Z"), a(420283, "2026-11-04T11:00:00Z")], {})).toBe(420288);
+    expect(seenArticleId([a(420288, "2026-11-04T10:00:00Z")], { unavailable: { "420290": "x" }, invalid: { "420289": "y" } })).toBe(420290);
+    expect(seenArticleId([], {})).toBeUndefined();
   });
 });
