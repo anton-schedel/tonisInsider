@@ -28,10 +28,11 @@ struct TonInsiderApp: App {
                 .task { await scout.load() }
                 .task {
                     await feed.loadCached()
-                    // While the app is open: a fresh feed every 5 minutes (the scraper's pace).
+                    // While the app is open: a look every 30 s. Unchanged, the site answers 304 without the feed
+                    // (ETag); new articles reach the site within about a minute (the Worker's news check).
                     while !Task.isCancelled {
                         await feed.refresh()
-                        try? await Task.sleep(for: .seconds(300))
+                        try? await Task.sleep(for: .seconds(30))
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in

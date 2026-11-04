@@ -1,4 +1,5 @@
-// Starts the scrape workflow on GitHub. Called by the Worker's Cloudflare cron trigger every 5 minutes,
+// Starts the scrape workflow on GitHub. Called by the Worker's Cloudflare cron trigger every 5 minutes (and at once
+// when the minute check sees a new LigaInsider article),
 // because GitHub's own scheduler is best-effort (late or skipped runs) and our news must be fresh.
 
 export const WORKFLOW_DISPATCH_URL =

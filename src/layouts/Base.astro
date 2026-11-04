@@ -489,7 +489,8 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         }
       }
 
-      setInterval(() => check(false), 60_000);
+      // Every 30 s: the scraper starts within a minute of a new LigaInsider article (src/lib/newsWatch.ts).
+      setInterval(() => check(false), 30_000);
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") hiddenAt = Date.now();
         else if (hiddenAt && Date.now() - hiddenAt > 60_000) check(true);
