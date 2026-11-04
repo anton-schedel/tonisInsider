@@ -149,7 +149,7 @@ final class CommentsModel {
             comments += withMine(page.comments.filter { !known.contains($0.id) })
             more = page.more
         } catch {
-            message = (error as? APIError)?.message
+            message = (error as? APIError)?.message ?? "Das hat nicht geklappt. Versuch es gleich nochmal."
         }
     }
 
@@ -169,7 +169,7 @@ final class CommentsModel {
             }
         } catch {
             update(id) { $0 = before }
-            message = (error as? APIError)?.message
+            message = (error as? APIError)?.message ?? "Das hat nicht geklappt. Versuch es gleich nochmal."
         }
     }
 
@@ -192,7 +192,7 @@ final class CommentsModel {
                 update(id) { $0.poll = $0.poll?.with(vote: option) }
             }
         } catch {
-            message = (error as? APIError)?.message
+            message = (error as? APIError)?.message ?? "Das hat nicht geklappt. Versuch es gleich nochmal."
         }
     }
 
@@ -220,7 +220,7 @@ final class CommentsModel {
             }
             return true
         } catch {
-            message = (error as? APIError)?.message
+            message = (error as? APIError)?.message ?? "Das hat nicht geklappt. Versuch es gleich nochmal."
             return false
         }
     }
@@ -268,7 +268,20 @@ private struct OwnPost: Encodable {
     struct NewPoll: Encodable { let question: String; let options: [String] }
 }
 private struct OwnPostAnswer: Decodable { let ok: Bool?; let comment: ThreadComment? }
-private struct LigaAnswer: Decodable { let ok: Bool?; let commentId: Int? }
+/// LigaInsider's answer, passed through by li-comment: the new comment's id comes as text ("commentID": "123").
+private struct LigaAnswer: Decodable {
+    let ok: Bool?
+    let commentId: Int?
+
+    private enum CodingKeys: String, CodingKey { case ok, commentId }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try c.decodeIfPresent(Bool.self, forKey: .ok)
+        commentId = (try? c.decodeIfPresent(Int.self, forKey: .commentId))
+            ?? (try? c.decodeIfPresent(String.self, forKey: .commentId)).flatMap { $0.flatMap(Int.init) }
+    }
+}
 
 private struct LigaAction: Encodable {
     var thread: String

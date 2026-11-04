@@ -69,6 +69,30 @@ extension NetworkTests {
             #expect(again.comments.first { $0.id == 13 }?.poll?.mine == 2)
         }
 
+        @Test func aLigaVoteStaysWhenTheIdComesAsText() async throws {
+            // LigaInsider answers with the comment id as a string ("commentID": "…"), passed through as is.
+            StubProtocol.handler = { request in
+                if request.httpMethod == "POST" { return (response(200), Data(#"{"ok":true,"commentId":"11"}"#.utf8)) }
+                return (response(200), try fixture("liga-thread"))
+            }
+            let m = model(.liga(key: "420100", page: nil))
+            await m.load()
+            await m.toggleVote(13)
+            #expect(m.comments.first { $0.id == 13 }?.voted == true)
+            #expect(m.message == nil)
+        }
+
+        @Test func aLigaReplyWithATextIdShowsUp() async throws {
+            StubProtocol.handler = { request in
+                if request.httpMethod == "POST" { return (response(200), Data(#"{"ok":true,"commentId":"99"}"#.utf8)) }
+                return (response(200), try fixture("liga-thread"))
+            }
+            let m = model(.liga(key: "420100", page: nil))
+            await m.load()
+            #expect(await m.send(text: "Antwort", parent: 11, author: "toni"))
+            #expect(m.comments.first { $0.id == 11 }?.replies.last?.id == 99)
+        }
+
         @Test func aReplyFarDownStaysInPlace() async throws {
             StubProtocol.handler = { request in
                 let path = request.url!.path()
