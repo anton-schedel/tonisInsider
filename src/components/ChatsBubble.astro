@@ -49,7 +49,9 @@
   document.addEventListener("astro:page-load", () => {
     if (!document.querySelector("[data-chats-bubble]")) return;
     show(loggedIn() ? savedBadge() : 0);
-    void check();
+    // After the page has settled (images, comment counts): the look for news never competes with it.
+    const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1500));
+    idle(() => void check(), { timeout: 4000 });
   });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void check(); });
 </script>

@@ -263,11 +263,14 @@ const { thread, url } = Astro.props;
     const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
     const find = () => list.querySelector<HTMLElement>(`:scope > li[data-comment-id="${id}"]`);
     let li = find();
-    for (let i = 0; !li && thread?.more && i < 8; i++) {
+    for (let i = 0; !li && thread?.more && i < 12; i++) {
       await loadMore(section, btn);
       li = find();
     }
-    if (li) highlight(li);
+    if (!li) return;
+    // Batches grow in (revealIn): only once they've opened is the place to scroll to where it stays.
+    await Promise.all(list.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})));
+    highlight(li);
   }
 
   function setup(section: HTMLElement) {

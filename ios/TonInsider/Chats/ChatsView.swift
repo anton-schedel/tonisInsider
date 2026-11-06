@@ -68,26 +68,24 @@ struct ChatsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await reload() }
         .task { await reload() }
-        .onAppear { Analytics.screen("chats") }
+        .onAppear { model.isOpen = true; Analytics.screen("chats") }
+        .onDisappear { model.isOpen = false }
     }
 
+    /// Opening the list is a look for news too: the bubble's next one waits its turn.
     private func reload() async {
-        await model.load()
-        await model.refreshAll()
+        await model.check(force: true)
     }
 
     @ViewBuilder private func row(_ chat: ChatView) -> some View {
-        switch ChatTarget(link: chat.link) {
-        case .article(let id, let comment)? where chat.status != .over: link(ArticleRoute(id: id, comment: comment), chat)
-        case .club(let slug, let comment)? where chat.status != .over: link(ClubRoute(slug: slug, comment: comment), chat)
-        default: ChatRow(chat: chat)
+        let target = chat.status == .over ? nil : ChatTarget(link: chat.link)
+        if let route = target?.articleRoute(chat: chat.id) {
+            NavigationLink(value: route) { ChatRow(chat: chat) }.buttonStyle(.pressRow)
+        } else if let route = target?.clubRoute(chat: chat.id) {
+            NavigationLink(value: route) { ChatRow(chat: chat) }.buttonStyle(.pressRow)
+        } else {
+            ChatRow(chat: chat)
         }
-    }
-
-    private func link(_ route: some Hashable, _ chat: ChatView) -> some View {
-        NavigationLink(value: route) { ChatRow(chat: chat) }
-            .buttonStyle(.pressRow)
-            .simultaneousGesture(TapGesture().onEnded { Task { await model.open(chat.id) } })
     }
 
     private func note(_ text: String, @ViewBuilder action: () -> some View) -> some View {

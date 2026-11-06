@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// An article; `comment`: the conversation to show (from "Deine Chats").
-struct ArticleRoute: Hashable { let id: Int; var comment: Int? = nil }
+/// An article; from "Deine Chats": `comment`, the conversation to show, and `chat`, marked seen when it opens.
+struct ArticleRoute: Hashable { let id: Int; var comment: Int? = nil; var chat: Int? = nil }
 
 /// The News tab (src/pages/index.astro): pinned posts on top, then the feed by day under slim sticky bands.
 struct NewsView: View {

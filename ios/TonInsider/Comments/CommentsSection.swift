@@ -105,7 +105,7 @@ struct CommentsSection: View {
         // Once: coming back from another tab keeps the pages loaded with "more" and the place he was at.
         .task {
             if !model.loaded { await model.load() }
-            guard let focus, await model.reveal(focus) else { return }
+            guard let focus, await model.takeFocus(focus) else { return }
             highlighted = focus
             // Once the comments just loaded are laid out, or the scroll has nothing to go to.
             try? await Task.sleep(for: .milliseconds(250))

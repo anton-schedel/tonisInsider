@@ -153,10 +153,19 @@ final class CommentsModel {
         }
     }
 
-    /// A link from "Deine Chats": loads batches until the conversation (a top-level comment) is there; false when it
-    /// isn't after 8 more.
+    /// The conversation a link from "Deine Chats" points at, shown once: coming back to the page doesn't pull
+    /// the reader down to it again.
+    private var focusShown = false
+
+    func takeFocus(_ id: Int) async -> Bool {
+        guard !focusShown, await reveal(id) else { return false }
+        focusShown = true
+        return true
+    }
+
+    /// Loads batches until the conversation (a top-level comment) is there; false when it isn't after 12 more.
     func reveal(_ id: Int) async -> Bool {
-        for _ in 0..<8 {
+        for _ in 0..<12 {
             if comments.contains(where: { $0.id == id }) { return true }
             guard hasMore else { return false }
             await loadMore()

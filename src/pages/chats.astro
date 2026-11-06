@@ -87,6 +87,16 @@ import Base from "../layouts/Base.astro";
     rows.clear();
     const list = section.querySelector<HTMLElement>("[data-chats-list]")!;
     const empty = section.querySelector<HTMLElement>("[data-chats-empty]")!;
+    // Opening one, also while the list is still being read: seen on every device; the article opens at the
+    // conversation.
+    list.addEventListener("click", (e) => {
+      const a = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[data-chat]") : null;
+      if (!a) return;
+      const id = Number(a.dataset.chat);
+      markSeen(id);
+      const c = rows.get(id);
+      if (c?.news) put(list, { ...c, news: undefined });
+    });
     const say = (text: string, link?: { href: string; label: string }) => {
       list.replaceChildren();
       empty.replaceChildren(text);
@@ -109,15 +119,6 @@ import Base from "../layouts/Base.astro";
       if (!rows.size) say("Deine Chats konnten gerade nicht geladen werden.");
     }
 
-    // Opening one: seen on every device; the article opens at the conversation.
-    list.addEventListener("click", (e) => {
-      const a = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[data-chat]") : null;
-      if (!a) return;
-      const id = Number(a.dataset.chat);
-      markSeen(id);
-      const c = rows.get(id);
-      if (c?.news) put(list, { ...c, news: undefined });
-    });
   }
 
   document.addEventListener("astro:page-load", () => void boot());

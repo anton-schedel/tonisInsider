@@ -49,7 +49,7 @@ extension NetworkTests {
             await m.refreshAll()
             #expect(m.chats.map(\.id) == [1, 2])
             #expect(m.chats.map(\.lines.status) == ["Kalle: „Ja“", "▲ 4 · 1 Antwort"])
-            #expect(asked.value.contains { $0.hasPrefix("/api/chats/1/?") && $0.contains("cursor=5") && $0.contains("offset=10") })
+            #expect(asked.value.contains { $0.hasPrefix("/api/chats/1/?") && $0.contains("cursor=5") && $0.contains("offset=10") && $0.contains("n=1") })
         }
 
         @Test func looksForNewsAtMostEveryThreeMinutes() async throws {
@@ -94,6 +94,33 @@ extension NetworkTests {
             #expect(ChatTarget(link: "/vereine/bayer-leverkusen/#c5") == .club(slug: "bayer-leverkusen", comment: 5))
             #expect(ChatTarget(link: "/#c5") == nil)
             #expect(ChatTarget(link: "/artikel/420300/") == nil)
+            // The route carries the chat, so the page marks it seen when it opens.
+            #expect(ChatTarget(link: "/artikel/420300/#c77")?.articleRoute(chat: 3) == ArticleRoute(id: 420300, comment: 77, chat: 3))
+            #expect(ChatTarget(link: "/vereine/bayer-leverkusen/#c5")?.clubRoute(chat: 4) == ClubRoute(slug: "bayer-leverkusen", comment: 5, chat: 4))
+            #expect(ChatTarget(link: "/vereine/bayer-leverkusen/#c5")?.articleRoute(chat: 4) == nil)
+        }
+
+        @Test func whileTheListIsOpenRowsKeepTheirPlace() async throws {
+            let order = Box([1, 2])
+            StubProtocol.handler = { _ in (response(200), listJSON(order.value.map { chatJSON($0, line: "jetzt \($0)") }.joined(separator: ","))) }
+            let m = model()
+            await m.load()
+            m.isOpen = true
+            order.value = [2, 1, 3]
+            await m.load()
+            #expect(m.chats.map(\.id) == [1, 2, 3])
+            #expect(m.chats[0].lines.status == "jetzt 1")
+            m.isOpen = false
+            await m.load()
+            #expect(m.chats.map(\.id) == [2, 1, 3])
+        }
+
+        @Test func theConversationIsShownOnlyTheFirstTime() async throws {
+            StubProtocol.handler = { _ in (response(200), try fixture("liga-thread")) }
+            let m = CommentsModel(thread: .liga(key: "420100", page: nil), api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()))
+            await m.load()
+            #expect(await m.takeFocus(13))
+            #expect(await m.takeFocus(13) == false)
         }
 
         @Test func revealLoadsBatchesUntilTheConversationIsThere() async throws {
@@ -113,9 +140,9 @@ extension NetworkTests {
             #expect(calls.value == 1)
             #expect(await m.reveal(22))
             #expect(calls.value == 3)
-            // Not there after 8 more batches: it stops.
+            // Not there after 12 more batches: it stops.
             #expect(await m.reveal(999) == false)
-            #expect(calls.value == 11)
+            #expect(calls.value == 15)
         }
     }
 }

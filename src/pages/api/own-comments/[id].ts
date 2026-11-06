@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { parseNewComment, RATE, senderKey } from "../../../lib/ownComments.ts";
 import { parseNewPoll } from "../../../lib/ownVotes.ts";
 import { insertComment, loadThreads } from "../../../lib/ownCommentsDb.ts";
-import { json, readJson } from "../../../lib/http.ts";
+import { json, later, readJson } from "../../../lib/http.ts";
 import { ownGuard, voterOf } from "../../../lib/ownApi.ts";
 import { recordChat } from "../../../lib/chatsServer.ts";
 import { textStart } from "../../../lib/chats.ts";
@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
  * POST /api/own-comments/<post id>/ {name, text, parent?} or {name, poll: {question, options}}: anyone can
  * comment or start a poll, under a name of their choice.
  */
-export const POST: APIRoute = async ({ params, request, cookies, url }) => {
+export const POST: APIRoute = async ({ params, request, cookies, url, locals }) => {
   const own = ownGuard(request, params.id);
   if (own instanceof Response) return own;
   const { db, postId: id } = own;
@@ -48,9 +48,9 @@ export const POST: APIRoute = async ({ params, request, cookies, url }) => {
   const at = new Date().toISOString();
   const newId = await insertComment(db, { postId: id, parent: c.parent, name: c.name, text: c.text, createdAt: at, sender, ...(poll ? { poll } : {}) });
   // "Deine Chats", when signed in to LigaInsider (anyone may write here under any name).
-  await recordChat(cookies, url, {
+  later(locals)(recordChat(cookies, url, {
     thread: String(id), root: c.parent ?? newId, id: newId, kind: poll ? "poll" : c.parent ? "answer" : "comment", text: textStart(poll?.question ?? c.text),
-  });
+  }));
   // The saved comment as the thread list shows it (its bot votes start at 0 and grow).
   const { comments } = await loadThreads(db, id, voterOf(cookies), new Date());
   const saved = comments.flatMap((t) => [t, ...t.replies]).find((x) => x.id === newId);

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A club's page; `comment`: the conversation to show (from "Deine Chats").
-struct ClubRoute: Hashable { let slug: String; var comment: Int? = nil }
+/// A club's page; from "Deine Chats": `comment`, the conversation to show, and `chat`, marked seen when it opens.
+struct ClubRoute: Hashable { let slug: String; var comment: Int? = nil; var chat: Int? = nil }
 
 /// Aufstellungen (src/pages/aufstellungen.astro): the coming matchday's matches; tapping a team opens its lineup.
 struct LineupsView: View {
@@ -127,10 +127,23 @@ extension View {
 private struct SiteRoutes: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .navigationDestination(for: ArticleRoute.self) { ArticleDestination(id: $0.id, comment: $0.comment) }
-            .navigationDestination(for: ClubRoute.self) { ClubDestination(slug: $0.slug, comment: $0.comment) }
+            .navigationDestination(for: ArticleRoute.self) { ArticleDestination(id: $0.id, comment: $0.comment).seen(chat: $0.chat) }
+            .navigationDestination(for: ClubRoute.self) { ClubDestination(slug: $0.slug, comment: $0.comment).seen(chat: $0.chat) }
             .navigationDestination(for: ChatsRoute.self) { _ in ChatsView() }
     }
+}
+
+/// Opened from "Deine Chats": that chat is seen (here and on the website).
+private struct SeenChat: ViewModifier {
+    let chat: Int?
+    @Environment(ChatsModel.self) private var chats
+    func body(content: Content) -> some View {
+        content.task { if let chat { await chats.open(chat) } }
+    }
+}
+
+extension View {
+    func seen(chat: Int?) -> some View { modifier(SeenChat(chat: chat)) }
 }
 
 struct ArticleDestination: View {

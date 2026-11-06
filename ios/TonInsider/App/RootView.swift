@@ -72,7 +72,8 @@ private struct NewsStack: View {
         let id = UserDefaults.standard.integer(forKey: "TIArticle")
         // -TIFocus <comment id>: opened at that conversation, as from "Deine Chats".
         let focus = UserDefaults.standard.integer(forKey: "TIFocus")
-        if id > 0 { path.append(ArticleRoute(id: id, comment: focus > 0 ? focus : nil)) }
+        let chat = UserDefaults.standard.integer(forKey: "TIChat")
+        if id > 0 { path.append(ArticleRoute(id: id, comment: focus > 0 ? focus : nil, chat: chat > 0 ? chat : nil)) }
         if UserDefaults.standard.bool(forKey: "TIChats") { path.append(ChatsRoute()) }
         #endif
         return path

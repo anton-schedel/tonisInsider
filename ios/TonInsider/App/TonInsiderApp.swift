@@ -30,6 +30,8 @@ struct TonInsiderApp: App {
                 .onChange(of: account.ligaInsider) { Task { await chats.check(force: true) } }
                 .task {
                     // The bubble's red number: a look every few minutes while the app is open (ChatsModel.checkEvery).
+                    // The first one after the news have had their turn, so the start stays quick.
+                    try? await Task.sleep(for: .seconds(4))
                     while !Task.isCancelled {
                         await chats.check()
                         try? await Task.sleep(for: .seconds(60))

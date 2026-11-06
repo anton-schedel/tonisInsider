@@ -46,6 +46,15 @@ enum ChatTarget: Equatable {
         default: return nil
         }
     }
+
+    /// The route into the article; `chat` is marked seen when it opens.
+    func articleRoute(chat: Int) -> ArticleRoute? {
+        if case .article(let id, let comment) = self { ArticleRoute(id: id, comment: comment, chat: chat) } else { nil }
+    }
+
+    func clubRoute(chat: Int) -> ClubRoute? {
+        if case .club(let slug, let comment) = self { ClubRoute(slug: slug, comment: comment, chat: chat) } else { nil }
+    }
 }
 
 /// "Deine Chats": the conversations you wrote in (kept on the site under your LigaInsider login, so the website and
@@ -58,11 +67,13 @@ final class ChatsModel {
     private(set) var loadFailed = false
     /// Chats with news since you last looked (the bubble's red number).
     var badge: Int { chats.filter(\.hasNews).count }
+    /// The list is on screen: rows keep their place (new ones go to the end), the order follows the next time.
+    var isOpen = false
 
     /// Each look reads every chat's thread: at most this often.
     static let checkEvery: TimeInterval = 180
-    /// A conversation further down LigaInsider's thread than this many batches isn't looked for.
-    private static let maxBatches = 8
+    /// A conversation further down LigaInsider's thread than this many batches isn't looked for (chatsApi.ts).
+    private static let maxBatches = 12
 
     private let api: API
     private let isSignedIn: () -> Bool
@@ -80,7 +91,13 @@ final class ChatsModel {
         do {
             let answer: ChatsAnswer = try await api.get("api/chats/")
             signedIn = answer.signedIn
-            chats = answer.chats
+            if isOpen, !chats.isEmpty {
+                let fresh = Dictionary(answer.chats.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                let kept = Set(chats.map(\.id))
+                chats = chats.compactMap { fresh[$0.id] } + answer.chats.filter { !kept.contains($0.id) }
+            } else {
+                chats = answer.chats
+            }
             loadFailed = false
         } catch {
             loadFailed = chats.isEmpty
@@ -104,10 +121,12 @@ final class ChatsModel {
     /// One chat read fresh, following LigaInsider's batches; nil when it can't be read right now.
     func refresh(_ id: Int) async -> ChatView? {
         var cursor: Cursor?
-        for _ in 0..<Self.maxBatches {
+        for batch in 0..<Self.maxBatches {
+            // n: which batch this is, so the site keeps what it knows on the last one instead of another cursor.
             let query: [URLQueryItem] = cursor.map { c in [
                 .init(name: "offset", value: "\(c.offset)"), .init(name: "goffset", value: "\(c.goffset)"),
                 .init(name: "moffset", value: "\(c.moffset)"), .init(name: "cursor", value: "\(c.cursor)"),
+                .init(name: "n", value: "\(batch)"),
             ] } ?? []
             guard let answer: RefreshAnswer = try? await api.get("api/chats/\(id)/", query: query) else { return nil }
             if let chat = answer.chat { return chat }
