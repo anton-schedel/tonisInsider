@@ -5,6 +5,8 @@ import SwiftUI
 struct ClubView: View {
     let lineup: Lineup
     let feed: AppFeed
+    /// The conversation to show, from "Deine Chats".
+    var focus: Int? = nil
 
     @State private var card: PlayerCardData?
     @State private var allNews = false
@@ -16,6 +18,7 @@ struct ClubView: View {
             let news = feed.clubNews(lineup, now: context.date)
             // A button for a single hidden row isn't worth it: then all of them.
             let shown = allNews || news.count <= 6 ? news.count : 5
+            ScrollViewReader { scroller in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let fixture { FixtureCard(fixture: fixture, feed: feed, hero: true, current: lineup.club.slug) }
@@ -39,11 +42,14 @@ struct ClubView: View {
                             .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12)).buttonStyle(.plain).padding(.top, 8)
                     }
                     if let key = lineup.threadKey {
-                        CommentsSection(thread: .liga(key: key, page: "https://www.ligainsider.de/\(lineup.club.slug)/\(lineup.club.id)/"))
+                        CommentsSection(thread: .liga(key: key, page: "https://www.ligainsider.de/\(lineup.club.slug)/\(lineup.club.id)/"), focus: focus) { id in
+                            withAnimation(.snappy(duration: 0.45)) { scroller.scrollTo(id, anchor: .center) }
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)
+            }
             }
         }
         .scrollDismissesKeyboard(.interactively)

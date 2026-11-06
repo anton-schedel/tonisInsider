@@ -1,6 +1,7 @@
 import SwiftUI
 
-struct ArticleRoute: Hashable { let id: Int }
+/// An article; `comment`: the conversation to show (from "Deine Chats").
+struct ArticleRoute: Hashable { let id: Int; var comment: Int? = nil }
 
 /// The News tab (src/pages/index.astro): pinned posts on top, then the feed by day under slim sticky bands.
 struct NewsView: View {
@@ -24,7 +25,7 @@ struct NewsView: View {
             let groups = feed.dayGroups(now: now)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    PageHeader(title: "News", logo: true)
+                    PageHeader(title: "News", logo: true, accessory: AnyView(ChatsButton()))
                     if !pinned.isEmpty {
                         Section {
                             rows(pinned, feed: feed, withDay: true, now: now)
@@ -48,7 +49,7 @@ struct NewsView: View {
             }
         } else if store.lastError != nil {
             VStack(spacing: 12) {
-                PageHeader(title: "News", logo: true).padding(.horizontal, 16)
+                PageHeader(title: "News", logo: true, accessory: AnyView(ChatsButton())).padding(.horizontal, 16)
                 EmptyNote(text: "Die News konnten nicht geladen werden.")
                 Button("Nochmal versuchen") { Task { await store.refresh() } }.buttonStyle(.bordered)
             }

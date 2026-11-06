@@ -255,6 +255,15 @@ enum Berlin {
     }
 
     /// "03.11.2026 · 13:00" (fullDate)
+    /// "vor 3 Min." within a day, else the full date (format.ts ago): comments and chats.
+    static func ago(_ date: Date, now: Date = .now) -> String {
+        let minutes = Int(now.timeIntervalSince(date) / 60)
+        if minutes < 1 { return "gerade eben" }
+        if minutes < 60 { return "vor \(minutes) Min." }
+        if minutes < 24 * 60 { return "vor \(minutes / 60) Std." }
+        return full(date)
+    }
+
     static func full(_ date: Date) -> String {
         "\(date.formatted(format().day(.twoDigits).month(.twoDigits).year())) · \(time(date))"
     }

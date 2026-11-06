@@ -4,11 +4,14 @@ import SwiftUI
 /// text, a match report's grades, the link to the original, the comments.
 struct ArticleView: View {
     let article: Article
+    /// The conversation to show, from "Deine Chats".
+    var focus: Int?
     /// Parsed once, not on every redraw.
     private let blocks: [ArticleBlock]
 
-    init(article: Article) {
+    init(article: Article, focus: Int? = nil) {
         self.article = article
+        self.focus = focus
         blocks = articleBlocks(article.bodyHtml)
     }
     @Environment(\.openURL) private var openURL
@@ -43,8 +46,10 @@ struct ArticleView: View {
                     .buttonStyle(.plain)
                     .padding(.top, 24)
                 }
-                CommentsSection(thread: article.isOwn ? .own(postId: article.id) : .liga(key: String(article.id), page: article.url))
-                    .id("comments")
+                CommentsSection(thread: article.isOwn ? .own(postId: article.id) : .liga(key: String(article.id), page: article.url), focus: focus) { id in
+                    withAnimation(.snappy(duration: 0.45)) { scroller.scrollTo(id, anchor: .center) }
+                }
+                .id("comments")
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)

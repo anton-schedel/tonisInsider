@@ -9,8 +9,15 @@ struct CommentsSection: View {
     @Environment(Tabs.self) private var tabs
     @AppStorage("ownName") private var ownName = ""
 
-    init(thread: CommentThread) {
+    /// The conversation a link from "Deine Chats" points at, and how the page scrolls there.
+    private let focus: Int?
+    private let onFocus: (Int) -> Void
+    @State private var highlighted: Int?
+
+    init(thread: CommentThread, focus: Int? = nil, onFocus: @escaping (Int) -> Void = { _ in }) {
         _model = State(initialValue: CommentsModel(thread: thread))
+        self.focus = focus
+        self.onFocus = onFocus
     }
 
     private var isOwn: Bool { if case .own = model.thread { true } else { false } }
@@ -73,6 +80,13 @@ struct CommentsSection: View {
                         }
                     }
                     .padding(.vertical, 14)
+                    // Led here from "Deine Chats": gold for a moment, then it fades (the site's .comment-target).
+                    .background {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.tiGold.opacity(highlighted == comment.id ? 0.15 : 0))
+                            .padding(.horizontal, -8)
+                    }
+                    .id(comment.id)
                 }
             }
             if model.hasMore {
@@ -89,7 +103,16 @@ struct CommentsSection: View {
         }
         .padding(.top, 32)
         // Once: coming back from another tab keeps the pages loaded with "more" and the place he was at.
-        .task { if !model.loaded { await model.load() } }
+        .task {
+            if !model.loaded { await model.load() }
+            guard let focus, await model.reveal(focus) else { return }
+            highlighted = focus
+            // Once the comments just loaded are laid out, or the scroll has nothing to go to.
+            try? await Task.sleep(for: .milliseconds(250))
+            onFocus(focus)
+            try? await Task.sleep(for: .seconds(1.4))
+            withAnimation(.easeOut(duration: 1.4)) { highlighted = nil }
+        }
     }
 }
 
@@ -142,13 +165,7 @@ private struct CommentRow: View {
         }
     }
 
-    private func relative(_ date: Date) -> String {
-        let minutes = Int(Date().timeIntervalSince(date) / 60)
-        if minutes < 1 { return "gerade eben" }
-        if minutes < 60 { return "vor \(minutes) Min." }
-        if minutes < 24 * 60 { return "vor \(minutes / 60) Std." }
-        return Berlin.full(date)
-    }
+    private func relative(_ date: Date) -> String { Berlin.ago(date) }
 }
 
 /// ▲ with the count, a finger-sized grey tile; filled once this phone voted (.vote-btn in global.css).

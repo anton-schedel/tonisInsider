@@ -153,6 +153,17 @@ final class CommentsModel {
         }
     }
 
+    /// A link from "Deine Chats": loads batches until the conversation (a top-level comment) is there; false when it
+    /// isn't after 8 more.
+    func reveal(_ id: Int) async -> Bool {
+        for _ in 0..<8 {
+            if comments.contains(where: { $0.id == id }) { return true }
+            guard hasMore else { return false }
+            await loadMore()
+        }
+        return comments.contains { $0.id == id }
+    }
+
     /// Up or back, shown at once; undone if the site says no.
     func toggleVote(_ id: Int) async {
         guard !voting.contains(id), let before = find(id) else { return }

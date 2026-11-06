@@ -65,12 +65,17 @@ private struct LineupsStack: View {
 
 /// The news tab's stack; in DEBUG, -TIArticle <id> opens an article right away (screenshots).
 private struct NewsStack: View {
-    @State private var path: [ArticleRoute] = {
+    // Articles, club pages and "Deine Chats" all push onto it.
+    @State private var path: NavigationPath = {
+        var path = NavigationPath()
         #if DEBUG
         let id = UserDefaults.standard.integer(forKey: "TIArticle")
-        if id > 0 { return [ArticleRoute(id: id)] }
+        // -TIFocus <comment id>: opened at that conversation, as from "Deine Chats".
+        let focus = UserDefaults.standard.integer(forKey: "TIFocus")
+        if id > 0 { path.append(ArticleRoute(id: id, comment: focus > 0 ? focus : nil)) }
+        if UserDefaults.standard.bool(forKey: "TIChats") { path.append(ChatsRoute()) }
         #endif
-        return []
+        return path
     }()
 
     var body: some View {

@@ -1,6 +1,7 @@
 import SwiftUI
 
-struct ClubRoute: Hashable { let slug: String }
+/// A club's page; `comment`: the conversation to show (from "Deine Chats").
+struct ClubRoute: Hashable { let slug: String; var comment: Int? = nil }
 
 /// Aufstellungen (src/pages/aufstellungen.astro): the coming matchday's matches; tapping a team opens its lineup.
 struct LineupsView: View {
@@ -126,17 +127,19 @@ extension View {
 private struct SiteRoutes: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .navigationDestination(for: ArticleRoute.self) { ArticleDestination(id: $0.id) }
-            .navigationDestination(for: ClubRoute.self) { ClubDestination(slug: $0.slug) }
+            .navigationDestination(for: ArticleRoute.self) { ArticleDestination(id: $0.id, comment: $0.comment) }
+            .navigationDestination(for: ClubRoute.self) { ClubDestination(slug: $0.slug, comment: $0.comment) }
+            .navigationDestination(for: ChatsRoute.self) { _ in ChatsView() }
     }
 }
 
 struct ArticleDestination: View {
     let id: Int
+    var comment: Int?
     @Environment(FeedStore.self) private var store
     var body: some View {
         if let article = store.feed?.articles.first(where: { $0.id == id }) {
-            ArticleView(article: article)
+            ArticleView(article: article, focus: comment)
         } else {
             EmptyNote(text: "Diesen Beitrag gibt es nicht mehr.")
         }
@@ -145,10 +148,11 @@ struct ArticleDestination: View {
 
 struct ClubDestination: View {
     let slug: String
+    var comment: Int?
     @Environment(FeedStore.self) private var store
     var body: some View {
         if let feed = store.feed, let lineup = feed.lineup(slug: slug) {
-            ClubView(lineup: lineup, feed: feed)
+            ClubView(lineup: lineup, feed: feed, focus: comment)
         } else {
             EmptyNote(text: "Diese Aufstellung gibt es nicht mehr.")
         }
