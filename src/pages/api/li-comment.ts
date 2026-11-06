@@ -3,12 +3,14 @@ import { env } from "cloudflare:workers";
 import { callLiga } from "../../lib/ligaAccount.ts";
 import { LigaInsiderAuthError, LigaInsiderRejectedError, pageReferer, parseAction, runAction } from "../../lib/ligainsider.ts";
 import { isSameOrigin } from "../../lib/session.ts";
-import { parseThreadKey, type Thread } from "../../lib/comments.ts";
+import { parseThreadKey, threadKey, type Thread } from "../../lib/comments.ts";
 import { forbidden, json, readJson } from "../../lib/http.ts";
+import { recordChat } from "../../lib/chatsServer.ts";
+import { ligaWrite } from "../../lib/chatsPlace.ts";
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, url }) => {
   if (!isSameOrigin(request)) {
     console.warn(`li-comment: foreign origin ${request.headers.get("origin") ?? "none"}`);
     return forbidden();
@@ -21,6 +23,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     const referer = pageReferer(typeof (raw as { page?: unknown }).page === "string" ? (raw as { page: string }).page : undefined);
     const result = await callLiga(cookies, env.CREDENTIALS_KEY, fetch, (session) => runAction(fetch, session, thread, action, referer));
+    // "Deine Chats": what was written, in its conversation (the page sends the top comment with an answer).
+    const id = Number(result.commentId);
+    const write = ligaWrite(action, threadKey(thread), Number.isInteger(id) && id > 0 ? id : undefined, (raw as { root?: unknown }).root);
+    if (write) await recordChat(cookies, url, write);
     return json({ ok: true, commentId: result.commentId });
   } catch (err) {
     // Only the kind of failure, never cookies or the comment text: shows up in the Worker logs.
