@@ -12,7 +12,24 @@ import Base from "../layouts/Base.astro";
         </li>
       ))}
     </ul>
-    <p data-chats-empty class="hidden py-6 text-[15px] text-muted"></p>
+    {[
+      { key: "empty", title: "Noch keine Chats", text: "Kommentier einen Artikel oder starte eine Umfrage. Hier siehst du dann, wer antwortet und wie abgestimmt wird.", href: "/", label: "Zu den News" },
+      { key: "signed-out", title: "Mit LigaInsider anmelden", text: "Deine Chats gehören zu deinem LigaInsider-Konto. So siehst du sie im Web und auf dem iPhone.", href: "/einstellungen/?next=%2Fchats%2F#ligainsider", label: "Anmelden" },
+      { key: "error", title: "Gerade nicht erreichbar", text: "Deine Chats konnten nicht geladen werden.", label: "Nochmal versuchen" },
+    ].map((s) => (
+      <div data-chats-state={s.key} hidden class="flex flex-col items-center px-4 pt-16 pb-6 text-center">
+        {/* Your bubble in front, the answer coming back behind it in gold (the "new" dot's colour). */}
+        <svg viewBox="0 0 24 24" class="size-[52px]" fill="none" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M11.5 8h7A2.5 2.5 0 0 1 21 10.5v5a2.5 2.5 0 0 1-2.5 2.5H18v2.6L15 18h-3.5A2.5 2.5 0 0 1 9 15.5v-5A2.5 2.5 0 0 1 11.5 8z" stroke="var(--gold)" />
+          <path d="M5.5 3h7A2.5 2.5 0 0 1 15 5.5v5a2.5 2.5 0 0 1-2.5 2.5H9l-3 2.6V13h-.5A2.5 2.5 0 0 1 3 10.5v-5A2.5 2.5 0 0 1 5.5 3z" stroke="currentColor" fill="var(--bg)" />
+        </svg>
+        <h2 class="mt-5 text-[19px] font-semibold tracking-[-0.015em]">{s.title}</h2>
+        <p class="mt-1.5 max-w-[290px] text-[15px] leading-[1.45] text-balance text-muted">{s.text}</p>
+        {s.href
+          ? <a href={s.href} class="press mt-6 inline-flex h-11 items-center rounded-full bg-fg px-6 text-[15px] font-semibold text-bg">{s.label}</a>
+          : <button type="button" data-chats-retry class="press mt-6 inline-flex h-11 items-center rounded-full bg-surface px-6 text-[15px] font-semibold">{s.label}</button>}
+      </div>
+    ))}
   </section>
 </Base>
 
@@ -86,7 +103,7 @@ import Base from "../layouts/Base.astro";
     section.dataset.ready = "1";
     rows.clear();
     const list = section.querySelector<HTMLElement>("[data-chats-list]")!;
-    const empty = section.querySelector<HTMLElement>("[data-chats-empty]")!;
+
     // Opening one, also while the list is still being read: seen on every device; the article opens at the
     // conversation.
     list.addEventListener("click", (e) => {
@@ -97,26 +114,32 @@ import Base from "../layouts/Base.astro";
       const c = rows.get(id);
       if (c?.news) put(list, { ...c, news: undefined });
     });
-    const say = (text: string, link?: { href: string; label: string }) => {
-      list.replaceChildren();
-      empty.replaceChildren(text);
-      if (link) {
-        const a = h("a", "press mt-3 block w-fit font-medium text-accent", link.label);
-        a.href = link.href;
-        empty.append(a);
-      }
-      empty.classList.remove("hidden");
-    };
+    section.querySelector("[data-chats-retry]")?.addEventListener("click", () => void load(section, list));
+    await load(section, list);
+  }
+
+  /** No chats, signed out or unreachable: one calm block with what to do next, instead of the list. */
+  function showState(section: HTMLElement, key: "empty" | "signed-out" | "error" | undefined) {
+    section.querySelectorAll<HTMLElement>("[data-chats-state]").forEach((el) => { el.hidden = el.dataset.chatsState !== key; });
+  }
+
+  async function load(section: HTMLElement, list: HTMLElement) {
+    showState(section, undefined);
     try {
       const { signedIn, chats } = await loadChats();
-      if (!signedIn) return say("Melde dich mit LigaInsider an, damit deine Chats hier auftauchen.", { href: "/einstellungen/?next=%2Fchats%2F#ligainsider", label: "Mit LigaInsider anmelden" });
-      if (!chats.length) return say("Noch keine Chats. Wenn du kommentierst oder eine Umfrage startest, findest du sie hier wieder.");
+      if (!signedIn || !chats.length) {
+        list.replaceChildren();
+        return showState(section, signedIn ? "empty" : "signed-out");
+      }
       list.replaceChildren();
       for (const c of chats) put(list, c);
       checkedNow();
       await refreshAll(chats, (c) => put(list, c));
     } catch {
-      if (!rows.size) say("Deine Chats konnten gerade nicht geladen werden.");
+      if (!rows.size) {
+        list.replaceChildren();
+        showState(section, "error");
+      }
     }
 
   }

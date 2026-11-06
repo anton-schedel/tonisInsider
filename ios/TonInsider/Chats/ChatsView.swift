@@ -9,9 +9,9 @@ struct ChatsButton: View {
     var body: some View {
         NavigationLink(value: ChatsRoute()) {
             Image(systemName: "bubble.left")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.tiForeground)
-                .frame(width: 36, height: 36)
+                .frame(width: 40, height: 40)
                 .background(Color.tiSurface, in: Circle())
                 .overlay(alignment: .topTrailing) {
                     if chats.badge > 0 {
@@ -39,22 +39,27 @@ struct ChatsView: View {
     @Environment(ChatsModel.self) private var model
     @Environment(Account.self) private var account
     @Environment(Tabs.self) private var tabs
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if !account.ligaInsider {
-                    note("Melde dich mit LigaInsider an, damit deine Chats hier auftauchen.") {
-                        Button("Anmelden") { tabs.selected = .settings }.buttonStyle(.primary).frame(width: 140)
+                if !account.ligaInsider || (model.loaded && !model.signedIn && model.chats.isEmpty) {
+                    ChatsEmpty(title: "Mit LigaInsider anmelden",
+                               text: "Deine Chats gehören zu deinem LigaInsider-Konto. So siehst du sie im Web und auf dem iPhone.") {
+                        Button("Anmelden") { tabs.selected = .settings }.buttonStyle(.primary)
                     }
                 } else if !model.loaded {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 32)
                 } else if model.loadFailed {
-                    note("Deine Chats konnten gerade nicht geladen werden.") {
-                        Button("Nochmal versuchen") { Task { await reload() } }.buttonStyle(.quiet).frame(width: 200)
+                    ChatsEmpty(title: "Gerade nicht erreichbar", text: "Deine Chats konnten nicht geladen werden.") {
+                        Button("Nochmal versuchen") { Task { await reload() } }.buttonStyle(.quiet)
                     }
                 } else if model.chats.isEmpty {
-                    note("Noch keine Chats. Wenn du kommentierst oder eine Umfrage startest, findest du sie hier wieder.") { EmptyView() }
+                    ChatsEmpty(title: "Noch keine Chats",
+                               text: "Kommentier einen Artikel oder starte eine Umfrage. Hier siehst du dann, wer antwortet und wie abgestimmt wird.") {
+                        Button("Zu den News") { dismiss() }.buttonStyle(.primary)
+                    }
                 }
                 ForEach(Array(model.chats.enumerated()), id: \.element.id) { index, chat in
                     if index > 0 { Divider().overlay(Color.tiHairline) }
@@ -88,12 +93,36 @@ struct ChatsView: View {
         }
     }
 
-    private func note(_ text: String, @ViewBuilder action: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(text).font(.system(size: 15)).foregroundStyle(Color.tiMuted)
-            action()
+}
+
+/// No chats, signed out or unreachable: one calm block with what to do next (the site's [data-chats-state]).
+private struct ChatsEmpty<Action: View>: View {
+    let title: String
+    let text: String
+    @ViewBuilder let action: Action
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ChatsGlyph().frame(width: 52, height: 52)
+            Text(title).font(.system(size: 19, weight: .semibold)).tracking(-0.3).padding(.top, 20)
+            Text(text).font(.system(size: 15)).foregroundStyle(Color.tiMuted).multilineTextAlignment(.center)
+                .lineSpacing(2).frame(maxWidth: 290).padding(.top, 6)
+            action.frame(width: 200).padding(.top, 24)
         }
-        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 64)
+    }
+}
+
+/// Your bubble (left) and the answer coming back in gold (the "new" dot's colour); the web draws the same in SVG.
+/// The symbol's first palette layer is the right bubble.
+private struct ChatsGlyph: View {
+    var body: some View {
+        Image(systemName: "bubble.left.and.bubble.right")
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(Color.tiGold, Color.tiForeground)
+            .font(.system(size: 40, weight: .light))
+            .accessibilityHidden(true)
     }
 }
 
