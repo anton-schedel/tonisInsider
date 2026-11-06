@@ -2,17 +2,20 @@ import SwiftUI
 
 struct ChatsRoute: Hashable {}
 
-/// The bubble on News (left of the wordmark): opens "Deine Chats"; a red number for the chats with news.
+/// "Chats" on News (a small pill with the bubble): opens "Deine Chats"; a red number for the chats with news.
 struct ChatsButton: View {
     @Environment(ChatsModel.self) private var chats
 
     var body: some View {
         NavigationLink(value: ChatsRoute()) {
-            Image(systemName: "bubble.left")
-                .font(.system(size: 17, weight: .semibold))
+            HStack(spacing: 6) {
+                Image(systemName: "bubble.left").font(.system(size: 15, weight: .semibold))
+                Text("Chats").font(.system(size: 15, weight: .semibold))
+            }
                 .foregroundStyle(Color.tiForeground)
-                .frame(width: 40, height: 40)
-                .background(Color.tiSurface, in: Circle())
+                .padding(.horizontal, 13)
+                .frame(height: 36)
+                .background(Color.tiSurface, in: Capsule())
                 .overlay(alignment: .topTrailing) {
                     if chats.badge > 0 {
                         Text(chats.badge > 9 ? "9+" : "\(chats.badge)")

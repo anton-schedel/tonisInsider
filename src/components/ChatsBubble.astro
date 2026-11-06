@@ -1,14 +1,16 @@
 ---
 /**
- * The "Deine Chats" bubble on News: opens /chats/, a red number for the chats with news since you last looked.
+ * "Chats" on News (a small pill with the bubble): opens /chats/, a red number for the chats with news since you last
+ * looked.
  * It looks at most every few minutes (each look reads every chat's thread); between pages the last number stays.
  */
 ---
-<a href="/chats/" data-chats-bubble aria-label="Deine Chats" class="press relative flex size-10 items-center justify-center rounded-full bg-surface text-fg">
-  <svg viewBox="0 0 24 24" class="size-[20px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<a href="/chats/" data-chats-bubble aria-label="Deine Chats" class="press relative inline-flex h-9 items-center gap-1.5 rounded-full bg-surface pr-3.5 pl-3 text-[15px] font-semibold text-fg">
+  <svg viewBox="0 0 24 24" class="size-[17px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.55L3.5 20l1.05-4.3A8.5 8.5 0 1 1 20.5 11.5Z" />
   </svg>
-  <span data-chats-badge hidden class="absolute -top-1 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-bold text-white tabular-nums ring-2 ring-bg" style="background:var(--red-card)"></span>
+  <span>Chats</span>
+  <span data-chats-badge hidden class="absolute -top-1.5 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-bold text-white tabular-nums ring-2 ring-bg" style="background:var(--red-card)"></span>
 </a>
 
 <script>

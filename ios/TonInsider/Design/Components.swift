@@ -142,12 +142,19 @@ extension View {
 struct PageHeader: View {
     let title: String
     var logo = false
-    /// A round button left of the wordmark (News: "Deine Chats").
+    /// Our wordmark in the title's place (News, like a home feed; the tab bar says "News").
+    var brand = false
+    /// A control on the right, before the wordmark (News: "Chats").
     var accessory: AnyView? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text(title).font(.system(size: 28, weight: .bold)).tracking(-0.84).lineLimit(1).minimumScaleFactor(0.8)
+            if brand {
+                Image("Wordmark").resizable().scaledToFit().frame(height: 30).accessibilityLabel("TonInsider \(title)")
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                Text(title).font(.system(size: 28, weight: .bold)).tracking(-0.84).lineLimit(1).minimumScaleFactor(0.8)
+            }
             Spacer(minLength: 0)
             if let accessory { accessory }
             if logo { Image("Wordmark").resizable().scaledToFit().frame(height: 26).accessibilityLabel("TonInsider") }

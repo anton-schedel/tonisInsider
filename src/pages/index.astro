@@ -8,7 +8,13 @@ import { FIRST_DAYS, feedArticles, pinnedArticles } from "../lib/data.ts";
 const pinned = pinnedArticles();
 const pinnedIds = new Set(pinned.filter((a) => !a.pinnedUntil).map((a) => a.id));
 ---
-<Base title="News" tab="news" chats>
+<Base title="News" tab="news" hideHeading chats>
+  {/* Like a home feed: our wordmark instead of the word "News" (the tab bar says it), "Chats" on the right. */}
+  <h1 slot="top" class="flex min-w-0 flex-1 items-center">
+    <img src="/brand/wordmark-light.png" alt="TonInsider" width="121" height="30" class="brand-light h-[30px] w-auto" />
+    <img src="/brand/wordmark-dark.png" alt="TonInsider" width="121" height="30" class="brand-dark h-[30px] w-auto" />
+    <span class="sr-only">News</span>
+  </h1>
   {/* The last few days right away; older ones load while scrolling (pages/news/aeltere.astro). */}
   <NewsFeed articles={feedArticles(pinnedIds)} pinned={pinned} days={{ from: 0, to: FIRST_DAYS }} more="/news/aeltere/" />
 </Base>
