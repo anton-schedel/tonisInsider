@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatView, fresh, refreshState } from "./chatsApi.ts";
+import { chatView, fresh, MAX_BATCHES, refreshState } from "./chatsApi.ts";
 import type { ChatRow } from "./chatsDb.ts";
 import type { AppFeed } from "./appFeed.ts";
 import type { ChatState, ConvComment } from "./chats.ts";
@@ -19,6 +19,8 @@ const row = (over: Partial<ChatRow> = {}): ChatRow => ({
 });
 const c = (id: number, user: string, score: number, replies: ConvComment[] = []) =>
   ({ id, user, date: at(id), text: `Text ${id}`, score, vote: 0, replies });
+
+const page = (comments: ConvComment[], next?: MoreCursor): Comments => ({ total: 9, comments: comments as Comments["comments"], ...(next ? { more: next } : {}) });
 
 describe("chatView", () => {
   it("a row with news: the link into the article, what's new", () => {
@@ -49,12 +51,11 @@ describe("chatView", () => {
 
 describe("refreshState", () => {
   const more: MoreCursor = { offset: 20, goffset: 0, moffset: 0, cursor: 99 };
-  const page = (comments: ConvComment[], next?: MoreCursor): Comments => ({ total: 9, comments: comments as Comments["comments"], ...(next ? { more: next } : {}) });
   const own = async () => ({ comments: [] });
 
   it("finds the conversation in the first batch", async () => {
     const r = await refreshState(row(), { liga: async () => page([c(9, "X", 0), c(1, "Toni", 4, [c(2, "Kalle", 1)])], more), own });
-    expect(r).toEqual({ state: { score: 4, mine: { 1: 4 }, answers: 1, others: [2], latest: { user: "Kalle", text: "Text 2", date: at(2) } } });
+    expect(r).toMatchObject({ state: { score: 4, mine: { 1: 4 }, answers: 1, others: [2], latest: { user: "Kalle", text: "Text 2", date: at(2) } } });
   });
 
   it("asks for the next batch while it isn't there, with the cursor it was given", async () => {
@@ -67,8 +68,10 @@ describe("refreshState", () => {
 
   it("gone only once the whole thread was read without it, keeping the last known state", async () => {
     const liga = async () => page([c(9, "X", 0)]);
-    expect(await refreshState(row({ state: seen }), { liga, own })).toEqual({ state: { ...seen, gone: true } });
-    expect(await refreshState(row(), { liga, own })).toEqual({ state: { mine: {}, answers: 0, others: [], gone: true } });
+    const gone = { ...seen, gone: true };
+    expect(await refreshState(row({ state: seen }), { liga, own })).toEqual({ state: gone, baseline: gone });
+    const never = { mine: {}, answers: 0, others: [], gone: true };
+    expect(await refreshState(row(), { liga, own })).toEqual({ state: never, baseline: never });
   });
 
   it("our own posts are read from the database", async () => {
@@ -86,5 +89,48 @@ describe("fresh", () => {
     expect(fresh(new Date(now.getTime() - 59_000).toISOString(), now)).toBe(true);
     expect(fresh(new Date(now.getTime() - 61_000).toISOString(), now)).toBe(false);
     expect(fresh(undefined, now)).toBe(false);
+  });
+
+  it("a conversation too deep in its thread is looked for again only after 15 minutes", () => {
+    expect(fresh(new Date(now.getTime() - 14 * 60_000).toISOString(), now, true)).toBe(true);
+    expect(fresh(new Date(now.getTime() - 16 * 60_000).toISOString(), now, true)).toBe(false);
+  });
+});
+
+describe("what you had seen when you wrote", () => {
+  const own = async () => ({ comments: [] });
+  it("answers before your write and your new comment's votes count as seen; what came after is news", async () => {
+    // Jonas' comment; Kalle answered before you, you answered at 5, Lukas after you; your answer has a vote by now.
+    const tree = c(10, "Jonas", 7, [{ ...c(3, "Kalle", 0), date: at(3) }, { ...c(11, "Toni", 1), date: at(5) }, { ...c(12, "Lukas", 0), date: at(8) }]);
+    const r = await refreshState(row({ root: 10, mine: [11], started: false, kind: "answer", wroteAt: at(5) }), { liga: async () => page([tree]), own });
+    if (!("state" in r)) throw new Error("expected a state");
+    expect(r.baseline.others).toEqual([3]);
+    expect(r.baseline.mine).toEqual({ 11: 0 });
+    expect(r.state.others).toEqual([3, 12]);
+  });
+
+  it("your own Umfrage starts from nothing: every vote is news", async () => {
+    const poll = { question: "Wer?", total: 6, options: [{ label: "A", pct: 50 }, { label: "B", pct: 50 }] };
+    const r = await refreshState(row({ wroteAt: at(1), kind: "poll" }), { liga: async () => page([{ ...c(1, "Toni", 2), poll }]), own });
+    if (!("state" in r)) throw new Error("expected a state");
+    expect(r.baseline).toMatchObject({ score: 0, mine: { 1: 0 }, poll: { total: 0 } });
+  });
+});
+
+describe("a conversation deeper than the batches looked through", () => {
+  const own = async () => ({ comments: [] });
+  const more: MoreCursor = { offset: 120, goffset: 0, moffset: 0, cursor: 7 };
+  it(`on the last of ${MAX_BATCHES} batches: the last known state, marked deep, instead of another cursor`, async () => {
+    const before: MoreCursor = { ...more, offset: 110, cursor: 6 };
+    const liga = async () => page([c(9, "X", 0)], more);
+    expect(await refreshState(row({ state: seen }), { liga, own }, before, false)).toEqual({ next: more });
+    const r = await refreshState(row({ state: seen }), { liga, own }, before, true);
+    expect(r).toMatchObject({ state: { ...seen, deep: true } });
+  });
+
+  it("never found: says so instead of an empty line", () => {
+    const v = chatView(row({ state: { mine: {}, answers: 0, others: [], deep: true } }), feed);
+    expect(v.lines.status).toBe("Weit unten im Thread");
+    expect(v.news).toBeUndefined();
   });
 });

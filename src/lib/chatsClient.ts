@@ -6,8 +6,8 @@ export type ChatsAnswer = { signedIn: boolean; chats: ChatView[] };
 
 /** The bubble looks for news at most this often (each look reads every chat's thread). */
 export const CHECK_EVERY_MS = 3 * 60_000;
-/** A conversation further down LigaInsider's thread than this many batches isn't looked for. */
-const MAX_BATCHES = 8;
+/** A conversation further down LigaInsider's thread than this many batches isn't looked for (chatsApi.ts MAX_BATCHES). */
+const MAX_BATCHES = 12;
 
 export const badgeCount = (chats: ChatView[]) => chats.filter((c) => c.news && c.status === "ok").length;
 export const dueCheck = (last: number | undefined, now: number) => last === undefined || now - last >= CHECK_EVERY_MS;
@@ -22,7 +22,8 @@ export async function loadChats(): Promise<ChatsAnswer> {
 export async function refreshChat(id: number): Promise<ChatView | undefined> {
   let cursor: MoreCursor | undefined;
   for (let i = 0; i < MAX_BATCHES; i++) {
-    const q = cursor ? `?${new URLSearchParams({ offset: String(cursor.offset), goffset: String(cursor.goffset), moffset: String(cursor.moffset), cursor: String(cursor.cursor) })}` : "";
+    // n: which batch this is, so the site keeps what it knows on the last one instead of sending another cursor.
+    const q = cursor ? `?${new URLSearchParams({ offset: String(cursor.offset), goffset: String(cursor.goffset), moffset: String(cursor.moffset), cursor: String(cursor.cursor), n: String(i) })}` : "";
     try {
       const res = await fetch(`/api/chats/${id}/${q}`);
       if (!res.ok) return undefined;

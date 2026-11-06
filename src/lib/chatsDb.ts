@@ -87,13 +87,15 @@ export async function getChat(db: D1, account: string, id: number): Promise<Chat
   return r ? toRow(r) : undefined;
 }
 
-/** A fresh read: stored with its time; the first one (or the first after you wrote) is what you've seen. */
-export async function saveState(db: D1, account: string, id: number, state: ChatState, now: Date): Promise<void> {
-  const json = JSON.stringify(state);
+/**
+ * A fresh read, stored with its time. The first one after you wrote also sets what you'd seen: `baseline`, where
+ * it stood when you wrote (so what came in between is news).
+ */
+export async function saveState(db: D1, account: string, id: number, state: ChatState, now: Date, baseline: ChatState = state): Promise<void> {
   await db
     .prepare(`UPDATE chats SET state = ?, checked_at = ?, activity_at = MAX(wrote_at, COALESCE(?, wrote_at)), seen = COALESCE(seen, ?)
       WHERE id = ? AND account = ?`)
-    .bind(json, now.toISOString(), state.latest?.date ?? null, json, id, account)
+    .bind(JSON.stringify(state), now.toISOString(), state.latest?.date ?? null, JSON.stringify(baseline), id, account)
     .run();
 }
 

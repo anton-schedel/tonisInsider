@@ -33,3 +33,30 @@ describe("jumpTarget", () => {
     expect(jumpTarget("#c")).toBeUndefined();
   });
 });
+
+describe("refreshChat", () => {
+  it("follows the thread's batches, telling the site which batch it asks for, up to 12", async () => {
+    const { refreshChat } = await import("./chatsClient.ts");
+    const asked: string[] = [];
+    const next = { offset: 10, goffset: 0, moffset: 0, cursor: 5 };
+    const fetchStub = async (url: string) => {
+      asked.push(url);
+      return new Response(JSON.stringify(asked.length < 3 ? { next: { ...next, cursor: asked.length } } : { chat: view({ id: 7 }) }));
+    };
+    const original = globalThis.fetch;
+    globalThis.fetch = fetchStub as unknown as typeof fetch;
+    try {
+      expect((await refreshChat(7))?.id).toBe(7);
+      expect(asked[0]).toBe("/api/chats/7/");
+      expect(asked[1]).toContain("cursor=1");
+      expect(asked[1]).toContain("n=1");
+      expect(asked[2]).toContain("n=2");
+      asked.length = 0;
+      globalThis.fetch = (async (url: string) => { asked.push(url); return new Response(JSON.stringify({ next })); }) as unknown as typeof fetch;
+      expect(await refreshChat(7)).toBeUndefined();
+      expect(asked).toHaveLength(12);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

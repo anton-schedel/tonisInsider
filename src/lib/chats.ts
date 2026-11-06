@@ -33,6 +33,8 @@ export type ChatState = {
   to?: string;
   /** The top comment isn't in the thread any more. */
   gone?: true;
+  /** Not found in the batches looked through: what was last known stays. */
+  deep?: true;
 };
 
 /** What changed since you last looked. */
@@ -42,7 +44,11 @@ export type ChatKind = "comment" | "poll" | "answer";
 /** ok; gone (comment or article no longer there); over (a lineup page that moved on to the next match). */
 export type ChatStatus = "ok" | "gone" | "over";
 
-export function conversationState(root: ConvComment, mine: number[], started: boolean): ChatState {
+/**
+ * Where the conversation stands. With `asOf`: where it stood when you wrote (what you had seen then): answers up to
+ * that time, your just-written comment (`fresh`) without votes yet, your new Umfrage without votes.
+ */
+export function conversationState(root: ConvComment, mine: number[], started: boolean, asOf?: { at: string; fresh?: number }): ChatState {
   const ids = new Set(mine);
   const scores: Record<string, number> = {};
   const others: number[] = [];
@@ -51,9 +57,10 @@ export function conversationState(root: ConvComment, mine: number[], started: bo
   // Your newest write and what it answers.
   let newest: { at: string; to?: string } | undefined;
   const visit = (c: ConvComment, parent?: ConvComment) => {
+    if (asOf && parent && !ids.has(c.id) && c.date > asOf.at) return;
     if (parent) answers++;
     if (ids.has(c.id)) {
-      scores[c.id] = c.score;
+      scores[c.id] = asOf?.fresh === c.id ? 0 : c.score;
       if (!newest || c.date > newest.at) newest = { at: c.date, to: parent?.user };
     } else if (parent) {
       others.push(c.id);
@@ -63,9 +70,13 @@ export function conversationState(root: ConvComment, mine: number[], started: bo
   };
   visit(root);
   const state: ChatState = { mine: scores, answers, others };
-  if (started) state.score = root.score;
+  const justStarted = asOf?.fresh === root.id;
+  if (started) state.score = justStarted ? 0 : root.score;
   if (latest) state.latest = { user: latest.user, text: latest.text, date: latest.date };
-  if (started && root.poll) state.poll = { total: root.poll.total, ...(root.poll.total > 0 ? { leader: leader(root.poll.options) } : {}) };
+  if (started && root.poll) {
+    const total = justStarted ? 0 : root.poll.total;
+    state.poll = { total, ...(total > 0 ? { leader: leader(root.poll.options) } : {}) };
+  }
   if (newest?.to) state.to = newest.to;
   return state;
 }
@@ -97,6 +108,7 @@ export function chatLines(c: { kind: ChatKind; text: string; started: boolean; s
   const mine = c.kind === "poll" ? `Umfrage: ${c.text}` : c.kind === "answer" && state?.to ? `Du antwortest ${state.to}: ${c.text}` : `Du: ${c.text}`;
   if (c.status === "gone") return { mine, status: "nicht mehr verfügbar" };
   if (!state) return { mine, status: "" };
+  if (state.deep && !Object.keys(state.mine).length) return { mine, status: "Weit unten im Thread" };
   if (news && c.status === "ok") {
     const parts: string[] = [];
     if (news.answers === 1 && state.latest) parts.push(`${state.latest.user}: „${textStart(state.latest.text, 40)}“`);
