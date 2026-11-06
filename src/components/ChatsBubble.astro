@@ -1,0 +1,55 @@
+---
+/**
+ * The "Deine Chats" bubble on News: opens /chats/, a red number for the chats with news since you last looked.
+ * It looks at most every few minutes (each look reads every chat's thread); between pages the last number stays.
+ */
+---
+<a href="/chats/" data-chats-bubble aria-label="Deine Chats" class="press relative flex size-9 items-center justify-center rounded-full bg-surface text-fg">
+  <svg viewBox="0 0 24 24" class="size-[19px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.55L3.5 20l1.05-4.3A8.5 8.5 0 1 1 20.5 11.5Z" />
+  </svg>
+  <span data-chats-badge hidden class="absolute -top-1 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-bold text-white tabular-nums ring-2 ring-bg" style="background:var(--red-card)"></span>
+</a>
+
+<script>
+  import { badgeCount, checkedNow, dueCheck, lastCheck, loadChats, refreshAll, saveBadge, savedBadge } from "../lib/chatsClient.ts";
+  import type { ChatView } from "../lib/chatsApi.ts";
+
+  const loggedIn = () => /(?:^|; )liin=1/.test(document.cookie);
+
+  function show(n: number) {
+    const badge = document.querySelector<HTMLElement>("[data-chats-badge]");
+    const bubble = document.querySelector<HTMLElement>("[data-chats-bubble]");
+    if (!badge || !bubble) return;
+    badge.hidden = n === 0;
+    badge.textContent = n > 9 ? "9+" : String(n);
+    bubble.setAttribute("aria-label", n ? `Deine Chats, ${n} mit Neuem` : "Deine Chats");
+  }
+
+  let checking = false;
+  async function check() {
+    if (checking || !document.querySelector("[data-chats-bubble]")) return;
+    if (!loggedIn()) return show(0);
+    if (!dueCheck(lastCheck(), Date.now())) return;
+    checking = true;
+    checkedNow();
+    try {
+      const { chats } = await loadChats();
+      const byId = new Map<number, ChatView>(chats.map((c) => [c.id, c]));
+      const update = () => { const n = badgeCount([...byId.values()]); show(n); saveBadge(n); };
+      update();
+      await refreshAll(chats, (c) => { byId.set(c.id, c); update(); });
+    } catch {
+      // Offline or the site busy: the last number stays, the next look tries again.
+    } finally {
+      checking = false;
+    }
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    if (!document.querySelector("[data-chats-bubble]")) return;
+    show(loggedIn() ? savedBadge() : 0);
+    void check();
+  });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void check(); });
+</script>

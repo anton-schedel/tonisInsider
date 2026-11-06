@@ -647,3 +647,14 @@ html:not([data-navigated]) .enter {
 .day-band[data-today] { display: none; }
 [data-pinned]:not([hidden]) ~ section > .day-band[data-today] { display: flex; }
 @media (min-width: 640px) { .day-band { margin-inline: -12px; padding-inline: 12px; border-radius: 10px; } }
+
+/* "Deine Chats" led here: the conversation lights up in gold for a moment and fades (commentUi.ts highlight). */
+.comment-target { border-radius: 14px; animation: comment-target 2.6s var(--ease-soft); }
+@keyframes comment-target {
+  0%, 30% { background: color-mix(in srgb, var(--gold) 15%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--gold) 15%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 8px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No fade: the gold stays for the moment, then goes at once. */
+  .comment-target { animation-timing-function: step-end; }
+}

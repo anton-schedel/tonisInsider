@@ -1,0 +1,124 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Deine Chats" tab="news" back={{ href: "/", label: "News" }}>
+  <!-- Rows from /api/chats/ (stored state at once, each refreshed in place: nothing moves while the list is open). -->
+  <section data-chats>
+    <ul class="flex flex-col" data-chats-list>
+      {[0, 1, 2, 3].map(() => (
+        <li data-chats-skeleton class="flex items-center gap-3 py-3">
+          <span class="size-10 shrink-0 rounded-full bg-surface"></span>
+          <span class="flex-1"><span class="block h-4 w-3/4 rounded bg-surface"></span><span class="mt-2 block h-3 w-1/2 rounded bg-surface"></span></span>
+        </li>
+      ))}
+    </ul>
+    <p data-chats-empty class="hidden py-6 text-[15px] text-muted"></p>
+  </section>
+</Base>
+
+<script>
+  import { badgeCount, checkedNow, loadChats, markSeen, refreshAll, saveBadge } from "../lib/chatsClient.ts";
+  import type { ChatView } from "../lib/chatsApi.ts";
+  import { h } from "../lib/commentUi.ts";
+  import { ago, initials } from "../lib/format.ts";
+  import { LOGO } from "../lib/brand.ts";
+
+  const rows = new Map<number, ChatView>();
+
+  function avatar(c: ChatView): HTMLElement {
+    const src = c.place.club?.crest ?? (c.place.own || !c.place.club ? LOGO : undefined);
+    if (src) {
+      const img = h("img", "size-10 shrink-0 rounded-full bg-surface object-contain p-1.5");
+      img.src = src;
+      img.alt = "";
+      img.loading = "lazy";
+      return img;
+    }
+    return h("span", "flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-semibold text-muted", initials(c.place.club!.name));
+  }
+
+  function row(c: ChatView, now: Date): HTMLElement {
+    const fresh = !!c.news;
+    const open = c.status !== "over";
+    const el = h(open ? "a" : "div", "press-row flex items-start gap-3 py-3");
+    if (el instanceof HTMLAnchorElement) {
+      el.href = c.link;
+      el.dataset.chat = String(c.id);
+    }
+    const main = h("div", "min-w-0 flex-1");
+    const top = h("div", "flex items-baseline gap-2");
+    top.append(
+      h("b", `min-w-0 flex-1 truncate text-[15px] ${fresh ? "font-bold" : "font-semibold"}`, c.place.title),
+      h("span", "shrink-0 text-xs text-muted", ago(c.activityAt, now)),
+    );
+    main.append(top, h("p", "mt-0.5 truncate text-[13px] text-muted", c.lines.mine));
+    if (c.lines.status || !c.checked) {
+      const status = h("p", `mt-0.5 truncate text-[13px] ${fresh ? "font-semibold text-fg" : "text-muted"}`, c.lines.status || " ");
+      if (!c.checked) status.classList.add("is-loading");
+      main.append(status);
+    }
+    el.append(avatar(c), main);
+    if (fresh) {
+      const dot = h("span", "mt-4 size-2 shrink-0 rounded-full");
+      dot.style.background = "var(--gold)";
+      dot.setAttribute("aria-label", "Neu");
+      el.append(dot);
+    }
+    const li = h("li", "border-b border-hairline last:border-b-0");
+    li.dataset.chatRow = String(c.id);
+    li.append(el);
+    return li;
+  }
+
+  function put(list: HTMLElement, c: ChatView) {
+    rows.set(c.id, c);
+    const now = new Date();
+    const old = list.querySelector<HTMLElement>(`[data-chat-row="${c.id}"]`);
+    const next = row(c, now);
+    if (old) old.replaceWith(next);
+    else list.append(next);
+    saveBadge(badgeCount([...rows.values()]));
+  }
+
+  async function boot() {
+    const section = document.querySelector<HTMLElement>("[data-chats]");
+    if (!section || section.dataset.ready) return;
+    section.dataset.ready = "1";
+    rows.clear();
+    const list = section.querySelector<HTMLElement>("[data-chats-list]")!;
+    const empty = section.querySelector<HTMLElement>("[data-chats-empty]")!;
+    const say = (text: string, link?: { href: string; label: string }) => {
+      list.replaceChildren();
+      empty.replaceChildren(text);
+      if (link) {
+        const a = h("a", "press mt-3 block w-fit font-medium text-accent", link.label);
+        a.href = link.href;
+        empty.append(a);
+      }
+      empty.classList.remove("hidden");
+    };
+    try {
+      const { signedIn, chats } = await loadChats();
+      if (!signedIn) return say("Melde dich mit LigaInsider an, damit deine Chats hier auftauchen.", { href: "/einstellungen/?next=%2Fchats%2F#ligainsider", label: "Mit LigaInsider anmelden" });
+      if (!chats.length) return say("Noch keine Chats. Wenn du kommentierst oder eine Umfrage startest, findest du sie hier wieder.");
+      list.replaceChildren();
+      for (const c of chats) put(list, c);
+      checkedNow();
+      await refreshAll(chats, (c) => put(list, c));
+    } catch {
+      if (!rows.size) say("Deine Chats konnten gerade nicht geladen werden.");
+    }
+
+    // Opening one: seen on every device; the article opens at the conversation.
+    list.addEventListener("click", (e) => {
+      const a = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[data-chat]") : null;
+      if (!a) return;
+      const id = Number(a.dataset.chat);
+      markSeen(id);
+      const c = rows.get(id);
+      if (c?.news) put(list, { ...c, news: undefined });
+    });
+  }
+
+  document.addEventListener("astro:page-load", () => void boot());
+</script>

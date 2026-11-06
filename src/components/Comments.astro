@@ -42,7 +42,7 @@ const { thread, url } = Astro.props;
 
 <script>
   import type { Comment, Comments, MoreCursor, Poll } from "../lib/comments.ts";
-  import { FIELD, h, pollOf, renderComment, renderPoll, revealIn, setVote, settle, swapPoll, voteButton, withVote, wireComposer, type PollOpts, type RenderOpts } from "../lib/commentUi.ts";
+  import { FIELD, h, highlight, jumpTarget, pollOf, renderComment, renderPoll, revealIn, setVote, settle, swapPoll, voteButton, withVote, wireComposer, type PollOpts, type RenderOpts } from "../lib/commentUi.ts";
 
   function loggedIn() {
     return /(?:^|; )liin=1/.test(document.cookie);
@@ -150,8 +150,17 @@ const { thread, url } = Astro.props;
     btn.textContent = left > 0 ? `Weitere Kommentare laden (${left})` : "Weitere Kommentare laden";
   }
 
-  async function loadMore(section: HTMLElement, btn: HTMLButtonElement) {
-    if (!thread?.more || btn.classList.contains("is-busy")) return;
+  // One batch at a time: a second call while one loads waits for it (the jump to a comment and the scroll
+  // observer both ask).
+  let loading: Promise<void> | undefined;
+  function loadMore(section: HTMLElement, btn: HTMLButtonElement): Promise<void> {
+    if (!thread?.more) return Promise.resolve();
+    loading ??= loadBatch(section, btn).finally(() => { loading = undefined; });
+    return loading;
+  }
+
+  async function loadBatch(section: HTMLElement, btn: HTMLButtonElement) {
+    if (!thread?.more) return;
     const from = thread.more;
     btn.classList.add("is-busy");
     btn.setAttribute("aria-busy", "true");
@@ -223,6 +232,7 @@ const { thread, url } = Astro.props;
       for (const c of data.comments) list.append(render(c, now));
       thread = { total: data.total, shown: new Set(data.comments.map((c) => c.id)), count: countAll(data.comments), more: data.more };
       showLoadMore(section);
+      void jump(section);
       // Without a next batch to load (e.g. LigaInsider stops sending one), the rest stays a link.
       if (!data.more && data.total > thread.count) {
         more.textContent = `Alle ${data.total} Kommentare auf ligainsider.de ↗`;
@@ -243,6 +253,21 @@ const { thread, url } = Astro.props;
       clearTimeout(slow);
       slowNote?.classList.add("hidden");
     }
+  }
+
+  /** A link from "Deine Chats" (#c<id>): loads batches until the conversation is there, then shows it. */
+  async function jump(section: HTMLElement) {
+    const id = jumpTarget(location.hash);
+    const btn = section.querySelector<HTMLButtonElement>("[data-comments-load]");
+    if (!id || !btn) return;
+    const list = section.querySelector<HTMLElement>("[data-comment-list]")!;
+    const find = () => list.querySelector<HTMLElement>(`:scope > li[data-comment-id="${id}"]`);
+    let li = find();
+    for (let i = 0; !li && thread?.more && i < 8; i++) {
+      await loadMore(section, btn);
+      li = find();
+    }
+    if (li) highlight(li);
   }
 
   function setup(section: HTMLElement) {
@@ -351,7 +376,9 @@ const { thread, url } = Astro.props;
           revealIn(shown);
           row.remove();
           try {
-            const r = await post({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: text });
+            // The conversation it belongs to (an answer can answer an answer), for "Deine Chats".
+            const root = Number(replyBtn.closest<HTMLElement>("[data-comment-list] > li")?.dataset.commentId) || undefined;
+            const r = await post({ kind: "reply", commentId: Number(replyBtn.dataset.reply), body: text, root });
             sent(section, shown, draft, r.commentId, true);
           } catch (err) {
             shown.remove();

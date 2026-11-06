@@ -6,6 +6,7 @@ import { fullDate } from "../lib/format.ts";
 import PostHog from "../components/posthog.astro";
 import { BUILD_ID } from "../lib/build.ts";
 import { newestOut } from "../lib/freshness.ts";
+import ChatsBubble from "../components/ChatsBubble.astro";
 
 interface Props {
   title: string;
@@ -17,8 +18,10 @@ interface Props {
   logo?: boolean;
   /** Without the tab bar (the coach's page, which isn't part of the app's tabs). */
   tabbar?: boolean;
+  /** The "Deine Chats" bubble left of the logo (News). */
+  chats?: boolean;
 }
-const { title, tab, back, hideHeading = false, logo = false, tabbar = true } = Astro.props;
+const { title, tab, back, hideHeading = false, logo = false, tabbar = true, chats = false } = Astro.props;
 const updated = lastUpdate();
 // Lets open pages notice updates (see the freshness script below and /data/version.json).
 const newest = newestOut(articles(), new Date());
@@ -402,8 +405,9 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         {/* Pages can put their own row beside the back button (an article's author and club). */}
         <slot name="top" />
         {!hideHeading && <h1 class="min-w-0 flex-1 text-[28px] leading-[1.1] font-bold tracking-[-0.03em] text-balance">{title}</h1>}
+        {chats && <span class="ml-auto shrink-0 self-center"><ChatsBubble /></span>}
         {logo && (
-          <span class="ml-auto shrink-0 self-center">
+          <span class:list={["shrink-0 self-center", !chats && "ml-auto"]}>
             <img src="/brand/wordmark-light.png" alt="TonInsider" width="105" height="26" class="brand-light h-[26px] w-auto" />
             <img src="/brand/wordmark-dark.png" alt="TonInsider" width="105" height="26" class="brand-dark h-[26px] w-auto" />
           </span>

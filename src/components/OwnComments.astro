@@ -33,7 +33,7 @@ const { postId } = Astro.props;
   import type { PollView } from "../lib/ownVotes.ts";
   import { NAME_MAX, TEXT_MAX } from "../lib/ownComments.ts";
   import { ANSWER_MAX } from "../lib/ownVotes.ts";
-  import { FIELD, h, pollOf, renderComment, renderPoll, revealIn, setVote, settle, showResults, swapPoll, voteButton, withVote, wireComposer, type PollOpts, type RenderOpts } from "../lib/commentUi.ts";
+  import { FIELD, h, highlight, jumpTarget, pollOf, renderComment, renderPoll, revealIn, setVote, settle, showResults, swapPoll, voteButton, withVote, wireComposer, type PollOpts, type RenderOpts } from "../lib/commentUi.ts";
 
   const NAME_KEY = "commentName";
   const savedName = () => { try { return localStorage.getItem(NAME_KEY) ?? ""; } catch { return ""; } };
@@ -70,6 +70,10 @@ const { postId } = Astro.props;
       const data = (await res.json()) as { total: number; comments: OwnComment[] };
       const now = new Date();
       list.replaceChildren(...data.comments.map((c) => render(c, now)));
+      // A link from "Deine Chats" (#c<id>) shows its conversation.
+      const target = jumpTarget(location.hash);
+      const li = target ? list.querySelector<HTMLElement>(`:scope > li[data-comment-id="${target}"]`) : null;
+      if (li) highlight(li);
       setCount(section, data.total);
       status.classList.toggle("hidden", data.total > 0);
       status.textContent = "Noch keine Kommentare. Schreib den ersten!";

@@ -137,6 +137,21 @@ export function setVote(btn: HTMLElement, on: boolean, score: number) {
   btn.querySelector(".vote-count")!.textContent = score ? String(score) : "";
 }
 
+/** The comment a link points at ("#c123", from "Deine Chats"). */
+export function jumpTarget(hash: string): number | undefined {
+  const m = hash.match(/^#c(\d{1,10})$/);
+  return m ? Number(m[1]) : undefined;
+}
+
+/** Brings a comment into view and lights it up in gold for a moment (it fades: .comment-target in global.css). */
+export function highlight(li: HTMLElement) {
+  li.scrollIntoView({ block: "center", behavior: still() ? "auto" : "smooth" });
+  li.classList.remove("comment-target");
+  void li.offsetWidth;
+  li.classList.add("comment-target");
+  li.addEventListener("animationend", () => li.classList.remove("comment-target"), { once: true });
+}
+
 export type CommentLike<C> = { id: number; user: string; date: string; text: string; poll?: PollLike; replies: C[] };
 export type RenderOpts<C> = {
   reply?: boolean;
@@ -151,6 +166,7 @@ export type RenderOpts<C> = {
 export function renderComment<C extends CommentLike<C>>(c: C, now: Date, opts: RenderOpts<C>): HTMLElement {
   const { reply = false, pending = false } = opts;
   const li = h("li", reply ? "comment comment-reply" : "comment");
+  if (c.id) li.dataset.commentId = String(c.id);
   if (pending) li.classList.add("is-pending");
   const row = h("div", "flex items-start gap-2");
   const main = h("div", "min-w-0 flex-1");
@@ -188,6 +204,7 @@ export function renderComment<C extends CommentLike<C>>(c: C, now: Date, opts: R
 export function settle(pending: HTMLElement, sent: HTMLElement) {
   pending.replaceChildren(...sent.childNodes);
   pending.className = sent.className;
+  if (sent.dataset.commentId) pending.dataset.commentId = sent.dataset.commentId;
 }
 
 export type Draft = { text: string; question: string; answers: string[] };
