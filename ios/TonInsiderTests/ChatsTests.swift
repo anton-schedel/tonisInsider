@@ -89,6 +89,24 @@ extension NetworkTests {
             #expect(m.badge == 0)
         }
 
+        @Test func markingAllReadClearsEveryChatAndTellsTheSite() async throws {
+            let posted = Box<[String]>([])
+            let seen = Box(false)
+            StubProtocol.handler = { request in
+                if request.httpMethod == "POST" { posted.value.append(request.url!.path()); seen.value = true; return (response(200), Data(#"{"ok":true}"#.utf8)) }
+                // After "Alle gelesen" the site sends the rows with their summaries and no news.
+                return (response(200), seen.value ? listJSON(chatJSON(1), chatJSON(2)) : listJSON(chatJSON(1, news: true), chatJSON(2, news: true)))
+            }
+            let m = model()
+            await m.load()
+            #expect(m.badge == 2)
+            await m.markAllSeen()
+            #expect(posted.value == ["/api/chats/seen/"])
+            #expect(m.badge == 0)
+            #expect(m.chats.map(\.id) == [1, 2])
+            #expect(m.chats[0].lines.status == "▲ 3 · keine Antworten")
+        }
+
         @Test func aChatLeadsToItsArticleOrLineupPage() {
             #expect(ChatTarget(link: "/artikel/420300/#c77") == .article(id: 420300, comment: 77))
             #expect(ChatTarget(link: "/vereine/bayer-leverkusen/#c5") == .club(slug: "bayer-leverkusen", comment: 5))

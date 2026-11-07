@@ -60,3 +60,18 @@ describe("refreshChat", () => {
     }
   });
 });
+
+describe("markAllSeen", () => {
+  it("tells the site once, for all chats", async () => {
+    const { markAllSeen } = await import("./chatsClient.ts");
+    const sent: { url: string; method?: string }[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => { sent.push({ url, method: init?.method }); return new Response("{}"); }) as unknown as typeof fetch;
+    try {
+      markAllSeen();
+      expect(sent).toEqual([{ url: "/api/chats/seen/", method: "POST" }]);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

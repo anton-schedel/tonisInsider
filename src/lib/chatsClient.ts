@@ -49,6 +49,11 @@ export async function refreshAll(chats: ChatView[], each: (c: ChatView) => void,
   }));
 }
 
+/** "Alle gelesen": every chat as it stands now counts as seen (here and in the app). */
+export async function markAllSeen(): Promise<void> {
+  await fetch("/api/chats/seen/", { method: "POST", keepalive: true }).catch(() => {});
+}
+
 /** You opened it. Sent so it arrives even while the page changes. */
 export function markSeen(id: number): void {
   void fetch(`/api/chats/${id}/seen/`, { method: "POST", keepalive: true }).catch(() => {});

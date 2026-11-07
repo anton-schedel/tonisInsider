@@ -2,6 +2,8 @@
 import Base from "../layouts/Base.astro";
 ---
 <Base title="Deine Chats" tab="news" back={{ href: "/", label: "News" }}>
+  {/* Only while something is new: every chat read at once, the red number on News goes too. */}
+  <button slot="actions" type="button" data-chats-read-all hidden class="press h-9 shrink-0 self-center rounded-full bg-surface px-3.5 text-[14px] font-semibold">Alle gelesen</button>
   <!-- Rows from /api/chats/ (stored state at once, each refreshed in place: nothing moves while the list is open). -->
   <section data-chats>
     <ul class="flex flex-col" data-chats-list>
@@ -34,7 +36,7 @@ import Base from "../layouts/Base.astro";
 </Base>
 
 <script>
-  import { badgeCount, checkedNow, loadChats, markSeen, refreshAll, saveBadge } from "../lib/chatsClient.ts";
+  import { badgeCount, checkedNow, loadChats, markAllSeen, markSeen, refreshAll, saveBadge } from "../lib/chatsClient.ts";
   import type { ChatView } from "../lib/chatsApi.ts";
   import { h } from "../lib/commentUi.ts";
   import { ago, initials } from "../lib/format.ts";
@@ -94,7 +96,10 @@ import Base from "../layouts/Base.astro";
     const next = row(c, now);
     if (old) old.replaceWith(next);
     else list.append(next);
-    saveBadge(badgeCount([...rows.values()]));
+    const news = badgeCount([...rows.values()]);
+    saveBadge(news);
+    const readAll = document.querySelector<HTMLElement>("[data-chats-read-all]");
+    if (readAll) readAll.hidden = news === 0;
   }
 
   async function boot() {
@@ -115,6 +120,15 @@ import Base from "../layouts/Base.astro";
       if (c?.news) put(list, { ...c, news: undefined });
     });
     section.querySelector("[data-chats-retry]")?.addEventListener("click", () => void load(section, list));
+    document.querySelector("[data-chats-read-all]")?.addEventListener("click", async () => {
+      // At once: no dots, nothing bold; then each row's own summary from the site, in place.
+      for (const c of [...rows.values()]) if (c.news) put(list, { ...c, news: undefined });
+      await markAllSeen();
+      try {
+        const { chats } = await loadChats();
+        for (const c of chats) if (rows.has(c.id)) put(list, c);
+      } catch {}
+    });
     await load(section, list);
   }
 

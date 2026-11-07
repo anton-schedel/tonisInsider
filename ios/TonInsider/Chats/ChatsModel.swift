@@ -153,6 +153,14 @@ final class ChatsModel {
         let _: Ok? = try? await api.post("api/chats/\(id)/seen/", json: Empty())
     }
 
+    /// "Alle gelesen": every chat as it stands now counts as seen, here and on the website. The dots go at once; then
+    /// the rows come back with their own summaries (in place while the list is open).
+    func markAllSeen() async {
+        for i in chats.indices { chats[i].news = nil }
+        let _: Ok? = try? await api.post("api/chats/seen/", json: Empty())
+        await load()
+    }
+
     /// Signed out of LigaInsider: nothing of the last account stays.
     func clear() {
         chats = []

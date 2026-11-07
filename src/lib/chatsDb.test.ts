@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import type { D1 } from "cloudflare:workers";
-import { getChat, KEEP, listChats, markSeen, recordWrite, saveState, SHOWN, type ChatWrite } from "./chatsDb.ts";
+import { getChat, KEEP, listChats, markAllSeen, markSeen, recordWrite, saveState, SHOWN, type ChatWrite } from "./chatsDb.ts";
 import type { ChatState } from "./chats.ts";
 
 /** The real migration in an in-memory SQLite, behind the bit of D1 chatsDb uses. */
@@ -102,5 +102,20 @@ describe("chats storage", () => {
 
     await markSeen(d, ME, id);
     expect((await getChat(d, ME, id))!.seen).toEqual(later);
+  });
+
+  it("marking all read: what's there now is what you've seen, in every chat of yours and no one else's", async () => {
+    const d = db();
+    await recordWrite(d, ME, write({ root: 1, id: 1 }), t(0));
+    await recordWrite(d, ME, write({ root: 2, id: 2 }), t(1));
+    await recordWrite(d, OTHER, write({ root: 3, id: 3 }), t(2));
+    const [a, b] = await listChats(d, ME);
+    const other = (await listChats(d, OTHER))[0]!;
+    for (const [acc, id] of [[ME, a!.id], [ME, b!.id], [OTHER, other.id]] as const) await saveState(d, acc, id, state(), t(3));
+    const later = state({ answers: 1, others: [9] });
+    for (const [acc, id] of [[ME, a!.id], [ME, b!.id], [OTHER, other.id]] as const) await saveState(d, acc, id, later, t(4));
+    await markAllSeen(d, ME);
+    expect((await listChats(d, ME)).map((r) => r.seen)).toEqual([later, later]);
+    expect((await getChat(d, OTHER, other.id))!.seen).toEqual(state());
   });
 });

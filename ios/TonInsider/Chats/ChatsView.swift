@@ -43,6 +43,8 @@ struct ChatsView: View {
     @Environment(Account.self) private var account
     @Environment(Tabs.self) private var tabs
     @Environment(\.dismiss) private var dismiss
+    /// Counts "Alle gelesen" taps: the tick of confirmation answers the tap, nothing else.
+    @State private var readAll = 0
 
     var body: some View {
         ScrollView {
@@ -74,6 +76,16 @@ struct ChatsView: View {
         .background(Color.tiBackground)
         .navigationTitle("Deine Chats")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Only while something is new: every chat read at once, the red number on News goes too.
+            if model.badge > 0 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Alle gelesen") { readAll += 1; Task { await model.markAllSeen() } }
+                        .font(.system(size: 15, weight: .semibold))
+                }
+            }
+        }
+        .sensoryFeedback(.success, trigger: readAll)
         .refreshable { await reload() }
         .task { await reload() }
         .onAppear { model.isOpen = true; Analytics.screen("chats") }

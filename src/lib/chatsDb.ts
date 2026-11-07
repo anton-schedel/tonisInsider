@@ -103,3 +103,8 @@ export async function saveState(db: D1, account: string, id: number, state: Chat
 export async function markSeen(db: D1, account: string, id: number): Promise<void> {
   await db.prepare("UPDATE chats SET seen = state WHERE id = ? AND account = ? AND state IS NOT NULL").bind(id, account).run();
 }
+
+/** "Alle gelesen": what's there now is what you've seen, in every chat of yours. */
+export async function markAllSeen(db: D1, account: string): Promise<void> {
+  await db.prepare("UPDATE chats SET seen = state WHERE account = ? AND state IS NOT NULL").bind(account).run();
+}

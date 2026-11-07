@@ -405,6 +405,8 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         {/* Pages can put their own row beside the back button (an article's author and club). */}
         <slot name="top" />
         {!hideHeading && <h1 class="min-w-0 flex-1 text-[28px] leading-[1.1] font-bold tracking-[-0.03em] text-balance">{title}</h1>}
+        {/* Pages can put a control on the right of their title ("Deine Chats": Alle gelesen). */}
+        <slot name="actions" />
         {chats && <span class="ml-auto shrink-0 self-center"><ChatsBubble /></span>}
         {logo && (
           <span class:list={["shrink-0 self-center", !chats && "ml-auto"]}>
