@@ -80,10 +80,10 @@ struct CommentsSection: View {
                         }
                     }
                     .padding(.vertical, 14)
-                    // Led here from "Deine Chats": gold for a moment, then it fades (the site's .comment-target).
+                    // Led here from "Deine Chats": our green for a moment, then it fades (the site's .comment-target).
                     .background {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.tiGold.opacity(highlighted == comment.id ? 0.15 : 0))
+                            .fill(Color.tiBrand.opacity(highlighted == comment.id ? 0.13 : 0))
                             .padding(.horizontal, -8)
                     }
                     .id(comment.id)

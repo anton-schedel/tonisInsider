@@ -143,7 +143,7 @@ export function jumpTarget(hash: string): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-/** Brings a comment into view and lights it up in gold for a moment (it fades: .comment-target in global.css). */
+/** Brings a comment into view and lights it up in our green for a moment (it fades: .comment-target in global.css). */
 export function highlight(li: HTMLElement) {
   li.scrollIntoView({ block: "center", behavior: still() ? "auto" : "smooth" });
   li.classList.remove("comment-target");

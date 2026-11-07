@@ -9,7 +9,8 @@ extension Color {
     static let tiForeground = Color(light: 0x1D1D1F, dark: 0xF5F5F7)
     static let tiMuted = Color(light: 0x86868B, dark: 0x8E8E93)
     static let tiHairline = Color(light: 0xE5E5EA, dark: 0x2C2C2E)
-    static let tiGold = Color(light: 0x9C7A2B, dark: 0xD4B05C)
+    /// The green of our logo: the one accent colour (favourites' bars, what's new, a jump's highlight; the site's --brand).
+    static let tiBrand = Color(light: 0x00A068, dark: 0x19B47A)
     static let tiRed = Color(light: 0xD70015, dark: 0xFF6961)
     static let tiYellow = Color(light: 0xA05A00, dark: 0xFFD60A)
     static let tiGreen = Color(light: 0x248A3D, dark: 0x30D158)

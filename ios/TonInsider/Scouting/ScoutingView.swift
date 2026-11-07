@@ -169,13 +169,13 @@ struct ScoutButton: View {
             Task { await scout.set(playerId, on: !on) }
         } label: {
             if compact {
-                Image(systemName: on ? "star.fill" : "star").foregroundStyle(on ? Color.tiGold : Color.tiMuted).font(.system(size: 18))
+                Image(systemName: on ? "star.fill" : "star").foregroundStyle(on ? Color.tiBrand : Color.tiMuted).font(.system(size: 18))
                     .frame(width: 44, height: 44).contentShape(Rectangle())
             } else {
                 Label(on ? "Gescoutet" : "Scouten", systemImage: on ? "star.fill" : "star")
                     .font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 48)
                     .background(Color.tiSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .foregroundStyle(on ? Color.tiGold : Color.tiForeground)
+                    .foregroundStyle(on ? Color.tiBrand : Color.tiForeground)
             }
         }
         .buttonStyle(.press)

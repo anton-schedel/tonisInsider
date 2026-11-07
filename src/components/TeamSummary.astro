@@ -5,7 +5,7 @@ import type { SummaryView } from "../lib/summary/compose.ts";
 
 /**
  * The matchday at a glance (src/lib/summary/compose.ts): one row per game of the manager's predicted starters,
- * the best win chance first, so favourites sit on top and outsiders at the bottom; the bar is gold from 55 %.
+ * the best win chance first, so favourites sit on top and outsiders at the bottom; the bar is green (our logo's) from 55 %.
  * Above the rows a few sentences on how the week looks (what his players' points depend on against this week's
  * odds); below, what stands out beyond the odds (matchups, rotation, LigaInsider's reliability).
  */
@@ -88,7 +88,7 @@ const nb = (s: string) => s.replace(/ %/g, "\u00a0%");
     animation-delay: calc(var(--i) * 40ms);
   }
   .win-bar i.is-favourite {
-    background: var(--gold);
+    background: var(--brand);
     opacity: 1;
   }
   @keyframes win-grow {

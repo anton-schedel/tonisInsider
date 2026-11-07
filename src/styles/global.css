@@ -24,6 +24,8 @@
   --grey-bg: #f0f0f2; --grey-fg: #6e6e73;
   /* TuS Schnöselmob's gold (its crest), only on the coach's page. */
   --gold: #9c7a2b;
+  /* The green of our logo: the one accent colour (favourites' bars, what's new, a jump's highlight). */
+  --brand: #00a068;
   /* The same in light and dark: the bright reds and yellow of live dots, match cards and marks on photos, and
      the white badges that sit on photos. */
   --red-bright: #ff453a; --red-card: #ff3b30; --yellow-bright: #ffd60a;
@@ -46,6 +48,7 @@
   --green-bg: rgba(48, 209, 88, 0.16); --green-fg: #30d158; --green-dot: #30d158;
   --grey-bg: rgba(255, 255, 255, 0.1); --grey-fg: #a1a1a6;
   --gold: #d4b05c;
+  --brand: #19b47a;
   color-scheme: dark;
 }
 
@@ -75,12 +78,13 @@
 @property --grey-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --grey-fg { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --gold { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --brand { syntax: "<color>"; inherits: true; initial-value: transparent; }
 /* Registered too, so it is a colour that follows --fg's fade (it isn't faded itself). */
 @property --accent { syntax: "<color>"; inherits: true; initial-value: transparent; }
 :root {
   transition-property: --bg, --surface, --surface-raised, --fg, --muted, --hairline, --tabbar, --glass-rim, --glass-rim-low,
     --glass-edge, --glass-sheen, --glass-lens, --glass-lens-rim, --red-bg, --red-fg, --yellow-bg, --yellow-fg, --yellow-dot,
-    --green-bg, --green-fg, --green-dot, --grey-bg, --grey-fg, --gold;
+    --green-bg, --green-fg, --green-dot, --grey-bg, --grey-fg, --gold, --brand;
   transition-duration: 280ms;
 }
 @media (prefers-reduced-motion: reduce) { :root { transition: none; } }
@@ -648,13 +652,13 @@ html:not([data-navigated]) .enter {
 [data-pinned]:not([hidden]) ~ section > .day-band[data-today] { display: flex; }
 @media (min-width: 640px) { .day-band { margin-inline: -12px; padding-inline: 12px; border-radius: 10px; } }
 
-/* "Deine Chats" led here: the conversation lights up in gold for a moment and fades (commentUi.ts highlight). */
+/* "Deine Chats" led here: the conversation lights up in our green for a moment and fades (commentUi.ts highlight). */
 .comment-target { border-radius: 14px; animation: comment-target 2.6s var(--ease-soft); }
 @keyframes comment-target {
-  0%, 30% { background: color-mix(in srgb, var(--gold) 15%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--gold) 15%, transparent); }
+  0%, 30% { background: color-mix(in srgb, var(--brand) 13%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--brand) 13%, transparent); }
   100% { background: transparent; box-shadow: 0 0 0 8px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  /* No fade: the gold stays for the moment, then goes at once. */
+  /* No fade: the green stays for the moment, then goes at once. */
   .comment-target { animation-timing-function: step-end; }
 }

@@ -20,9 +20,9 @@ import Base from "../layouts/Base.astro";
       { key: "error", title: "Gerade nicht erreichbar", text: "Deine Chats konnten nicht geladen werden.", label: "Nochmal versuchen" },
     ].map((s) => (
       <div data-chats-state={s.key} hidden class="flex flex-col items-center px-4 pt-16 pb-6 text-center">
-        {/* Your bubble in front, the answer coming back behind it in gold (the "new" dot's colour). */}
+        {/* Your bubble in front, the answer coming back behind it in our green (the "new" dot's colour). */}
         <svg viewBox="0 0 24 24" class="size-[52px]" fill="none" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
-          <path d="M11.5 8h7A2.5 2.5 0 0 1 21 10.5v5a2.5 2.5 0 0 1-2.5 2.5H18v2.6L15 18h-3.5A2.5 2.5 0 0 1 9 15.5v-5A2.5 2.5 0 0 1 11.5 8z" stroke="var(--gold)" />
+          <path d="M11.5 8h7A2.5 2.5 0 0 1 21 10.5v5a2.5 2.5 0 0 1-2.5 2.5H18v2.6L15 18h-3.5A2.5 2.5 0 0 1 9 15.5v-5A2.5 2.5 0 0 1 11.5 8z" stroke="var(--brand)" />
           <path d="M5.5 3h7A2.5 2.5 0 0 1 15 5.5v5a2.5 2.5 0 0 1-2.5 2.5H9l-3 2.6V13h-.5A2.5 2.5 0 0 1 3 10.5v-5A2.5 2.5 0 0 1 5.5 3z" stroke="currentColor" fill="var(--bg)" />
         </svg>
         <h2 class="mt-5 text-[19px] font-semibold tracking-[-0.015em]">{s.title}</h2>
@@ -79,7 +79,7 @@ import Base from "../layouts/Base.astro";
     el.append(avatar(c), main);
     if (fresh) {
       const dot = h("span", "mt-4 size-2 shrink-0 rounded-full");
-      dot.style.background = "var(--gold)";
+      dot.style.background = "var(--brand)";
       dot.setAttribute("aria-label", "Neu");
       el.append(dot);
     }

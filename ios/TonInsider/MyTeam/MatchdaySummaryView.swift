@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The matchday at a glance (TeamSummary.astro): a few sentences, then one row per game of his starters
-/// (best win chance first) with a slim bar, gold from 55 %, his players with their notes, the kickoff; notes below.
+/// (best win chance first) with a slim bar, green (our logo's) from 55 %, his players with their notes, the kickoff; notes below.
 struct MatchdaySummaryView: View {
     let summary: AppTeam.Summary
 
@@ -55,7 +55,7 @@ struct GameRowView: View {
                     Capsule().fill(Color.tiHairline)
                         .overlay(alignment: .leading) {
                             Capsule()
-                                .fill(Self.isFavourite(game.win) ? Color.tiGold : Color.tiMuted.opacity(0.45))
+                                .fill(Self.isFavourite(game.win) ? Color.tiBrand : Color.tiMuted.opacity(0.45))
                                 .frame(width: geo.size.width * CGFloat(game.win) / 100)
                                 .scaleEffect(x: grown ? 1 : 0, anchor: .leading)
                         }

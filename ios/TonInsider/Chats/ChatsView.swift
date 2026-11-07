@@ -129,13 +129,13 @@ private struct ChatsEmpty<Action: View>: View {
     }
 }
 
-/// Your bubble (left) and the answer coming back in gold (the "new" dot's colour); the web draws the same in SVG.
+/// Your bubble (left) and the answer coming back in our green (the "new" dot's colour); the web draws the same in SVG.
 /// The symbol's first palette layer is the right bubble.
 private struct ChatsGlyph: View {
     var body: some View {
         Image(systemName: "bubble.left.and.bubble.right")
             .symbolRenderingMode(.palette)
-            .foregroundStyle(Color.tiGold, Color.tiForeground)
+            .foregroundStyle(Color.tiBrand, Color.tiForeground)
             .font(.system(size: 40, weight: .light))
             .accessibilityHidden(true)
     }
@@ -170,7 +170,7 @@ private struct ChatRow: View {
                 }
             }
             if chat.hasNews {
-                Circle().fill(Color.tiGold).frame(width: 8, height: 8).padding(.top, 16).accessibilityLabel("Neu")
+                Circle().fill(Color.tiBrand).frame(width: 8, height: 8).padding(.top, 16).accessibilityLabel("Neu")
             }
         }
         .padding(.vertical, 12)
