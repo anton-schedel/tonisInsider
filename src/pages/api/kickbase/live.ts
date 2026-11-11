@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { KickbaseAuthError, login, myEleven, type KbLive } from "../../../lib/kickbase.ts";
+import { KickbaseAuthError, KickbaseTokenError, login, myEleven, type KbLive } from "../../../lib/kickbase.ts";
 import { relogin, TOKEN_COOKIE } from "../../../lib/session.ts";
 import { json } from "../../../lib/http.ts";
 
@@ -32,7 +32,8 @@ export const GET: APIRoute = async ({ url, cookies }) => {
       return json(await read(token));
     }
   } catch (err) {
-    if (err instanceof KickbaseAuthError) return json({ error: "Nicht angemeldet." }, 401);
+    // Even a fresh token refused (403): not reachable for now, not signed out.
+    if (err instanceof KickbaseAuthError && !(err instanceof KickbaseTokenError)) return json({ error: "Nicht angemeldet." }, 401);
     return json({ error: "Kickbase ist gerade nicht erreichbar." }, 502);
   }
 };

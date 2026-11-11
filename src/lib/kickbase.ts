@@ -3,6 +3,12 @@ const TIMEOUT_MS = 8000;
 
 /** Kickbase rejected the credentials or the token (HTTP 401). */
 export class KickbaseAuthError extends Error {}
+/**
+ * Kickbase refused the token: an empty HTTP 403 on a call with one (missing, expired or revoked; a wrong password
+ * is still a 401). Worth logging in again — but it says nothing about the password, so a fresh token refused as
+ * well means Kickbase isn't usable right now, not that the user is signed out.
+ */
+export class KickbaseTokenError extends KickbaseAuthError {}
 /** Kickbase is unreachable or answered unexpectedly. */
 export class KickbaseUnavailableError extends Error {}
 
@@ -36,8 +42,10 @@ async function call<T>(fetchFn: Fetch, path: string, init: { method?: string; to
   } catch {
     throw new KickbaseUnavailableError("network error or timeout");
   }
-  // Only 401 means "credentials/token invalid"; a 403 can also be a WAF or rate limit and must not log users out.
+  // 401: credentials or token invalid. A 403 with a token: the token was refused (a new login is tried, see
+  // KickbaseTokenError); without one (the login) it can also be a WAF or rate limit and logs nobody out.
   if (res.status === 401) throw new KickbaseAuthError(`HTTP ${res.status}`);
+  if (res.status === 403 && init.token) throw new KickbaseTokenError(`HTTP ${res.status}`);
   if (!res.ok) throw new KickbaseUnavailableError(`HTTP ${res.status}`);
   try {
     return (await res.json()) as T;
@@ -189,6 +197,7 @@ export async function eventTypes(fetchFn: Fetch, token: string): Promise<Map<num
     throw new KickbaseUnavailableError("network error or timeout");
   }
   if (res.status === 401) throw new KickbaseAuthError(`HTTP ${res.status}`);
+  if (res.status === 403) throw new KickbaseTokenError(`HTTP ${res.status}`);
   if (!res.ok) throw new KickbaseUnavailableError(`HTTP ${res.status}`);
   const r = (await res.json().catch(() => ({}))) as { it?: { i: number; ti: string }[] };
   return new Map((r.it ?? []).map((t) => [t.i, t.ti]));

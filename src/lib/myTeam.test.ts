@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { appTeam, myTeamData, type MyTeamResult } from "./myTeam.ts";
-import { KB_NAME_COOKIE, KB_USER_ID_COOKIE, TOKEN_COOKIE } from "./session.ts";
+import { CREDENTIALS_COOKIE, KB_NAME_COOKIE, KB_USER_ID_COOKIE, rememberCredentials, TOKEN_COOKIE } from "./session.ts";
 import type { MyPlayer } from "./match.ts";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
@@ -41,6 +41,48 @@ describe("myTeamData", () => {
     expect(r.signedOut).toBe("expired");
     expect(cookies.store.has(TOKEN_COOKIE)).toBe(false);
     expect(cookies.store.has(KB_NAME_COOKIE)).toBe(false);
+  });
+
+  /** Kickbase as seen from the Worker: logins give "NEW"; a call with a token in `refused` gets an empty 403. */
+  function kickbase(refused: string[]) {
+    const logins: string[] = [];
+    const fn = (async (url: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      if (path === "/v4/user/login") {
+        logins.push(path);
+        return Response.json({ tkn: "NEW", tknex: "2099-01-01T00:00:00Z", u: { id: "1", name: "Toni" } });
+      }
+      const token = String(new Headers(init?.headers).get("authorization") ?? "").replace("Bearer ", "");
+      if (refused.includes(token)) return new Response("", { status: 403 });
+      if (path === "/v4/leagues/selection") return Response.json({ it: [{ i: "L1", n: "Liga" }] });
+      if (path.endsWith("/teamcenter/myeleven")) return Response.json({ lp: [], nlp: [], p: 0 });
+      return Response.json({ it: [] });
+    }) as typeof fetch;
+    return { fn, logins };
+  }
+  async function signedIn() {
+    const cookies = jar({ [TOKEN_COOKIE]: "old", [KB_NAME_COOKIE]: "Toni" });
+    await rememberCredentials(cookies, KEY, "toni@example.de", "pw");
+    return cookies;
+  }
+
+  it("Kickbase refusing the stored token (403): logs in again with the saved credentials and shows the team", async () => {
+    const cookies = await signedIn();
+    const kb = kickbase(["old"]);
+    const r = await myTeamData({ cookies, key: KEY, fetch: kb.fn, league: null, snapshot: none, history: none });
+    expect(r.error).toBeUndefined();
+    expect(r.signedOut).toBeUndefined();
+    expect(r.data.league?.id).toBe("L1");
+    expect(kb.logins).toHaveLength(1);
+    expect(cookies.store.get(TOKEN_COOKIE)).toBe("NEW");
+  });
+
+  it("a fresh token refused too: Kickbase isn't reachable for now, and nobody is logged out", async () => {
+    const cookies = await signedIn();
+    const r = await myTeamData({ cookies, key: KEY, fetch: kickbase(["old", "NEW"]).fn, league: null, snapshot: none, history: none });
+    expect(r.error).toMatch(/nicht erreichbar/);
+    expect(r.signedOut).toBeUndefined();
+    expect(cookies.store.has(CREDENTIALS_COOKIE)).toBe(true);
   });
 });
 

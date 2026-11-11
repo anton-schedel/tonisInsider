@@ -1,6 +1,6 @@
 // Mein Team's data: the manager's Kickbase squad matched with LigaInsider, the odds and the matchday summary.
 // The page (src/pages/mein-team.astro) renders it; /api/app/my-team/ serves it to the iOS app (appTeam).
-import { clubTable, KickbaseAuthError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbLeague, type KbLive, type KbPlayer, type KbTeam } from "./kickbase.ts";
+import { clubTable, KickbaseAuthError, KickbaseTokenError, leagues as fetchLeagues, login, myEleven, squad as fetchSquad, teamRoster, type KbLeague, type KbLive, type KbPlayer, type KbTeam } from "./kickbase.ts";
 import { articlePlayer, mapClubs, matchSquad, pitchLines, type MyPlayer, type StartStatus } from "./match.ts";
 import { toFixtures } from "./fixtures.ts";
 import { chancesFor } from "./odds.ts";
@@ -75,7 +75,8 @@ export async function myTeamData(args: {
     // The manager's own XI and bench; if Kickbase can't deliver it, fall back to the plain squad list.
     const eleven = (token: string, id: string): Promise<{ starters: KbPlayer[]; bench: KbPlayer[]; points?: number }> =>
       myEleven(fetchFn, token, id).catch((err) => {
-        if (err instanceof KickbaseAuthError) throw err;
+        // A refused token is refused for the squad too (and then logged in again); a 401 means the login is gone.
+        if (err instanceof KickbaseAuthError && !(err instanceof KickbaseTokenError)) throw err;
         return fetchSquad(fetchFn, token, id).then((all) => ({ starters: [], bench: all }));
       });
     const [{ starters, bench, points }, snapshot, , history] = await Promise.all([eleven(token, league.id), snapshotLoad, table, historyLoad]);
@@ -151,7 +152,8 @@ export async function myTeamData(args: {
       return { data: empty(), signedOut: "expired" };
     }
   } catch (err) {
-    if (err instanceof KickbaseAuthError) {
+    // Even a fresh token refused (403): Kickbase isn't usable right now; the login stays.
+    if (err instanceof KickbaseAuthError && !(err instanceof KickbaseTokenError)) {
       clearSession(cookies);
       return { data: empty(), signedOut: "expired" };
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { KickbaseAuthError, KickbaseUnavailableError, leagues, login, matchDetails, myEleven, squad, teamRoster } from "./kickbase.ts";
+import { KickbaseAuthError, KickbaseTokenError, KickbaseUnavailableError, leagues, login, matchDetails, myEleven, squad, teamRoster } from "./kickbase.ts";
 
 type Call = { url: string; init: RequestInit };
 
@@ -26,8 +26,15 @@ describe("kickbase client", () => {
     await expect(leagues(fakeFetch(401, {}).fn, "T")).rejects.toBeInstanceOf(KickbaseAuthError);
   });
 
-  it("treats 403 as unavailable, not as an expired session", async () => {
-    await expect(leagues(fakeFetch(403, {}).fn, "T")).rejects.toBeInstanceOf(KickbaseUnavailableError);
+  // Kickbase answers a missing, expired or revoked token with an empty 403 (a wrong password is still a 401).
+  it("a 403 on a call with a token: Kickbase refused the token, so it's worth logging in again", async () => {
+    const err = await leagues(fakeFetch(403, "").fn, "T").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(KickbaseTokenError);
+    expect(err).toBeInstanceOf(KickbaseAuthError);
+  });
+
+  it("a 403 on the login itself (no token) stays unavailable: it says nothing about the password", async () => {
+    await expect(login(fakeFetch(403, "").fn, "a", "b")).rejects.toBeInstanceOf(KickbaseUnavailableError);
   });
 
   it("reads a club's roster names from the team profile", async () => {
