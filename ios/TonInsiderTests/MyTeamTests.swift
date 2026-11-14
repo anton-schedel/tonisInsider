@@ -11,7 +11,9 @@ extension NetworkTests {
             let first = try #require(team.players[team.lines.last!.first!])
             #expect(first.card.status != nil)
             #expect(first.status == .start || first.status != nil)
-            #expect(team.summary?.games.first?.players.first?.note == "lebt von Toren, 2,0 Tore erwartet")
+            // A team's number is the game's, named with the team; the player's note is about him.
+            #expect(team.summary?.games.first?.players.first?.note == "lebt von Toren")
+            #expect(team.summary?.games.first?.teamNote == "Bayern: 2,0 Tore erwartet")
             #expect(team.points == 42)
         }
 

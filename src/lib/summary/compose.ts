@@ -33,7 +33,9 @@ export type SummaryInput = { now: Date; firstKickoff?: string; players: SummaryP
 /** One game of his predicted starters this matchday: what TeamSummary.astro draws as a row. */
 export type GameRow = {
   team: string; opponent: string; home: boolean; win: number; kickoff: string; crest?: string;
-  /** note: "zu Hause stärker", "48 % zu Null". */
+  /** The team's numbers, named with the team: "Leverkusen: 2,3 Tore erwartet, 41 % zu Null". */
+  teamNote?: string;
+  /** note: about the player only ("lebt von Toren, 52 % Tor oder Vorlage", "zu Hause stärker"), never a team's number. */
   players: { name: string; note?: string }[];
 };
 /** text: a few sentences on how the week looks (above the rows); notes: what stands out beyond the odds (below). */
@@ -42,8 +44,6 @@ export type SummaryView = { inXi: number; total: number; text: string[]; games: 
 /** A matchup is named from 30 % off his average; a club's prediction is "often wrong" below 9 of 11. */
 const STANDS_OUT = 0.3;
 const OFTEN_WRONG = 9;
-/** Clean sheet chance from which a goalkeeper or defender gets it as a note. */
-const CLEAN_SHEET = 40;
 
 /** Only before the matchday's first kickoff: from then on Kickbase has locked the lineup. */
 export const summaryVisible = (now: Date, firstKickoff: string | undefined): boolean =>
@@ -80,7 +80,7 @@ const decimal = (n: number) => n.toFixed(1).replace(".", ",");
  * What his points depend on against this week's number: from `good` it fits, up to `bad` it doesn't. Goals: his
  * own chance to score or assist once the player odds are out (Thursday), before that his team's expected goals.
  */
-type Check = { value: number; good: number; bad: number; note: (v: string) => string; clause: (fits: boolean, only: string) => string };
+type Check = { value: number; good: number; bad: number; note: (only: string) => string; clause: (fits: boolean, only: string) => string };
 
 function checkOf(p: SummaryPlayer): Check | undefined {
   const o = p.outlook;
@@ -94,24 +94,25 @@ function checkOf(p: SummaryPlayer): Check | undefined {
       };
       if (o.goals === undefined) return undefined;
       return {
-        value: o.goals, good: 2.2, bad: 1.35, note: (v) => `lebt von Toren, ${v}${decimal(o.goals!)} Tore erwartet`,
+        // His team's expected goals: the game's line says them, named with the team.
+        value: o.goals, good: 2.2, bad: 1.35, note: () => "lebt von Toren",
         clause: (fits, only) => `${p.name} lebt von Toren und Vorlagen, ${link(fits)} ${o.team} werden ${against(o)} ${only}${decimal(o.goals!)} Tore zugetraut`,
       };
     case "cleansheet":
       if (o.cleanSheet === undefined) return undefined;
       return {
-        value: o.cleanSheet, good: 40, bad: 20, note: (v) => `viele Zu-Null-Punkte, ${v}${o.cleanSheet} % zu Null`,
+        value: o.cleanSheet, good: 40, bad: 20, note: () => "viele Zu-Null-Punkte",
         clause: (fits, only) => `${p.name} holt viele Punkte über zu Null, ${link(fits)} die Chance darauf liegt ${against(o)} ${only}bei ${o.cleanSheet} %`,
       };
     case "team":
       return {
-        value: o.win, good: 60, bad: 25, note: (v) => `viel Siegbonus, ${v}${o.win} % Siegchance`,
+        value: o.win, good: 60, bad: 25, note: () => "viel Siegbonus",
         clause: (fits, only) => `${p.name} punktet viel über den Siegbonus, ${link(fits)} ${o.team} gewinnt ${against(o)} ${only}mit ${o.win} % Wahrscheinlichkeit`,
       };
   }
 }
 
-/** "lebt von Toren, 2,3 Tore erwartet", "zu Hause stärker", "48 % zu Null", "nur Alternative": what stands out about him in this game. */
+/** "lebt von Toren, 52 % Tor oder Vorlage", "zu Hause stärker", "nur Alternative": what stands out about him in this game. */
 function noteOf(p: SummaryPlayer): string | undefined {
   const o = p.outlook!;
   const check = checkOf(p);
@@ -119,9 +120,14 @@ function noteOf(p: SummaryPlayer): string | undefined {
     p.startNote,
     check?.note(check.value <= check.bad ? "nur " : ""),
     p.venue && Math.abs(p.venue.index - 1) >= STANDS_OUT ? `${where(o.home)} ${p.venue.index > 1 ? "stärker" : "schwächer"}` : undefined,
-    p.reliance?.kind !== "cleansheet" && (p.position === 1 || p.position === 2) && (o.cleanSheet ?? 0) >= CLEAN_SHEET ? `${o.cleanSheet} % zu Null` : undefined,
   ].filter(Boolean);
   return notes.length ? notes.join(", ") : undefined;
+}
+
+/** "Leverkusen: 2,3 Tore erwartet, 41 % zu Null": the team's numbers this week, said as the team's. */
+function teamNoteOf(o: NonNullable<SummaryPlayer["outlook"]>): string | undefined {
+  const parts = [o.goals !== undefined ? `${decimal(o.goals)} Tore erwartet` : undefined, o.cleanSheet !== undefined ? `${o.cleanSheet} % zu Null` : undefined].filter(Boolean);
+  return parts.length ? `${o.team}: ${parts.join(", ")}` : undefined;
 }
 
 /** "2 deiner 8 Starter spielen bei Favoriten, 1 bei einem klaren Außenseiter." */
@@ -164,7 +170,10 @@ function gameRows(inXi: SummaryPlayer[]): GameRow[] {
     const o = p.outlook;
     if (!o) continue;
     const key = `${o.team}|${o.kickoff}`;
-    if (!rows.has(key)) rows.set(key, { team: o.team, opponent: o.opponent, home: o.home, win: o.win, kickoff: o.kickoff, ...(o.crest ? { crest: o.crest } : {}), players: [] });
+    if (!rows.has(key)) {
+      const teamNote = teamNoteOf(o);
+      rows.set(key, { team: o.team, opponent: o.opponent, home: o.home, win: o.win, kickoff: o.kickoff, ...(o.crest ? { crest: o.crest } : {}), ...(teamNote ? { teamNote } : {}), players: [] });
+    }
     const note = noteOf(p);
     rows.get(key)!.players.push({ name: p.name, ...(note ? { note } : {}) });
   }

@@ -386,10 +386,11 @@
     "win": 78,
     "kickoff": "2026-11-07T14:30:00Z",
     "crest": "/img/clubs/1.png",
+    "teamNote": "Bayern: 2,0 Tore erwartet",
     "players": [
      {
       "name": "Kane",
-      "note": "lebt von Toren, 2,0 Tore erwartet"
+      "note": "lebt von Toren"
      }
     ]
    },

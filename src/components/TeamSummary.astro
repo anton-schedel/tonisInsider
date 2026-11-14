@@ -55,6 +55,8 @@ const nb = (s: string) => s.replace(/ %/g, "\u00a0%");
                 </span>
                 <span class="ml-auto shrink-0 text-muted tabular-nums">{when(g.kickoff)}</span>
               </div>
+              {/* The team's own numbers ("Bayern: 3,9 Tore erwartet, 41 % zu Null"), apart from the players' notes. */}
+              {g.teamNote && <p class="mt-1 text-[13px] leading-snug text-muted">{nb(g.teamNote)}</p>}
             </div>
           </li>
         ))}

@@ -69,6 +69,10 @@ struct GameRowView: View {
                     Text("\(Berlin.shortDay(game.kickoff).split(separator: " ").first ?? "") \(Berlin.time(game.kickoff))")
                         .font(.system(size: 14)).foregroundStyle(Color.tiMuted).monospacedDigit()
                 }
+                // The team's own numbers, apart from the players' notes (TeamSummary.astro).
+                if let teamNote = game.teamNote {
+                    Text(nb(teamNote)).font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.top, -4)
+                }
             }
         }
         .padding(.vertical, 12)

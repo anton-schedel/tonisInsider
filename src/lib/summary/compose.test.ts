@@ -72,12 +72,14 @@ describe("summaryView", () => {
       "Rückenwind: Schick lebt von Toren und Vorlagen, und Leverkusen werden bei Köln 2,3 Tore zugetraut; Seimen punktet viel über den Siegbonus, und Stuttgart gewinnt gegen Bremen mit 62 % Wahrscheinlichkeit. Unbedingt drin lassen.",
       "Vorsicht: Friedl holt viele Punkte über zu Null, aber die Chance darauf liegt bei Stuttgart nur bei 10 %; Caci lebt von Toren und Vorlagen, aber Mainz werden gegen Bayern nur 0,8 Tore zugetraut. Ein Blick auf deine Bank lohnt sich.",
     ]);
+    // A player's note says what his points live on; the team's numbers are the game's, named with the team.
     const notes = Object.fromEntries(view.games.flatMap((g) => g.players.map((p) => [p.name, p.note])));
-    expect(notes).toMatchObject({
-      Schick: "lebt von Toren, 2,3 Tore erwartet",
-      Caci: "lebt von Toren, nur 0,8 Tore erwartet",
-      Friedl: "viele Zu-Null-Punkte, nur 10 % zu Null",
-      Seimen: "viel Siegbonus, 62 % Siegchance",
+    expect(notes).toEqual({ Schick: "lebt von Toren", Caci: "lebt von Toren", Friedl: "viele Zu-Null-Punkte", Seimen: "viel Siegbonus" });
+    expect(Object.fromEntries(view.games.map((g) => [g.team, g.teamNote]))).toEqual({
+      Leverkusen: "Leverkusen: 2,3 Tore erwartet",
+      Mainz: "Mainz: 0,8 Tore erwartet",
+      Bremen: "Bremen: 10 % zu Null",
+      Stuttgart: "Stuttgart: 29 % zu Null",
     });
   });
 
@@ -86,6 +88,7 @@ describe("summaryView", () => {
     const view = summaryView(input(players))!;
     expect(view.text.at(-1)).toBe("Rückenwind: Schick lebt von Toren und Vorlagen, und seine Chance auf Tor oder Vorlage liegt bei Köln bei 52 %. Unbedingt drin lassen.");
     expect(view.games[0].players[0].note).toBe("lebt von Toren, 52 % Tor oder Vorlage");
+    expect(view.games[0].teamNote).toBe("Leverkusen: 1,6 Tore erwartet");
   });
 
   it("looks only at the eleven he set in Kickbase, and names those LigaInsider doesn't see in the XI", () => {
@@ -113,7 +116,7 @@ describe("summaryView", () => {
     expect(text.endsWith("Ein Blick auf deine Bank lohnt sich.")).toBe(true);
   });
 
-  it("notes where a player does clearly better or worse at this venue, and a good clean sheet chance for goalkeepers and defenders", () => {
+  it("notes where a player does clearly better or worse at this venue; the clean sheet chance is the team's, not the player's", () => {
     const players = [
       xi("Nmecha", outlook("Dortmund", "Elversberg", true, 74, 38), { venue: { index: 1.4, games: 4 }, position: 3 }),
       xi("Caci", outlook("Mainz", "Bayern", true, 17, 7), { venue: { index: 0.65, games: 3 }, position: 2 }),
@@ -121,14 +124,17 @@ describe("summaryView", () => {
       xi("Quansah", outlook("Leverkusen", "Köln", false, 55, 41), { venue: { index: 1.1, games: 3 }, position: 2 }),
       xi("Seimen", outlook("Stuttgart", "Bremen", true, 62, 48), { venue: { index: 1.5, games: 3 }, position: 1 }),
     ];
-    const notes = Object.fromEntries(summaryView(input(players))!.games.flatMap((g) => g.players.map((p) => [p.name, p.note])));
+    const view = summaryView(input(players))!;
+    const notes = Object.fromEntries(view.games.flatMap((g) => g.players.map((p) => [p.name, p.note])));
     expect(notes).toEqual({
       Nmecha: "zu Hause stärker",
       Caci: "zu Hause schwächer",
       Schick: "auswärts stärker",
-      Quansah: "41 % zu Null",
-      Seimen: "zu Hause stärker, 48 % zu Null",
+      Quansah: undefined,
+      Seimen: "zu Hause stärker",
     });
+    expect(view.games.find((g) => g.team === "Leverkusen")!.teamNote).toBe("Leverkusen: 41 % zu Null");
+    expect(view.games.find((g) => g.team === "Dortmund")!.teamNote).toBe("Dortmund: 38 % zu Null");
   });
 
   it("names at most three matchups, those that stand out most", () => {

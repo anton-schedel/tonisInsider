@@ -55,6 +55,8 @@ struct AppTeam: Codable, Sendable {
             var win: Int
             var kickoff: Date
             var crest: String?
+            /// The team's numbers, named with the team: "Leverkusen: 2,3 Tore erwartet, 41 % zu Null".
+            var teamNote: String?
             var players: [Named]
         }
         struct Named: Codable, Hashable, Sendable { var name: String; var note: String? }
