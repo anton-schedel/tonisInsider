@@ -1,6 +1,7 @@
 import type { KbEvent, KbLive } from "./kickbase.ts";
 import { swapText } from "./swapText.ts";
 import type { SlotPlay } from "./match.ts";
+import type { CardData } from "./card.ts";
 
 /**
  * The points of a club's lineup players (club pages), by LigaInsider id, and the state of its match.
@@ -21,6 +22,14 @@ export type ClubSub = { kb: string; name: string; photo?: string; minute: number
 
 /** "63' für Guirassy": when he came on and for whom. */
 export const subNote = (sub: Pick<ClubSub, "minute" | "out">): string => `${sub.minute}' für ${sub.out}`;
+
+/** The card of one who came on, opened from the club page's list under the pitch. */
+export function subCard(sub: ClubSub, club: { crest?: string; match?: string }): CardData {
+  return {
+    name: sub.name, ...(sub.photo ? { photo: sub.photo } : {}), ...(club.crest ? { crest: club.crest } : {}), ...(club.match ? { match: club.match } : {}),
+    status: `Eingewechselt (${sub.minute}')`, tone: "yellow",
+  };
+}
 
 /** One line of a player's points breakdown: an action, how often, and its points in total. */
 export type PointsLine = { name: string; count: number; points: number };

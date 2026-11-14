@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionTier, anyRunning, pointsLabel, subNote, summarize } from "./livePoints.ts";
+import { actionTier, anyRunning, pointsLabel, subCard, subNote, summarize } from "./livePoints.ts";
 
 describe("pointsLabel", () => {
   it("shows nothing before kickoff, live and final points, 0 while running without points, – after a match he didn't play", () => {
@@ -46,5 +46,14 @@ describe("actionTier", () => {
 describe("subNote", () => {
   it("minute and whom he replaced", () => {
     expect(subNote({ minute: 63, out: "Guirassy" })).toBe("63' für Guirassy");
+  });
+});
+
+describe("subCard", () => {
+  it("his card from the club page: Eingewechselt, yellow, the club's crest and match", () => {
+    expect(subCard({ kb: "7", name: "Silva", minute: 63, out: "Adeyemi" }, { crest: "/img/clubs/14.png", match: "vs Bremen · Fr. 20:30" }))
+      .toEqual({ name: "Silva", crest: "/img/clubs/14.png", match: "vs Bremen · Fr. 20:30", status: "Eingewechselt (63')", tone: "yellow" });
+    expect(subCard({ kb: "7", name: "Silva", photo: "https://kickbase.b-cdn.net/x.png", minute: 63, out: "Adeyemi" }, {}))
+      .toEqual({ name: "Silva", photo: "https://kickbase.b-cdn.net/x.png", status: "Eingewechselt (63')", tone: "yellow" });
   });
 });

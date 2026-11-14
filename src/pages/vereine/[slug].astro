@@ -8,7 +8,7 @@ import SectionHead from "../../components/SectionHead.astro";
 import Comments from "../../components/Comments.astro";
 import { articles, clubArticles, lineups, odds, scorers } from "../../lib/data.ts";
 import { confirmedClubs } from "../../lib/lineupNews.ts";
-import { newsByPlayer } from "../../lib/card.ts";
+import { matchLine, newsByPlayer } from "../../lib/card.ts";
 import { matchInsights } from "../../lib/scorers.ts";
 import { chancesFor } from "../../lib/odds.ts";
 import { toFixtures } from "../../lib/fixtures.ts";
@@ -46,6 +46,14 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
   <section class="mt-9">
     <SectionHead title="Aufstellung" class="mb-3">{lineup.formation}</SectionHead>
     <Pitch lineup={lineup} insight={insights?.player} cleanSheet={cleanSheet} win={win} confirmed={confirmed} news={playerNews} />
+    {/* From the first substitution on: everyone who came on, with his points, right here (script below) — no face to
+        flip to find him. Hidden while nobody has come on. */}
+    {lineup.kickoff && (
+      <div data-kb-subs hidden data-crest={lineup.club.crest} data-match={matchLine(lineup)}>
+        <h3 class="pt-1 pb-1 text-[15px] font-semibold">Eingewechselt</h3>
+        <div data-kb-subs-list class="divide-y divide-hairline"></div>
+      </div>
+    )}
     {/* From kickoff on: the players' Kickbase points (script below). */}
     {lineup.kickoff && <div hidden data-kb-club={lineup.club.slug} data-kickoff={lineup.kickoff}></div>}
     {/* From kickoff on, before the first paint: the points chips wait as placeholders where the points will be,
@@ -88,7 +96,8 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
 </Base>
 
 <script>
-  import { applyPoints, pointsLabel, type ClubPoints } from "../../lib/livePoints.ts";
+  import { applyPoints, pointsLabel, subCard, subNote, type ClubPoints, type ClubSub } from "../../lib/livePoints.ts";
+  import { initials } from "../../lib/format.ts";
   import type { SlotPlay } from "../../lib/match.ts";
   import { revealIn } from "../../lib/commentUi.ts";
 
@@ -114,19 +123,10 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     return el;
   }
 
-  function hint(label: string) {
-    const el = document.createElement("span");
-    el.className = "swap-hint";
-    el.dataset.swapHint = "";
-    el.setAttribute("role", "button");
-    el.setAttribute("aria-label", label);
-    el.textContent = "⇄";
-    return el;
-  }
-
   /**
    * From kickoff on the pitch shows who really played: the alternative goes (or takes the slot, if it was him who
-   * started), and a substitution gets the ⇄ mark, which flips to the one who came on (handler in Base.astro).
+   * started); a substituted starter stays one face, with when he went off and who came on (that one is listed under
+   * the pitch with his points).
    */
   function applySlot(slot: HTMLElement, play: SlotPlay) {
     if (!slot.dataset.settled) {
@@ -138,42 +138,56 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       slot.dataset.settled = "1";
     }
     if (!play.sub || slot.dataset.sub) return;
-    const main = slot.querySelector<HTMLElement>(":scope > button")!;
-    const shownName = main.querySelector("[data-face-name]")?.textContent ?? "";
-    // The one who came on: a copy of the face with his photo, name and points.
-    const sub = main.cloneNode(true) as HTMLElement;
-    const img = sub.querySelector("img");
-    if (img && play.sub.photo) {
-      img.src = play.sub.photo;
-      img.alt = play.sub.name;
-      img.classList.replace("ring-white/80", "ring-[var(--yellow-dot)]");
-    }
-    sub.querySelectorAll(".s11-badge, .news-badge, [data-sub-note]").forEach((el) => el.remove());
-    sub.querySelector("[data-face-name]")!.textContent = play.sub.name;
-    const chip = sub.querySelector<HTMLElement>("[data-kb-points]")!;
-    chip.dataset.kbPoints = `kb${play.sub.kb}`;
-    chip.dataset.kbPlayer = play.sub.kb;
-    try {
-      const card = JSON.parse(main.dataset.card!) as Record<string, unknown>;
-      sub.dataset.card = JSON.stringify({
-        name: play.sub.name, photo: play.sub.photo, crest: card.crest, pos: card.pos, match: card.match, href: card.href,
-        status: `Eingewechselt (${play.sub.minute}')`, tone: "yellow",
-      });
-    } catch {}
-    sub.querySelector("[data-face-pic]")!.append(hint(`${shownName} zeigen`));
-    sub.append(note(`ab ${play.sub.minute}' für ${shownName}`));
-    main.querySelector("[data-face-pic]")!.append(hint(`${play.sub.name} zeigen`));
-    main.append(note(`bis ${play.sub.minute}' · ${play.sub.name}`));
-    const wrap = document.createElement("div");
-    wrap.className = "swap grid w-full";
-    wrap.dataset.swap = "";
-    main.classList.add("swap-face");
-    sub.classList.add("swap-face", "swap-alt");
-    sub.setAttribute("inert", "");
-    sub.setAttribute("aria-hidden", "true");
-    main.replaceWith(wrap);
-    wrap.append(main, sub);
+    slot.querySelector<HTMLElement>(":scope > button")!.append(note(`bis ${play.sub.minute}' · ${play.sub.name}`));
     slot.dataset.sub = "1";
+  }
+
+  /** One who came on, like a bench row on Mein Team: photo (yellow ring), name, "63' für …", his points. */
+  function subRow(sub: ClubSub, box: HTMLElement, doc: Document): HTMLElement {
+    const row = doc.createElement("button");
+    row.type = "button";
+    row.className = "press-row flex w-full items-center gap-3 py-2.5 text-left";
+    row.dataset.card = JSON.stringify(subCard(sub, { crest: box.dataset.crest, match: box.dataset.match }));
+    const pic = doc.createElement("span");
+    pic.className = "relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface text-[14px] font-semibold text-muted ring-2 ring-[var(--yellow-dot)]";
+    pic.textContent = initials(sub.name);
+    if (sub.photo) {
+      const img = doc.createElement("img");
+      img.src = sub.photo;
+      img.alt = "";
+      img.loading = "lazy";
+      img.className = "absolute inset-0 size-full object-cover";
+      img.addEventListener("error", () => img.remove());
+      pic.append(img);
+    }
+    const text = doc.createElement("span");
+    text.className = "min-w-0 flex-1";
+    const name = doc.createElement("span");
+    name.className = "block truncate text-[15px] font-semibold tracking-[-0.01em]";
+    name.textContent = sub.name;
+    const when = doc.createElement("span");
+    when.className = "block truncate text-xs text-muted";
+    when.textContent = subNote(sub);
+    text.append(name, when);
+    const chip = doc.createElement("span");
+    chip.className = "kb-points is-row";
+    chip.dataset.kbPoints = `kb${sub.kb}`;
+    chip.dataset.kbPlayer = sub.kb;
+    chip.hidden = true;
+    chip.innerHTML = '<span class="kb-points-dot" aria-hidden="true"></span><span data-kb-text></span>';
+    row.append(pic, text, chip);
+    return row;
+  }
+
+  /** Everyone who came on, under the pitch: rebuilt only when someone new came on (draw() updates the chips). */
+  function drawSubs(subs: ClubSub[], doc: Document) {
+    const box = doc.querySelector<HTMLElement>("[data-kb-subs]");
+    if (!box) return;
+    const key = subs.map((s) => s.kb).join(",");
+    if (box.dataset.kbSubsKey === key) return;
+    box.dataset.kbSubsKey = key;
+    box.hidden = subs.length === 0;
+    box.querySelector("[data-kb-subs-list]")!.replaceChildren(...subs.map((s) => subRow(s, box, doc)));
   }
 
   /** doc: the page shown, or the incoming one during a navigation (not shown yet: no fades). */
@@ -182,7 +196,8 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       const slot = doc.querySelector<HTMLElement>(`[data-slot="${id}"]`);
       if (slot) applySlot(slot, play);
     }
-    const subPoints = new Map(Object.values(data.slots ?? {}).flatMap((p) => (p.sub ? [[p.sub.kb, p.sub.points] as const] : [])));
+    drawSubs(data.subs ?? [], doc);
+    const subPoints = new Map((data.subs ?? []).map((s) => [s.kb, s.points] as const));
     for (const el of doc.querySelectorAll<HTMLElement>("[data-kb-points^='li'], [data-kb-points^='kb']")) {
       const key = el.dataset.kbPoints!;
       const liId = Number(key.slice(2));
