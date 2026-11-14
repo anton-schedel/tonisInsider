@@ -20,6 +20,10 @@ struct PlayerCardData: Codable, Hashable, Identifiable, Sendable {
     var news: [CardNews]?
     /// His club's page ("/vereine/<slug>/"); Mein Team only, like the site's "Zum Verein".
     var href: String?
+    /// From kickoff on (set by the screen that opens the card): his Kickbase id, for "Punkte am Spieltag".
+    var kickbaseId: String?
+    /// From kickoff on: his points, the card's big number then.
+    var points: PointsLabel?
 
     var clubSlug: String? {
         href.flatMap { $0.split(separator: "/").last.map(String.init) }

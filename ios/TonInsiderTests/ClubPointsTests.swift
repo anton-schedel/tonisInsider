@@ -1,0 +1,77 @@
+import Foundation
+import Testing
+@testable import TonInsider
+
+extension NetworkTests {
+    /// The club page's live points (src/pages/vereine/[slug].astro, GET /api/kickbase/club/<slug>/).
+    @Suite(.serialized) @MainActor
+    struct ClubPointsTests {
+        private let kickoff = Date(timeIntervalSince1970: 1_800_000_000)
+
+        @Test func decodesTheAnswer() throws {
+            let p = try JSONDecoder.site.decode(ClubPoints.self, from: try fixture("club-points"))
+            #expect(p.live.state == 1)
+            #expect(p.players["10454"] == 162)
+            #expect(p.ids?["9357"] == "1873")
+            #expect(p.slots?["10454"]?.sub?.name == "Silva")
+            #expect(p.subs?.map(\.name) == ["Silva", "Adeyemi"])
+            #expect(p.subs?.first?.out == "Guirassy")
+            #expect(p.subs?.last?.points == nil)
+        }
+
+        @Test func pointsMatterFromKickoffForFourDays() {
+            #expect(!ClubPointsModel.matters(kickoff: nil, now: kickoff))
+            #expect(!ClubPointsModel.matters(kickoff: kickoff, now: kickoff.addingTimeInterval(-60)))
+            #expect(ClubPointsModel.matters(kickoff: kickoff, now: kickoff))
+            #expect(ClubPointsModel.matters(kickoff: kickoff, now: kickoff.addingTimeInterval(4 * 86_400 - 3_600)))
+            #expect(!ClubPointsModel.matters(kickoff: kickoff, now: kickoff.addingTimeInterval(4 * 86_400)))
+        }
+
+        @Test func aSlotShowsWhoReallyPlayed() {
+            let alt = PlayerRef(id: 2, slug: "b", name: "Jobe", photo: nil)
+            let p = LineupPlayer(id: 1, slug: "a", name: "Nmecha", photo: nil, status: .set, statusLabel: nil, alternative: alt)
+            #expect(LineupPitch.played(p, ClubPoints.SlotPlay(show: "alt", sub: nil)).shown == alt)
+            #expect(LineupPitch.played(p, ClubPoints.SlotPlay(show: "alt", sub: nil)).note == nil)
+            let subbed = LineupPitch.played(p, ClubPoints.SlotPlay(show: "main", sub: .init(kb: "9", name: "Beier", photo: nil, minute: 63, points: nil)))
+            #expect(subbed.shown.id == 1)
+            #expect(subbed.note == "bis 63' · Beier")
+            #expect(LineupPitch.played(p, nil).shown.id == 1)
+            #expect(LineupPitch.played(p, nil).note == nil)
+        }
+
+        @Test func stopsAskingOnceTheMatchIsOver() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in
+                calls.value += 1
+                return (response(200), Data(#"{"live":{"state":2},"players":{"1":40}}"#.utf8))
+            }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
+            await model.run(slug: "fcb", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(7_200) })
+            #expect(calls.value == 1)
+            #expect(model.points?.players["1"] == 40)
+        }
+
+        @Test func keepsTheLastPointsWhenKickbaseFails() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in
+                calls.value += 1
+                if calls.value > 1 { throw URLError(.timedOut) }
+                return (response(200), Data(#"{"live":{"state":1},"players":{"1":12}}"#.utf8))
+            }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
+            let run = Task { await model.run(slug: "fcb2", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(600) }) }
+            while calls.value < 3 { try await Task.sleep(for: .milliseconds(5)) }
+            run.cancel()
+            #expect(model.points?.players["1"] == 12)
+        }
+
+        @Test func noRequestOutsideTheWindow() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in calls.value += 1; return (response(200), Data("{}".utf8)) }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
+            await model.run(slug: "fcb3", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(-60) })
+            #expect(calls.value == 0)
+            #expect(model.points == nil)
+        }
+    }
+}
