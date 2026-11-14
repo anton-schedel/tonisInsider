@@ -62,6 +62,11 @@ struct PlayerCardView: View {
     var openClub: ((String) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
+    /// "Punkte am Spieltag" (from kickoff on, data.kickbaseId set): nil until the first load starts.
+    private enum Breakdown { case loading, loaded(PlayerPoints), failed }
+    @State private var breakdown: Breakdown?
+    @State private var allLines = false
+
     /// A card chance from this much on is shown as a warning (PlayerCard.astro CARD_WARN).
     private static let cardWarn = 30
 
@@ -81,7 +86,7 @@ struct PlayerCardView: View {
                     if let match = data.match {
                         Text(match).font(.system(size: 14)).foregroundStyle(Color.tiMuted).padding(.top, 12)
                     }
-                    stats
+                    pointsOrStats
                     news
                 }
                 .padding(.horizontal, 24)
@@ -97,6 +102,11 @@ struct PlayerCardView: View {
             .padding(.top, 10)
             .padding(.bottom, 8)
         }
+        .task(id: data.kickbaseId) {
+            guard let id = data.kickbaseId else { return }
+            breakdown = .loading
+            do { breakdown = .loaded(try await PointsBreakdown.shared.load(id)) } catch { breakdown = .failed }
+        }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
@@ -107,10 +117,23 @@ struct PlayerCardView: View {
     private var top: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(hero.value.map { "\($0)\u{a0}%" } ?? "–")
-                    .font(.system(size: 52, weight: .heavy)).tracking(-2.2).monospacedDigit()
-                    .minimumScaleFactor(0.7).lineLimit(1)
-                Text(hero.label).font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.top, 5)
+                // From kickoff on the big number is his points, not the odds before the match (PlayerCard.astro).
+                if let points = data.points {
+                    Text(points.text)
+                        .font(.system(size: 52, weight: .heavy)).tracking(-2.2).monospacedDigit()
+                        .foregroundStyle(points.tier?.ink ?? Color.tiForeground)
+                        .minimumScaleFactor(0.7).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text("Punkte")
+                        if points.live { LiveDot(color: .tiLive) }
+                    }
+                    .font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.top, 5)
+                } else {
+                    Text(hero.value.map { "\($0)\u{a0}%" } ?? "–")
+                        .font(.system(size: 52, weight: .heavy)).tracking(-2.2).monospacedDigit()
+                        .minimumScaleFactor(0.7).lineLimit(1)
+                    Text(hero.label).font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.top, 5)
+                }
                 Spacer(minLength: 12)
                 Text(data.name).font(.system(size: 24, weight: .heavy)).tracking(-0.6).lineLimit(3).minimumScaleFactor(0.8)
                 HStack(spacing: 6) {
@@ -134,6 +157,57 @@ struct PlayerCardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// From kickoff on, instead of the odds: what he did and what it was worth; the odds again if Kickbase fails.
+    @ViewBuilder private var pointsOrStats: some View {
+        switch breakdown ?? (data.kickbaseId != nil ? .loading : .failed) {
+        case .loading:
+            pointsBox {
+                // As tall as the six lines that replace them, so the card keeps its height.
+                ForEach([0.62, 0.48, 0.55, 0.4, 0.5, 0.36], id: \.self) { w in
+                    HStack {
+                        Capsule().fill(Color.tiSurface).frame(width: 240 * w, height: 12)
+                        Spacer()
+                        Capsule().fill(Color.tiSurface).frame(width: 28, height: 12)
+                    }
+                    .frame(height: 37)
+                }
+            }
+        case .loaded(let p) where p.live.state != 0 && !p.lines.isEmpty:
+            let visible = PointsBreakdown.visible(p.lines, all: allLines)
+            pointsBox {
+                ForEach(Array(visible.shown.enumerated()), id: \.offset) { index, line in
+                    if index > 0 { Divider().overlay(Color.tiHairline) }
+                    HStack(spacing: 8) {
+                        Text(line.name).font(.system(size: 15)).lineLimit(1)
+                        Spacer(minLength: 8)
+                        if line.count > 1 { Text("\(line.count)×").font(.system(size: 15)).foregroundStyle(Color.tiMuted).monospacedDigit() }
+                        Text(line.points > 0 ? "+\(line.points)" : "\(line.points)")
+                            .font(.system(size: 15, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(PointsTier.action(line.points).ink)
+                    }
+                    .frame(minHeight: 36)
+                }
+                if visible.hidden > 0 {
+                    Button("Alle \(p.lines.count) Aktionen") { withAnimation(.easeOut(duration: 0.2)) { allLines = true } }
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.tiForeground)
+                        .buttonStyle(.plain).padding(.top, 8)
+                }
+            }
+        default:
+            stats
+        }
+    }
+
+    private func pointsBox(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Punkte am Spieltag").font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.bottom, 2)
+            content()
+        }
+        .padding(.top, 12)
+        .overlay(alignment: .top) { Rectangle().fill(Color.tiForeground.opacity(0.12)).frame(height: 1) }
+        .padding(.top, 16)
     }
 
     /// The other chances in one row of equal columns, value over label.

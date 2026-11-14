@@ -88,7 +88,7 @@ struct MyTeamView: View {
                 SectionTitle(title: "Aufstellung", detail: team.formation + (team.started && team.points != nil ? " · \(team.points!) Pkt." : ""))
                     .padding(.bottom, 12)
                 Pitch(lines: team.lines.map { Array($0.indices) }) { i, j in
-                    if let p = team.players[team.lines[i][j]] { MyPitchFace(player: p) { card = p.card } }
+                    if let p = team.players[team.lines[i][j]] { MyPitchFace(player: p) { card = Self.card(p) } }
                 }
                 if let summary = team.summary { MatchdaySummaryView(summary: summary).padding(.top, 32) }
                 let bench = team.bench.compactMap { team.players[$0] }
@@ -114,10 +114,20 @@ struct MyTeamView: View {
         }
     }
 
+    /// His card; from kickoff on with his points and Kickbase id (the player id here), for "Punkte am Spieltag".
+    static func card(_ p: AppTeam.Player) -> PlayerCardData {
+        var data = p.card
+        if let label = p.live.flatMap({ PointsLabel(state: $0.state, points: $0.points) }) {
+            data.points = label
+            data.kickbaseId = p.id
+        }
+        return data
+    }
+
     private func rows(_ players: [AppTeam.Player], team: AppTeam) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(players.enumerated()), id: \.element.id) { index, p in
-                Button { card = p.card } label: { MyPlayerRow(player: p) }.buttonStyle(.pressRow)
+                Button { card = Self.card(p) } label: { MyPlayerRow(player: p) }.buttonStyle(.pressRow)
                 if index < players.count - 1 { Divider().overlay(Color.tiHairline) }
             }
         }

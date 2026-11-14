@@ -79,8 +79,15 @@ struct ClubView: View {
             // Screenshots: -TICard <row> opens the first player of that row's card.
             let row = UserDefaults.standard.integer(forKey: "TICard")
             if row > 0, row <= lineup.lines.count, let p = lineup.lines[row - 1].first {
-                card = PlayerCardData(PlayerRef(id: p.id, slug: p.slug, name: p.name, photo: p.photo), lineup: lineup, feed: feed,
-                                      pos: rowPosition(row - 1, rows: lineup.lines.count), status: p.start(confirmed: feed.confirmed.contains(lineup.club.id)))
+                var data = PlayerCardData(PlayerRef(id: p.id, slug: p.slug, name: p.name, photo: p.photo), lineup: lineup, feed: feed,
+                                          pos: rowPosition(row - 1, rows: lineup.lines.count), status: p.start(confirmed: feed.confirmed.contains(lineup.club.id)))
+                // From kickoff on, as a tap would: with his points once they're in.
+                if ClubPointsModel.matters(kickoff: lineup.kickoff, now: .now) {
+                    for _ in 0..<50 where live.points == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                    data.kickbaseId = live.points?.ids?[String(p.id)]
+                    data.points = live.points.flatMap { $0.label($0.players[String(p.id)]) }
+                }
+                card = data
             }
         }
         #endif

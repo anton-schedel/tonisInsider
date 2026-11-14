@@ -72,18 +72,10 @@ struct PointsChip: View {
     let label: PointsLabel?
     var style: Style = .pitch
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var dim = false
-
     var body: some View {
         if let label {
             HStack(spacing: 4) {
-                if label.live {
-                    Circle().frame(width: 6, height: 6)
-                        .opacity(dim ? 0.3 : 1)
-                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: dim)
-                        .onAppear { if !reduceMotion { dim = true } }
-                }
+                if label.live { LiveDot() }
                 Text(label.text).monospacedDigit()
             }
             .font(.system(size: style == .pitch ? 11.5 : 14, weight: .bold))
@@ -108,5 +100,21 @@ struct PointsChip: View {
         case .pitch: label.tier?.bright ?? .white
         case .row: label.tier?.ink ?? Color.tiForeground
         }
+    }
+}
+
+/// The 6-point dot of a running match (global.css kb-live): pulses to 30 % and back over 1.6 s, still under reduced
+/// motion. Its colour is the surrounding text's, unless given.
+struct LiveDot: View {
+    var color: Color?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dim = false
+
+    var body: some View {
+        Circle().fill(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.foreground)).frame(width: 6, height: 6)
+            .opacity(dim ? 0.3 : 1)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: dim)
+            .onAppear { if !reduceMotion { dim = true } }
+            .accessibilityHidden(true)
     }
 }
