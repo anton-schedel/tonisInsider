@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run, lineupsDue } from "./run.ts";
@@ -191,6 +191,50 @@ describe("run", () => {
     const third = fakeFetcher();
     await run({ store, fetcher: third.fetcher, publicDir, now: NOW });
     expect(third.calls.some((u) => u.includes("418778"))).toBe(false);
+  });
+
+  /** The national U21's news: LigaInsider files it under a club of its own, with its crest beside the headline. */
+  const U21_URL = "https://www.ligainsider.de/deutschland-u21/33166/em-quali-fix-deutschlands-u21-besiegt-georgien-418765/";
+  const U21_CREST = "https://cdn.ligainsider.de/images/teams/medium/deutschland-u21-wappen.png";
+  const u21Page = () => fx("article-kobel.html").replace(/<div class="news_title_box">[\s\S]*?<h2>/,
+    `<div class="news_title_box"><div class="news_top_icon"><a href="/deutschland-u21/33166/"><img src="${U21_CREST}" alt=""/></a></div>` +
+    `<strong><a href="/deutschland-u21/33166/">Deutschland U21</a></strong><h2>`);
+
+  it("a club outside the Bundesliga (the national teams) gets the crest beside the article's headline", async () => {
+    const { fetcher, calls } = fakeFetcher({ [U21_URL]: u21Page() });
+    await run({ store, fetcher, publicDir, now: NOW });
+    expect(store.getArticle(418765)!.club).toEqual({ id: 33166, slug: "deutschland-u21", name: "Deutschland U21", crest: "/img/clubs/33166.png" });
+    expect(calls).toContain(U21_CREST);
+  });
+
+  it("an article stored without its club's crest: one another article brought, else its page is read once", async () => {
+    await run({ store, fetcher: fakeFetcher({ [U21_URL]: u21Page() }).fetcher, publicDir, now: NOW });
+    const crestless = () => {
+      const a = store.getArticle(418765)!;
+      delete a.club!.crest;
+      store.putArticle(a);
+    };
+    // The crest is here already (another article brought it): no request.
+    crestless();
+    const second = fakeFetcher({ [U21_URL]: u21Page() });
+    const r = await run({ store, fetcher: second.fetcher, publicDir, now: NOW });
+    expect(store.getArticle(418765)!.club?.crest).toBe("/img/clubs/33166.png");
+    expect(second.calls).not.toContain(U21_URL);
+    expect(r.changed).toBe(true);
+    // Not here: the article's page is read once for it…
+    crestless();
+    rmSync(join(publicDir, "img/clubs/33166.png"));
+    const third = fakeFetcher({ [U21_URL]: u21Page() });
+    await run({ store, fetcher: third.fetcher, publicDir, now: NOW });
+    expect(third.calls.filter((u) => u === U21_URL)).toHaveLength(1);
+    expect(store.getArticle(418765)!.club?.crest).toBe("/img/clubs/33166.png");
+    expect(existsSync(join(publicDir, "img/clubs/33166.png"))).toBe(true);
+    // …and not again, even if it brought none.
+    crestless();
+    rmSync(join(publicDir, "img/clubs/33166.png"));
+    const fourth = fakeFetcher({ [U21_URL]: u21Page() });
+    await run({ store, fetcher: fourth.fetcher, publicDir, now: NOW });
+    expect(fourth.calls).not.toContain(U21_URL);
   });
 
   it("remembers which articles LigaInsider pins on top of its list", async () => {

@@ -8,6 +8,19 @@ import { parseRatings } from "./ratings.ts";
 /** "Players" that are really LigaInsider itself (its own articles). */
 export const NON_PLAYER_SLUGS = new Set(["ligainsider"]);
 
+/**
+ * The crest beside the headline, when it is the article's club's: the only crest we get for clubs outside the
+ * Bundesliga (LigaInsider files the national teams' news under one). Only LigaInsider's own images.
+ */
+export function parseClubCrest(html: string, club: { id: number } | undefined): string | undefined {
+  if (!club) return undefined;
+  const $ = cheerio.load(html);
+  const icon = $(".news_title_box .news_top_icon a").first();
+  if (parseClubHref(icon.attr("href") ?? "")?.id !== club.id) return undefined;
+  const src = icon.find("img").first().attr("src") ?? "";
+  return /^https:\/\/cdn\.ligainsider\.(de|com)\//.test(src) ? src : undefined;
+}
+
 export function parseArticle(html: string, ref: ArticleRef, category: Category, now: Date): Article {
   const $ = cheerio.load(html);
   const titleBox = $(".news_title_box").first();

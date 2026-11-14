@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Store } from "./store.ts";
 import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
@@ -7,7 +9,7 @@ import { pinnedIds } from "./pinned.ts";
 import { mergeOdds, oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
 import { assistsUrl, parseAssists, parseFullOdds, parseScorerOdds, propsUrl, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
-import { NON_PLAYER_SLUGS, parseArticle } from "./parse/article.ts";
+import { NON_PLAYER_SLUGS, parseArticle, parseClubCrest } from "./parse/article.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
 import { canonicalOpponent, fillFromSchedule, fillOpponents } from "./opponents.ts";
@@ -29,6 +31,9 @@ export const OVERVIEWS: { category: Category; url: (page: number) => string }[] 
     url: (p) => (p === 1 ? `${BASE_URL}/bundesliga-news/uebersicht/` : `${BASE_URL}/startpage/uebersicht/${p}/`),
   },
 ];
+
+/** Article pages read per run for the crest of a club outside the Bundesliga (articles stored before it was read). */
+const CREST_READS = 10;
 
 /** "Vor 2 Std." means 2–3 h ago, so a listing time up to ~1 h after our date is normal. */
 const REPUBLISH_TOLERANCE_MIN = 90;
@@ -142,7 +147,8 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       continue;
     }
     try {
-      const article: Article = parseArticle(await fetcher.text(ref.url), ref, category, now);
+      const html = await fetcher.text(ref.url);
+      const article: Article = parseArticle(html, ref, category, now);
       if (listedAt !== undefined) article.listedAt = new Date(listedAt).toISOString();
       const problems = validateArticle(article);
       if (problems.length) {
@@ -168,7 +174,9 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       }
       if (article.club) {
         const club = clubById.get(article.club.id);
-        article.club.crest = await ensureImage(fetcher, publicDir, "clubs", article.club.id, club && mediumCrest(club.crestUrl));
+        // A club outside the Bundesliga (the national teams): the crest beside the headline.
+        article.club.crest = await ensureImage(fetcher, publicDir, "clubs", article.club.id,
+          club ? mediumCrest(club.crestUrl) : parseClubCrest(html, article.club));
       }
       store.putArticle(article);
       result.changed = true;
@@ -184,6 +192,33 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   }
   state.unavailable = unavailable;
   state.invalid = invalid;
+
+  // 2b. Articles of a club outside the Bundesliga stored without its crest (before it was read from the page):
+  // the crest another article of the club brought, else the article's page is read once for it.
+  if (clubsParsed) {
+    const checked = new Set(state.crestChecked ?? []);
+    let reads = 0;
+    for (const a of store.articles()) {
+      if (!a.club || a.club.crest || clubById.has(a.club.id)) continue;
+      const known = `/img/clubs/${a.club.id}.png`;
+      let crest = existsSync(join(publicDir, known)) ? known : undefined;
+      if (!crest && !checked.has(a.id) && reads < CREST_READS) {
+        reads++;
+        checked.add(a.id);
+        try {
+          crest = await ensureImage(fetcher, publicDir, "clubs", a.club.id, parseClubCrest(await fetcher.text(a.url), a.club));
+        } catch (err) {
+          console.warn(`crest of article ${a.id}: ${(err as Error).message}`);
+        }
+      }
+      if (crest) {
+        a.club.crest = crest;
+        store.putArticle(a);
+        result.changed = true;
+      }
+    }
+    state.crestChecked = [...checked].filter((id) => store.getArticle(id));
+  }
 
   // 3. Lineups.
   if (clubs.length && lineupsDue(store.lineups(), state.lineupsFetchedAt, now)) {

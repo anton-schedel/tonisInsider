@@ -94,6 +94,8 @@ export type State = {
   invalid?: Record<string, string>;
   /** Git SHA of the code that last ran; a change forces a rebuild and retries invalid articles. */
   codeVersion?: string;
+  /** Articles whose page was read once for the crest of their club (one outside the Bundesliga), not read again. */
+  crestChecked?: number[];
   /** Comment counts from the overviews: id → count. Updating them alone doesn't trigger a rebuild. */
   commentCounts?: Record<string, number>;
   /** Win chances from bookmaker odds (The Odds API), refreshed every 3 hours. */

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseArticle } from "./article.ts";
+import { parseArticle, parseClubCrest } from "./article.ts";
 import type { ArticleRef } from "../types.ts";
 
 const fx = (name: string) => readFileSync(join(import.meta.dirname, "..", "__fixtures__", name), "utf8");
@@ -68,5 +68,24 @@ describe("parseArticle", () => {
     expect(a.bodyHtml).toBe("");
     expect(a.publishedAt).toBe("");
     expect(a.headline).toBe("X");
+  });
+});
+
+describe("parseClubCrest", () => {
+  // LigaInsider files the national teams' news under a club of their own; the header shows its crest too.
+  const page = (iconHref: string) => `<div class="news_title_box"><div class="news_top_icon"><a href="${iconHref}">` +
+    `<img src="https://cdn.ligainsider.de/images/teams/medium/deutschland-wappen.png" alt=""/></a></div>` +
+    `<strong><a href="/deutschland/6998/">Deutschland</a></strong></div>`;
+
+  it("the crest beside the headline, for the article's club", () => {
+    expect(parseClubCrest(fx("article-can.html"), { id: 14 })).toBe("https://cdn.ligainsider.de/images/teams/medium/borussia-dortmund-wappen.png");
+    expect(parseClubCrest(page("/deutschland/6998/"), { id: 6998 })).toBe("https://cdn.ligainsider.de/images/teams/medium/deutschland-wappen.png");
+  });
+
+  it("nothing when the crest belongs to another club, there is no club, or it isn't LigaInsider's image", () => {
+    expect(parseClubCrest(page("/borussia-dortmund/14/"), { id: 6998 })).toBeUndefined();
+    expect(parseClubCrest(page("/deutschland/6998/"), undefined)).toBeUndefined();
+    expect(parseClubCrest(page("/deutschland/6998/").replace("https://cdn.ligainsider.de", "https://example.com"), { id: 6998 })).toBeUndefined();
+    expect(parseClubCrest(fx("article-pk-termine.html"), { id: 6998 })).toBeUndefined();
   });
 });
