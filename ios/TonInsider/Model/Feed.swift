@@ -113,6 +113,21 @@ struct Article: Codable, Identifiable, Hashable, Sendable {
     struct Size: Codable, Hashable, Sendable { var width: Double; var height: Double }
 
     var isOwn: Bool { own == true }
+
+    /// The picture beside the post (src/lib/postPicture.ts): the player's photo, else his club's crest, else our logo.
+    enum Picture: Equatable {
+        case player(PlayerRef, crest: String?, top: Bool)
+        case crest(String)
+        case logo
+    }
+
+    /// Our own player news without a photo shows the crest, not initials; a club without a crest (LigaInsider files
+    /// the national teams' news under one) shows our logo, never an empty space.
+    var picture: Picture {
+        if let player, player.photo != nil || !isOwn { return .player(player, crest: club?.crest, top: isOwn) }
+        if let crest = club?.crest { return .crest(crest) }
+        return .logo
+    }
 }
 
 enum RatingMark: String, Codable, Sendable {

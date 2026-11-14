@@ -6,25 +6,29 @@ import StatusPill from "../../components/StatusPill.astro";
 import Comments from "../../components/Comments.astro";
 import OwnComments from "../../components/OwnComments.astro";
 import RatingsPitch from "../../components/RatingsPitch.astro";
-import { articles } from "../../lib/data.ts";
+import { articles, lineups } from "../../lib/data.ts";
+import { postPicture } from "../../lib/postPicture.ts";
 import { fullDate } from "../../lib/format.ts";
-import { LOGO, NAME } from "../../lib/brand.ts";
+import { NAME } from "../../lib/brand.ts";
 import type { Article } from "../../../scraper/types.ts";
 
 export function getStaticPaths() {
   return articles().map((article) => ({ params: { id: String(article.id) }, props: { article } }));
 }
 const { article: a } = Astro.props as { article: Article };
-// Our own posts have no club page, no original on LigaInsider and no comments there.
-const clubLineupHref = a.club && !a.own ? `/vereine/${a.club.slug}/` : undefined;
+// Our own posts have no club page, no original on LigaInsider and no comments there; neither have the national
+// teams (LigaInsider files their news under a club of their own).
+const clubLineupHref = a.club && !a.own && lineups().some((l) => l.club.slug === a.club!.slug) ? `/vereine/${a.club.slug}/` : undefined;
+// Photo, else crest, else our logo.
+const picture = postPicture(a);
 ---
 <Base title={a.headline} tab="news" back={{ href: "/", label: "News" }} hideHeading>
   <div slot="top" class="flex min-w-0 flex-1 items-center gap-3">
-    {a.player && (a.player.photo || !a.own)
-      ? <Avatar src={a.player.photo} name={a.player.name} size={40} top={a.own} />
-      : a.club
-        ? <Crest src={a.club.crest} name={a.club.name} size={40} />
-        : <Avatar src={LOGO} name={NAME} size={40} />}
+    {picture.kind === "player"
+      ? <Avatar src={picture.photo} name={picture.name} size={40} top={picture.top} />
+      : picture.kind === "crest"
+        ? <Crest src={picture.src} name={picture.name} size={40} />
+        : <Avatar src={picture.src} name={picture.name} size={40} />}
     <div class="min-w-0 text-xs leading-snug text-muted">
       {a.player && <b class="block truncate text-sm text-fg">{a.player.name}</b>}
       {!a.player && !a.club && <b class="block text-sm text-fg">{NAME}</b>}

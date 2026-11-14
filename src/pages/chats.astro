@@ -39,21 +39,18 @@ import Base from "../layouts/Base.astro";
   import { badgeCount, checkedNow, loadChats, markAllSeen, markSeen, refreshAll, saveBadge } from "../lib/chatsClient.ts";
   import type { ChatView } from "../lib/chatsApi.ts";
   import { h } from "../lib/commentUi.ts";
-  import { ago, initials } from "../lib/format.ts";
+  import { ago } from "../lib/format.ts";
   import { LOGO } from "../lib/brand.ts";
 
   const rows = new Map<number, ChatView>();
 
   function avatar(c: ChatView): HTMLElement {
-    const src = c.place.club?.crest ?? (c.place.own || !c.place.club ? LOGO : undefined);
-    if (src) {
-      const img = h("img", "size-10 shrink-0 rounded-full bg-surface object-contain p-1.5");
-      img.src = src;
-      img.alt = "";
-      img.loading = "lazy";
-      return img;
-    }
-    return h("span", "flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-[11px] font-semibold text-muted", initials(c.place.club!.name));
+    // The club's crest, else our logo (a club without one, like the national teams, gets no initials).
+    const img = h("img", "size-10 shrink-0 rounded-full bg-surface object-contain p-1.5");
+    img.src = c.place.club?.crest ?? LOGO;
+    img.alt = "";
+    img.loading = "lazy";
+    return img;
   }
 
   function row(c: ChatView, now: Date): HTMLElement {

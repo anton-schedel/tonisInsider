@@ -7,6 +7,7 @@ import { dayKey, kickoffDay, nameMin, time } from "../lib/format.ts";
 import { commentCount } from "../lib/data.ts";
 import { LOGO, NAME } from "../lib/brand.ts";
 import { confirmedLineup } from "../lib/lineupNews.ts";
+import { postPicture } from "../lib/postPicture.ts";
 
 interface Props {
   article: Article;
@@ -27,8 +28,10 @@ const comments = commentCount(a.id);
 const lineup = confirmedLineup(a);
 // A post with neither player nor club carries our name and logo.
 const by = { name: NAME, logo: LOGO };
-// Our own player news without a photo shows the club's crest, not the player's initials.
-const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
+// Photo, else crest, else our logo (never initials or an empty space: the national teams have no crest).
+const picture = postPicture(a);
+// A confirmed lineup is a club's post: its crest, else our logo.
+const lineupPicture = postPicture({ club: a.club });
 ---
 {/* Club, time and comments: the same line under every kind of post. */}
 {(() => {
@@ -52,7 +55,7 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
     <a href={`/artikel/${a.id}/`} class="press-row enter block py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
       <span class="flex items-center gap-2">
         <span class="shrink-0">
-          {a.club ? <Crest src={a.club.crest} name={a.club.name} size={72} /> : <Avatar src={by.logo} name={by.name} size={72} />}
+          {lineupPicture.kind === "crest" ? <Crest src={lineupPicture.src} name={lineupPicture.name} size={72} /> : <Avatar src={lineupPicture.src} name={lineupPicture.name} size={72} />}
         </span>
         <span class="min-w-0 flex-1">
           <span class="feed-title">{a.headline}</span>
@@ -65,13 +68,13 @@ const face = a.player && (a.player.photo || !a.own) ? a.player : undefined;
   ) : (
     <a href={`/artikel/${a.id}/`} class="press-row enter flex items-center gap-4 py-3.5" style={`--i:${index}`} data-pinned-until={pinnedUntil} data-show-after={showAfter} hidden={!!showAfter}>
       <span class="relative shrink-0">
-        {face
-          ? <Avatar src={face.photo} name={face.name} size={64} top={a.own} />
-          : a.club
-            ? <Crest src={a.club.crest} name={a.club.name} size={64} />
-            : <Avatar src={by.logo} name={by.name} size={64} />}
-        {face && a.club?.crest && (
-          <img src={a.club.crest} alt="" loading="lazy" decoding="async" class="crest-overlay -right-1.5 -bottom-1 size-[26px]" />
+        {picture.kind === "player"
+          ? <Avatar src={picture.photo} name={picture.name} size={64} top={picture.top} />
+          : picture.kind === "crest"
+            ? <Crest src={picture.src} name={picture.name} size={64} />
+            : <Avatar src={picture.src} name={picture.name} size={64} />}
+        {picture.kind === "player" && picture.crest && (
+          <img src={picture.crest} alt="" loading="lazy" decoding="async" class="crest-overlay -right-1.5 -bottom-1 size-[26px]" />
         )}
       </span>
       <span class="min-w-0 flex-1">

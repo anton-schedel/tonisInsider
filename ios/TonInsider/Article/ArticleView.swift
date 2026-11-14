@@ -71,12 +71,10 @@ struct ArticleView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            if let player = article.player, player.photo != nil || !article.isOwn {
-                Avatar(url: siteURL(player.photo), name: player.name, size: 40, top: article.isOwn)
-            } else if let club = article.club {
-                Crest(url: siteURL(club.crest), size: 40)
-            } else {
-                LogoAvatar(size: 40)
+            switch article.picture {
+            case let .player(player, _, top): Avatar(url: siteURL(player.photo), name: player.name, size: 40, top: top)
+            case let .crest(crest): Crest(url: siteURL(crest), size: 40)
+            case .logo: LogoAvatar(size: 40)
             }
             VStack(alignment: .leading, spacing: 1) {
                 if let player = article.player { Text(player.name).font(.system(size: 14, weight: .bold)) }

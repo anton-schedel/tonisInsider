@@ -13,7 +13,7 @@ struct ArticleRow: View {
             if let lineup = article.confirmedXI {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center, spacing: 8) {
-                        if let club = article.club { Crest(url: siteURL(club.crest), size: 72) } else { LogoAvatar(size: 72) }
+                        if let crest = article.club?.crest { Crest(url: siteURL(crest), size: 72) } else { LogoAvatar(size: 72) }
                         VStack(alignment: .leading, spacing: 0) {
                             title
                             meta
@@ -39,20 +39,21 @@ struct ArticleRow: View {
         .contentShape(Rectangle())
     }
 
-    /// Our own player news without a photo shows the club's crest, not initials.
+    /// Photo, else crest, else our logo (Article.picture).
     @ViewBuilder private var picture: some View {
-        if let player = article.player, player.photo != nil || !article.isOwn {
-            Avatar(url: siteURL(player.photo), name: player.name, size: 64, top: article.isOwn)
+        switch article.picture {
+        case let .player(player, crest, top):
+            Avatar(url: siteURL(player.photo), name: player.name, size: 64, top: top)
                 .overlay(alignment: .bottomTrailing) {
-                    if let crest = article.club?.crest {
+                    if let crest {
                         Crest(url: siteURL(crest), size: 26)
                             .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
                             .offset(x: 6, y: 4)
                     }
                 }
-        } else if let club = article.club {
-            Crest(url: siteURL(club.crest), size: 64)
-        } else {
+        case let .crest(crest):
+            Crest(url: siteURL(crest), size: 64)
+        case .logo:
             LogoAvatar(size: 64)
         }
     }
