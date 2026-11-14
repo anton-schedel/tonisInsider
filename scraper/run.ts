@@ -215,7 +215,8 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   // A read without grades changes nothing.
   let gradeReads = 0;
   let graded = 0;
-  for (const a of store.articles().filter((x) => pendingGrades(x))) {
+  // Not while the overview fails: its club list gives the reports' crests (and LigaInsider may be down).
+  for (const a of clubsParsed ? store.articles().filter((x) => pendingGrades(x)) : []) {
     if (gradeReads >= GRADES_READS) break;
     const last = gradesTried[a.id] ? Date.parse(gradesTried[a.id]) : undefined;
     const young = now.getTime() - Date.parse(a.publishedAt) < GRADES_WINDOW_DAYS * 24 * 60 * MINUTE;

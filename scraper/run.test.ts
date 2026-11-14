@@ -311,6 +311,14 @@ describe("run", () => {
     expect(readsOf(soon.calls, listed)).toBe(0);
   });
 
+  it("no reads for grades while LigaInsider's overview fails (its club list gives the reports' crests)", async () => {
+    storeWaiting();
+    const { fetcher, calls } = fakeFetcher({ [OVERVIEW]: 503, [REPORT_URL]: reportPage("graded") });
+    await run({ store, fetcher, publicDir, now: NOW });
+    expect(readsOf(calls)).toBe(0);
+    expect(store.getArticle(999001)!.ratings).toBeUndefined();
+  });
+
   it("at most 40 reads for grades per run", async () => {
     const url = (i: number) => `https://www.ligainsider.de/borussia-dortmund/14/bericht-${990000 + i}/`;
     for (let i = 0; i < 45; i++) storeWaiting(990000 + i, new Date(NOW.getTime() - 60 * 60_000), url(i));

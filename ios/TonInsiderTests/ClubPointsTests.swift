@@ -65,13 +65,45 @@ extension NetworkTests {
             #expect(model.points?.players["1"] == 12)
         }
 
-        @Test func noRequestOutsideTheWindow() async throws {
+        @Test func noRequestOnceTheMatchdayIsOver() async throws {
             let calls = Locked(0)
             StubProtocol.handler = { _ in calls.value += 1; return (response(200), Data("{}".utf8)) }
             let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
-            await model.run(slug: "fcb3", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(-60) })
+            await model.run(slug: "fcb3", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(5 * 86_400) })
             #expect(calls.value == 0)
             #expect(model.points == nil)
+        }
+
+        /// Opened at 15:25 for a 15:30 kickoff: nothing asked before kickoff, the points come once it's on.
+        @Test func aPageOpenBeforeKickoffStartsAskingAtKickoff() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in calls.value += 1; return (response(200), Data(#"{"live":{"state":2},"players":{"1":7}}"#.utf8)) }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
+            let opened = Date()
+            let start = opened.addingTimeInterval(0.15)
+            await model.run(slug: "fcb4", kickoff: start, now: { Date() })
+            #expect(Date().timeIntervalSince(opened) >= 0.15)
+            #expect(calls.value == 1)
+            #expect(model.points?.players["1"] == 7)
+        }
+
+        /// The app can stay alive for days: last matchday's answer isn't shown for this one.
+        @Test func lastAnswerIsOnlyShownForTheSameMatch() async throws {
+            StubProtocol.handler = { _ in (response(200), Data(#"{"live":{"state":2},"players":{"1":99}}"#.utf8)) }
+            let api = API(session: StubProtocol.session(), tokens: MemoryTokenStore())
+            await ClubPointsModel(api: api, interval: .milliseconds(5)).run(slug: "fcb5", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(600) })
+            StubProtocol.handler = { _ in throw URLError(.timedOut) }
+            let nextWeek = kickoff.addingTimeInterval(7 * 86_400)
+            let model = ClubPointsModel(api: api, interval: .milliseconds(5))
+            let run = Task { await model.run(slug: "fcb5", kickoff: nextWeek, now: { nextWeek.addingTimeInterval(600) }) }
+            try await Task.sleep(for: .milliseconds(40))
+            run.cancel()
+            #expect(model.points == nil)
+            let same = ClubPointsModel(api: api, interval: .milliseconds(5))
+            let again = Task { await same.run(slug: "fcb5", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(700) }) }
+            try await Task.sleep(for: .milliseconds(40))
+            again.cancel()
+            #expect(same.points?.players["1"] == 99)
         }
     }
 }

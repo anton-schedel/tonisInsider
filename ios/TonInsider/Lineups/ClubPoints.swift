@@ -47,8 +47,10 @@ final class ClubPointsModel {
 
     private let api: API
     private let interval: Duration
-    /// The last answer per club, for an instant draw when the page opens again.
+    /// The last answer per club and match, for an instant draw when the page opens again (the app can stay alive
+    /// for days: last matchday's answer isn't this one's).
     private static var last: [String: ClubPoints] = [:]
+    private static func key(_ slug: String, _ kickoff: Date) -> String { "\(slug)@\(kickoff.timeIntervalSince1970)" }
 
     init(api: API = .shared, interval: Duration = .seconds(30)) {
         self.api = api
@@ -61,14 +63,22 @@ final class ClubPointsModel {
         return kickoff <= now && now < kickoff.addingTimeInterval(4 * 86_400)
     }
 
-    /// Asks while the points matter and the match isn't over; a failed request keeps what's shown.
+    /// Asks while the points matter and the match isn't over; a failed request keeps what's shown. Opened before
+    /// kickoff, it waits for it (the page shows the pitch from kickoff on; the task ends when the page closes).
     func run(slug: String, kickoff: Date?, now: @escaping () -> Date = { .now }) async {
+        guard let kickoff else { return }
+        let wait = kickoff.timeIntervalSince(now())
+        if wait > 0 {
+            // Half a second past it, so the clock surely says kickoff when the sleep ends.
+            try? await Task.sleep(for: .seconds(wait + 0.5))
+            if Task.isCancelled { return }
+        }
         guard Self.matters(kickoff: kickoff, now: now()) else { return }
-        if points == nil, let cached = Self.last[slug] { points = cached }
+        if points == nil, let cached = Self.last[Self.key(slug, kickoff)] { points = cached }
         while !Task.isCancelled {
             if let fresh: ClubPoints = try? await api.get("api/kickbase/club/\(slug)/") {
                 points = fresh
-                Self.last[slug] = fresh
+                Self.last[Self.key(slug, kickoff)] = fresh
                 if fresh.live.state == 2 { return }
             }
             try? await Task.sleep(for: interval)
