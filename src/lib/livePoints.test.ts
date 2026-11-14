@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionTier, anyRunning, pointsLabel, summarize } from "./livePoints.ts";
+import { actionTier, anyRunning, pointsLabel, subNote, summarize } from "./livePoints.ts";
 
 describe("pointsLabel", () => {
   it("shows nothing before kickoff, live and final points, 0 while running without points, – after a match he didn't play", () => {
@@ -40,5 +40,11 @@ describe("summarize", () => {
 describe("actionTier", () => {
   it("colours single actions: minus red, plus light green, big ones darker green", () => {
     expect([1, 80, -1].map(actionTier)).toEqual(["pts-mid", "pts-high", "pts-neg"]);
+  });
+});
+
+describe("subNote", () => {
+  it("minute and whom he replaced", () => {
+    expect(subNote({ minute: 63, out: "Guirassy" })).toBe("63' für Guirassy");
   });
 });

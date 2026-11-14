@@ -1,5 +1,6 @@
 import type { Article, Lineup, LineupPlayer, Ref } from "../../scraper/types.ts";
-import type { KbPlayer, KbTeam } from "./kickbase.ts";
+import type { KbPlayer, KbSub, KbTeam } from "./kickbase.ts";
+import type { ClubSub } from "./livePoints.ts";
 
 /**
  * contested: in the predicted XI, but LigaInsider names an alternative for the spot.
@@ -156,6 +157,14 @@ export type SlotPlay = {
  * Kickbase's starting eleven and substitutions on LigaInsider's predicted lineup: per slot, whether the
  * predicted starter or his alternative started, and who replaced him (if anyone). Names matched by surname.
  */
+/** Every substitution of a club (its own from matchDetails), by minute, with the points of the one who came on. */
+export function clubSubs(subs: KbSub[], points: { id: string; points?: number }[]): ClubSub[] {
+  return [...subs].sort((a, b) => a.minute - b.minute).map((s) => {
+    const p = points.find((x) => x.id === s.inId)?.points;
+    return { kb: s.inId, name: s.inName, ...(s.inPhoto ? { photo: s.inPhoto } : {}), minute: s.minute, out: s.outName, ...(p !== undefined ? { points: p } : {}) };
+  });
+}
+
 export function slotPlays(
   lineup: Lineup,
   starters: string[],

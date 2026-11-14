@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { later } from "../../../../lib/http.ts";
 import { matchDetails, teamCenter } from "../../../../lib/kickbase.ts";
 import type { ClubPoints } from "../../../../lib/livePoints.ts";
-import { mapClubs, pointsByLigaInsiderId, slotPlays } from "../../../../lib/match.ts";
+import { clubSubs, mapClubs, pointsByLigaInsiderId, slotPlays } from "../../../../lib/match.ts";
 import { serviceTable, sharedKickbase, withService } from "../../../../lib/serviceKickbase.ts";
 import { loadSnapshot } from "../../../../lib/snapshotServer.ts";
 
@@ -32,14 +32,16 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
       const { points, ids } = pointsByLigaInsiderId(club, center.players);
       // From kickoff: who really started in each slot, and who came on.
       let slots: ClubPoints["slots"];
+      let subs: ClubPoints["subs"];
       if (center.live.state > 0 && center.matchId) {
         const details = await matchDetails(fetch, token, center.matchId).catch(() => undefined);
         const starters = details?.starters[teamId];
-        if (details && starters?.length) {
-          slots = slotPlays(club, starters, details.subs.filter((x) => x.teamId === teamId), center.players);
-        }
+        const own = details?.subs.filter((x) => x.teamId === teamId) ?? [];
+        if (details && starters?.length) slots = slotPlays(club, starters, own, center.players);
+        // Everyone who came on (also for a starter LigaInsider didn't predict, or a second change in a slot).
+        if (own.length) subs = clubSubs(own, center.players);
       }
-      return { live: center.live, players: points, ids, ...(slots ? { slots } : {}) } satisfies ClubPoints;
+      return { live: center.live, players: points, ids, ...(slots ? { slots } : {}), ...(subs ? { subs } : {}) } satisfies ClubPoints;
     });
   });
 };

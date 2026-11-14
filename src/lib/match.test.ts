@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { articlePlayer, pointsByLigaInsiderId, slotPlays, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
+import { articlePlayer, clubSubs, pointsByLigaInsiderId, slotPlays, normalize, mapClubs, matchPlayer, matchSquad, pitchLines } from "./match.ts";
 import type { KbPlayer, KbTeam } from "./kickbase.ts";
 import type { Article, Lineup, LineupPlayer } from "../../scraper/types.ts";
 
@@ -138,5 +138,20 @@ describe("slotPlays", () => {
   });
   it("keeps the predicted starter when neither he nor his alternative is in the eleven", () => {
     expect(slotPlays(bvb, [], [])[20052]).toEqual({ show: "main" });
+  });
+});
+
+describe("clubSubs", () => {
+  it("every substitution of the club, by minute, with the points of the one who came on", () => {
+    const subs = [
+      { teamId: "3", minute: 78, inId: "9", inName: "Beier", outName: "Guirassy" },
+      { teamId: "3", minute: 63, inId: "7", inName: "Silva", outName: "Adeyemi", inPhoto: "https://kickbase.b-cdn.net/x.png" },
+      { teamId: "3", minute: 85, inId: "8", inName: "Jobe", outName: "Silva" }, // a second change in the same spot
+    ];
+    expect(clubSubs(subs, [{ id: "7", points: 41 }, { id: "9" }])).toEqual([
+      { kb: "7", name: "Silva", photo: "https://kickbase.b-cdn.net/x.png", minute: 63, out: "Adeyemi", points: 41 },
+      { kb: "9", name: "Beier", minute: 78, out: "Guirassy" },
+      { kb: "8", name: "Jobe", minute: 85, out: "Silva" },
+    ]);
   });
 });

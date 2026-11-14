@@ -12,7 +12,15 @@ export type ClubPoints = {
   ids: Record<number, string>;
   /** From kickoff on, per slot (LigaInsider id of the predicted starter): who started and who came on. */
   slots?: Record<number, SlotPlay>;
+  /** From the first substitution on: everyone who came on for the club, by minute. */
+  subs?: ClubSub[];
 };
+
+/** One who came on: his Kickbase id, name and photo, the minute, whom he replaced (Kickbase's name) and his points. */
+export type ClubSub = { kb: string; name: string; photo?: string; minute: number; out: string; points?: number };
+
+/** "63' für Guirassy": when he came on and for whom. */
+export const subNote = (sub: Pick<ClubSub, "minute" | "out">): string => `${sub.minute}' für ${sub.out}`;
 
 /** One line of a player's points breakdown: an action, how often, and its points in total. */
 export type PointsLine = { name: string; count: number; points: number };
