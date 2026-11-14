@@ -67,3 +67,10 @@ describe("appFeed", () => {
     expect(feed.odds).toBe(odds);
   });
 });
+
+describe("appFeed articles", () => {
+  it("a match report still waiting for its grades comes without the bare grade headings", () => {
+    const report = article(7, "2026-11-03T10:00:00Z", { bodyHtml: "<p>Tore: …</p>\n<h3>Aufstellung von Borussia Dortmund</h3><br>\n<h3></h3><br>\n" });
+    expect(appFeed({ articles: [report], pinned: [], lineups: [], state: {}, now }).articles[0]!.bodyHtml).toBe("<p>Tore: …</p>\n");
+  });
+});

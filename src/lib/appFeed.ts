@@ -1,4 +1,5 @@
 import type { Article, Lineup, State } from "../../scraper/types.ts";
+import { withoutPendingHeadings } from "../../scraper/pendingGrades.ts";
 import type { Chances } from "../../scraper/odds.ts";
 import { toFixtures } from "./fixtures.ts";
 import { chancesFor, likelyScore } from "./odds.ts";
@@ -74,7 +75,11 @@ export function appFeed(input: { articles: Article[]; pinned: Article[]; lineups
   return {
     version: 1,
     generatedAt: input.now.toISOString(),
-    articles: input.articles,
+    // A match report still waiting for its grades: without the bare "Aufstellung von …" headings.
+    articles: input.articles.map((a) => {
+      const bodyHtml = withoutPendingHeadings(a.bodyHtml);
+      return bodyHtml === a.bodyHtml ? a : { ...a, bodyHtml };
+    }),
     pinned: input.pinned.map((a) => a.id),
     lineups,
     fixtures,

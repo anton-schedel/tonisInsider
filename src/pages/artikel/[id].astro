@@ -8,6 +8,7 @@ import OwnComments from "../../components/OwnComments.astro";
 import RatingsPitch from "../../components/RatingsPitch.astro";
 import { articles, lineups } from "../../lib/data.ts";
 import { postPicture } from "../../lib/postPicture.ts";
+import { withoutPendingHeadings } from "../../../scraper/pendingGrades.ts";
 import { fullDate } from "../../lib/format.ts";
 import { NAME } from "../../lib/brand.ts";
 import type { Article } from "../../../scraper/types.ts";
@@ -48,7 +49,7 @@ const picture = postPicture(a);
         ? <img src={a.banner} alt="" width={a.bannerSize.width} height={a.bannerSize.height} decoding="async" fetchpriority="high" class="img-fade mb-6 h-auto w-full rounded-2xl bg-surface" onload="this.classList.add('is-loaded'); window.__imgLoaded?.add(this.src)" />
         : <img src={a.banner} alt="" width="1200" height="675" decoding="async" fetchpriority="high" class="img-fade mb-6 aspect-video w-full rounded-2xl bg-surface object-cover" onload="this.classList.add('is-loaded'); window.__imgLoaded?.add(this.src)" />
     )}
-    <div class="prose-body text-[16px] leading-[1.6]" set:html={a.bodyHtml} />
+    <div class="prose-body text-[16px] leading-[1.6]" set:html={withoutPendingHeadings(a.bodyHtml)} />
     {/* Match reports: each team's grades on a pitch. */}
     {a.ratings?.map((team) => <RatingsPitch team={team} />)}
     {!a.own && <a
