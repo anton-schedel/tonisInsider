@@ -10,6 +10,7 @@ import { mergeOdds, oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
 import { assistsUrl, parseAssists, parseFullOdds, parseScorerOdds, propsUrl, pruneScorers, sameScorers, scorerOddsUrl, scorersToFetch } from "./scorers.ts";
 import { parseNewsList } from "./parse/newsList.ts";
 import { NON_PLAYER_SLUGS, parseArticle, parseClubCrest } from "./parse/article.ts";
+import { hasGrades, pendingGrades } from "./pendingGrades.ts";
 import { parseClubs } from "./parse/clubs.ts";
 import { parseClubPage } from "./parse/clubPage.ts";
 import { canonicalOpponent, fillFromSchedule, fillOpponents } from "./opponents.ts";
@@ -31,6 +32,14 @@ export const OVERVIEWS: { category: Category; url: (page: number) => string }[] 
     url: (p) => (p === 1 ? `${BASE_URL}/bundesliga-news/uebersicht/` : `${BASE_URL}/startpage/uebersicht/${p}/`),
   },
 ];
+
+/**
+ * Match reports waiting for their grades (LigaInsider fills them in after the report is out): read again every
+ * GRADES_RETRY_MIN while younger than GRADES_WINDOW_DAYS; at most GRADES_READS such reads per run.
+ */
+const GRADES_WINDOW_DAYS = 3;
+const GRADES_RETRY_MIN = 30;
+const GRADES_READS = 40;
 
 /** Article pages read per run for the crest of a club outside the Bundesliga (articles stored before it was read). */
 const CREST_READS = 10;
@@ -119,6 +128,21 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   }
   const clubById = new Map(clubs.map((c) => [c.id, c]));
 
+  /** Match reports: every rated player's photo and both crests, like the lineups. */
+  const ratingImages = async (article: Article) => {
+    for (const team of article.ratings ?? []) {
+      const club = clubs.find((c) => c.name === team.team);
+      team.crest = club ? await ensureImage(fetcher, publicDir, "clubs", club.id, mediumCrest(club.crestUrl)) : undefined;
+      for (const spot of team.lines.flat()) {
+        for (const p of [spot.player, spot.sub]) {
+          if (p) p.photo = await ensureImage(fetcher, publicDir, "players", p.id, p.photoUrl);
+        }
+      }
+    }
+  };
+  /** Match reports waiting for their grades: when each was last read for them. */
+  const gradesTried: Record<string, string> = { ...(state.gradesTriedAt ?? {}) };
+
   // 2. Fetch new or re-titled articles.
   const unavailable: Record<string, string> = {};
   const invalid: Record<string, string> = {};
@@ -162,16 +186,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       if (article.banner) {
         article.banner = (await ensureImage(fetcher, publicDir, "articles", bannerKey(article.banner), article.banner)) ?? null;
       }
-      // Match reports: every rated player's photo and both crests, like the lineups.
-      for (const team of article.ratings ?? []) {
-        const club = clubs.find((c) => c.name === team.team);
-        team.crest = club ? await ensureImage(fetcher, publicDir, "clubs", club.id, mediumCrest(club.crestUrl)) : undefined;
-        for (const spot of team.lines.flat()) {
-          for (const p of [spot.player, spot.sub]) {
-            if (p) p.photo = await ensureImage(fetcher, publicDir, "players", p.id, p.photoUrl);
-          }
-        }
-      }
+      await ratingImages(article);
       if (article.club) {
         const club = clubById.get(article.club.id);
         // A club outside the Bundesliga (the national teams): the crest beside the headline.
@@ -181,6 +196,8 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       store.putArticle(article);
       result.changed = true;
       if (!existing) result.newArticles++;
+      // Its grades aren't in yet: read again in half an hour (step 2b).
+      if (pendingGrades(article)) gradesTried[article.id] = now.toISOString();
     } catch (err) {
       if (err instanceof HttpError && err.status === 404) {
         console.log(`article ${ref.id} is listed but gone (404), skipping`);
@@ -193,7 +210,37 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
   state.unavailable = unavailable;
   state.invalid = invalid;
 
-  // 2b. Articles of a club outside the Bundesliga stored without its crest (before it was read from the page):
+  // 2b. Match reports stored before LigaInsider filled in their grades: read again from their own URL (a report drops
+  // off the list's first page within hours), every half hour while young; older ones get one first try (catch-up).
+  // A read without grades changes nothing.
+  let gradeReads = 0;
+  let graded = 0;
+  for (const a of store.articles().filter((x) => pendingGrades(x))) {
+    if (gradeReads >= GRADES_READS) break;
+    const last = gradesTried[a.id] ? Date.parse(gradesTried[a.id]) : undefined;
+    const young = now.getTime() - Date.parse(a.publishedAt) < GRADES_WINDOW_DAYS * 24 * 60 * MINUTE;
+    if (last !== undefined && !(young && now.getTime() - last >= GRADES_RETRY_MIN * MINUTE)) continue;
+    gradeReads++;
+    gradesTried[a.id] = now.toISOString();
+    try {
+      const fresh = parseArticle(await fetcher.text(a.url), { id: a.id, url: a.url, headline: a.listHeadline, newsType: a.newsType }, a.category, now);
+      if (!hasGrades(fresh)) continue;
+      await ratingImages(fresh);
+      store.putArticle({ ...a, ratings: fresh.ratings, bodyHtml: fresh.bodyHtml, fetchedAt: now.toISOString() });
+      result.changed = true;
+      graded++;
+    } catch (err) {
+      console.warn(`grades of article ${a.id}: ${(err as Error).message}`);
+    }
+  }
+  if (gradeReads) console.log(`grades: ${graded} of ${gradeReads} waiting reports read got their grades`);
+  // Only reports still stored and still waiting are remembered.
+  state.gradesTriedAt = Object.fromEntries(Object.entries(gradesTried).filter(([id]) => {
+    const a = store.getArticle(Number(id));
+    return !!a && pendingGrades(a);
+  }));
+
+  // 2c. Articles of a club outside the Bundesliga stored without its crest (before it was read from the page):
   // the crest another article of the club brought, else the article's page is read once for it.
   if (clubsParsed) {
     const checked = new Set(state.crestChecked ?? []);

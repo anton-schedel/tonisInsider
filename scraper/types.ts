@@ -94,6 +94,8 @@ export type State = {
   invalid?: Record<string, string>;
   /** Git SHA of the code that last ran; a change forces a rebuild and retries invalid articles. */
   codeVersion?: string;
+  /** Match reports waiting for their grades: article id → when it was last read for them (ISO). */
+  gradesTriedAt?: Record<string, string>;
   /** Articles whose page was read once for the crest of their club (one outside the Bundesliga), not read again. */
   crestChecked?: number[];
   /** Comment counts from the overviews: id → count. Updating them alone doesn't trigger a rebuild. */

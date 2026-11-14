@@ -6,6 +6,8 @@ import { run, lineupsDue } from "./run.ts";
 import { oddsUrl } from "./odds.ts";
 import { assistsUrl, propsUrl, scorerOddsUrl } from "./scorers.ts";
 import { Store } from "./store.ts";
+import * as cheerio from "cheerio";
+import { parseArticle } from "./parse/article.ts";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Lineup } from "./types.ts";
 
@@ -235,6 +237,90 @@ describe("run", () => {
     const fourth = fakeFetcher({ [U21_URL]: u21Page() });
     await run({ store, fetcher: fourth.fetcher, publicDir, now: NOW });
     expect(fourth.calls).not.toContain(U21_URL);
+  });
+
+  // A match report read right after the final whistle: LigaInsider's page has only the bare grade headings.
+  const REPORT_URL = "https://www.ligainsider.de/borussia-dortmund/14/bvb-verspielt-spaete-zwei-tore-fuehrung-gegen-bremen-999001/";
+  const reportPage = (form: "waiting" | "graded" | "ungraded") => {
+    if (form === "graded") return fx("article-grades.html");
+    const $ = cheerio.load(fx("article-grades.html"));
+    if (form === "ungraded") $(".stadium_container_small .tags_info").empty();
+    else $(".stadium_container_small").each((_, el) => { $(el).replaceWith(`<h3>${$(el).find("h3").first().text().trim()}</h3><br><h3></h3><br>`); });
+    return $.html();
+  };
+  const storeWaiting = (id = 999001, publishedAt = new Date(NOW.getTime() - 60 * 60_000), url = REPORT_URL) => {
+    const a = parseArticle(reportPage("waiting"), { id, url, headline: "BVB verspielt späte Zwei-Tore-Führung gegen Bremen", newsType: "sonstiges" }, "bundesliga", NOW);
+    store.putArticle({ ...a, publishedAt: publishedAt.toISOString() });
+  };
+  const later = (min: number) => new Date(NOW.getTime() + min * 60_000);
+  const readsOf = (calls: string[], url = REPORT_URL) => calls.filter((u) => u === url).length;
+
+  it("a stored report waiting for its grades is read again from its own URL, and stored once the grades are in", async () => {
+    storeWaiting();
+    const { fetcher, calls } = fakeFetcher({ [REPORT_URL]: reportPage("graded") });
+    const r = await run({ store, fetcher, publicDir, now: NOW });
+    const a = store.getArticle(999001)!;
+    expect(readsOf(calls)).toBe(1);
+    expect(a.ratings?.[0]?.lines.flat()[0]?.player.grade).toBeTypeOf("number");
+    expect(a.bodyHtml).not.toMatch(/Aufstellung von/);
+    expect(a.ratings?.[0]?.lines.flat()[0]?.player.photo).toMatch(/^\/img\/players\//);
+    expect(r.changed).toBe(true);
+  });
+
+  it("a re-read without grades changes nothing, and waits 30 minutes before the next", async () => {
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    storeWaiting();
+    const first = fakeFetcher({ [REPORT_URL]: reportPage("waiting") });
+    const r = await run({ store, fetcher: first.fetcher, publicDir, now: NOW });
+    expect(readsOf(first.calls)).toBe(1);
+    expect(store.getArticle(999001)!.ratings).toBeUndefined();
+    expect(r.changed).toBe(false);
+    expect(store.state().gradesTriedAt?.["999001"]).toBe(NOW.toISOString());
+    const soon = fakeFetcher({ [REPORT_URL]: reportPage("waiting") });
+    await run({ store, fetcher: soon.fetcher, publicDir, now: later(10) });
+    expect(readsOf(soon.calls)).toBe(0);
+    const half = fakeFetcher({ [REPORT_URL]: reportPage("waiting") });
+    await run({ store, fetcher: half.fetcher, publicDir, now: later(31) });
+    expect(readsOf(half.calls)).toBe(1);
+  });
+
+  it("a page whose grade pitches have no grade yet still counts as waiting (nothing stored)", async () => {
+    storeWaiting();
+    await run({ store, fetcher: fakeFetcher({ [REPORT_URL]: reportPage("ungraded") }).fetcher, publicDir, now: NOW });
+    expect(store.getArticle(999001)!.ratings).toBeUndefined();
+    expect(store.getArticle(999001)!.bodyHtml).toMatch(/Aufstellung von/);
+  });
+
+  it("after 3 days only the one first try (catch-up), never again", async () => {
+    storeWaiting(999001, new Date(NOW.getTime() - 5 * 86_400_000));
+    const first = fakeFetcher({ [REPORT_URL]: reportPage("waiting") });
+    await run({ store, fetcher: first.fetcher, publicDir, now: NOW });
+    expect(readsOf(first.calls)).toBe(1);
+    const again = fakeFetcher({ [REPORT_URL]: reportPage("waiting") });
+    await run({ store, fetcher: again.fetcher, publicDir, now: later(31) });
+    expect(readsOf(again.calls)).toBe(0);
+  });
+
+  it("a newly stored waiting report isn't read again in the same half hour", async () => {
+    const listed = "https://www.ligainsider.de/gregor-kobel_9357/kobel-kann-sich-langfristigen-bvb-verbleib-vorstellen-418778/";
+    const first = fakeFetcher({ [listed]: reportPage("waiting") });
+    await run({ store, fetcher: first.fetcher, publicDir, now: NOW });
+    expect(store.state().gradesTriedAt?.["418778"]).toBe(NOW.toISOString());
+    const soon = fakeFetcher({ [listed]: reportPage("waiting") });
+    await run({ store, fetcher: soon.fetcher, publicDir, now: later(5) });
+    expect(readsOf(soon.calls, listed)).toBe(0);
+  });
+
+  it("at most 40 reads for grades per run", async () => {
+    const url = (i: number) => `https://www.ligainsider.de/borussia-dortmund/14/bericht-${990000 + i}/`;
+    for (let i = 0; i < 45; i++) storeWaiting(990000 + i, new Date(NOW.getTime() - 60 * 60_000), url(i));
+    const overrides = Object.fromEntries(Array.from({ length: 45 }, (_, i) => [url(i), reportPage("waiting")]));
+    const first = fakeFetcher(overrides);
+    await run({ store, fetcher: first.fetcher, publicDir, now: NOW });
+    expect(first.calls.filter((u) => u.includes("/bericht-")).length).toBe(40);
+    const next = fakeFetcher(overrides);
+    await run({ store, fetcher: next.fetcher, publicDir, now: later(5) });
+    expect(next.calls.filter((u) => u.includes("/bericht-")).length).toBe(5);
   });
 
   it("remembers which articles LigaInsider pins on top of its list", async () => {
