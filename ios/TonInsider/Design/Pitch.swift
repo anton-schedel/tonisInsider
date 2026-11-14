@@ -80,8 +80,9 @@ struct PitchFace<Badges: View>: View {
     var noteColor: Color = .white.opacity(0.7)
     /// An alternative or substitute.
     var alt = false
-    /// Kickbase points, from kickoff on ("–" when he didn't play).
-    var points: String?
+    /// Kickbase points, from kickoff on (PointsChip); with `pointsLoading` a placeholder where they will be.
+    var points: PointsLabel?
+    var pointsLoading = false
     /// Laid over the photo: place each with .pinned(…).
     @ViewBuilder var badges: Badges
 
@@ -91,11 +92,8 @@ struct PitchFace<Badges: View>: View {
                 .overlay(Circle().stroke(alt ? PitchColor.yellow : .white.opacity(0.8), lineWidth: 2))
                 .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
                 .overlay { badges }
-            if let points {
-                Text(points).font(.system(size: 11.5, weight: .bold)).monospacedDigit().foregroundStyle(.white)
-                    .padding(.horizontal, 7).padding(.vertical, 1)
-                    .background(Color(light: 0x0A0C10, dark: 0x0A0C10).opacity(0.78), in: Capsule())
-                    .padding(.top, 1)
+            if points != nil || pointsLoading {
+                PointsChip(label: points).padding(.top, 1)
             }
             Text(name)
                 .font(.system(size: 12, weight: .semibold))

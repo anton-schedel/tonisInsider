@@ -137,7 +137,7 @@ private struct MyPitchFace: View {
         PitchFace(photo: siteURL(player.card.photo ?? player.image), name: player.card.name,
                   note: live ? nil : player.note,
                   noteColor: player.status == .bench ? PitchColor.red : PitchColor.yellow,
-                  points: live ? player.live?.points.map(String.init) ?? "–" : nil) {
+                  points: player.live.flatMap { PointsLabel(state: $0.state, points: $0.points) }) {
             if player.status == .confirmed { PitchBadge.s11 } else { PitchBadge.dot(dot) }
             if player.rival != nil { PitchBadge.swap(top: true) }
             if let crest = player.card.crest {
@@ -180,8 +180,8 @@ private struct MyPlayerRow: View {
                 .font(.system(size: 13)).foregroundStyle(Color.tiMuted)
             }
             Spacer(minLength: 0)
-            if (player.live?.state ?? 0) > 0 {
-                Text(player.live?.points.map { "\($0)" } ?? "–").font(.system(size: 15, weight: .bold)).monospacedDigit()
+            if let label = player.live.flatMap({ PointsLabel(state: $0.state, points: $0.points) }) {
+                PointsChip(label: label, style: .row)
             }
         }
         .padding(.vertical, 10)
