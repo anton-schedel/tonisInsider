@@ -431,14 +431,46 @@ describe("run", () => {
     expect(store.getArticle(418776)).toEqual(before);
   });
 
-  it("remembers listed articles that 404 and does not retry them or report a problem", async () => {
+  it("remembers listed articles that 404 and stops retrying them after an hour, without reporting a problem", async () => {
     const gone = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
     const first = await run({ store, fetcher: fakeFetcher({ [gone]: 404 }).fetcher, publicDir, now: NOW });
     expect(first.problems).toEqual([]);
     expect(store.getArticle(418776)).toBeUndefined();
+    // Still gone an hour later: read once more in between, then left alone.
+    await run({ store, fetcher: fakeFetcher({ [gone]: 404 }).fetcher, publicDir, now: new Date(NOW.getTime() + 30 * 60_000) });
     const { fetcher, calls } = fakeFetcher({ [gone]: 404 });
-    await run({ store, fetcher, publicDir, now: new Date(NOW.getTime() + 5 * 60_000) });
+    const late = await run({ store, fetcher, publicDir, now: new Date(NOW.getTime() + 61 * 60_000) });
     expect(calls).not.toContain(gone);
+    expect(late.problems).toEqual([]);
+  });
+
+  it("reads a listed article whose page 404ed at first again on the next run (LigaInsider lists it before the page is out)", async () => {
+    const url = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
+    await run({ store, fetcher: fakeFetcher({ [url]: 404 }).fetcher, publicDir, now: NOW });
+    expect(store.getArticle(418776)).toBeUndefined();
+    const res = await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: new Date(NOW.getTime() + 60_000) });
+    expect(store.getArticle(418776)).toBeDefined();
+    expect(res.newArticles).toBe(1);
+    expect(store.state().unavailable?.[418776]).toBeUndefined();
+  });
+
+  it("reads an article whose page 404s once more in the same run after a pause", async () => {
+    const url = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
+    const { fetcher: base, calls } = fakeFetcher();
+    let first = true;
+    const fetcher: Fetcher = {
+      ...base,
+      async text(u) {
+        if (u === url && first) { first = false; calls.push(u); throw new HttpError(404, u); }
+        return base.text(u);
+      },
+    };
+    const res = await run({ store, fetcher, publicDir, now: NOW, goneRetryMs: 1 });
+    expect(calls.filter((c) => c === url)).toHaveLength(2);
+    expect(store.getArticle(418776)).toBeDefined();
+    expect(res.newArticles).toBeGreaterThan(0);
+    expect(store.state().unavailable?.[418776]).toBeUndefined();
+    expect(store.state().unavailableSince?.[418776]).toBeUndefined();
   });
 
   it("reports an article that fails validation once, then skips it until its headline changes", async () => {

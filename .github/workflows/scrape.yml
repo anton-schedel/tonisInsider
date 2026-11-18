@@ -26,6 +26,11 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # A cache download that hangs is given up after 1 minute instead of GitHub's 10 (it then counts as a miss:
+    # npm installs from the registry, the data comes back from our own site). One hung download held every
+    # run back for 11 minutes.
+    env:
+      SEGMENT_DOWNLOAD_TIMEOUT_MINS: 1
     steps:
       - uses: actions/checkout@v5
         with:
@@ -34,9 +39,19 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
+          package-manager-cache: false
+
+      # The installed packages themselves are kept (not npm's download cache): no install while the lockfile
+      # stays the same, about 12 s less per run.
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
 
       - run: npm ci
+        if: steps.modules.outputs.cache-hit != 'true'
 
       # The other tests read LigaInsider pages kept out of this repo (scraper/__fixtures__/), so they run locally.
       - name: Typecheck, inline scripts (code changes only; a failure stops the deploy)
@@ -81,15 +96,6 @@ jobs:
           curl -fsSL -A "Mozilla/5.0" -o "$RUNNER_TEMP/bvb.jpg" "https://cdn.ligainsider.com/ligainsider//newsarticle/tr:w-1200,q-80,fo-top,l-text,i-%C2%A9Getty%20Images%2FLigaInsider,fs-22,co-e3e3e3,rt-270,lx-5,ly-10,l-end/borussia-dortmund-artikelbild-2025-v2.jpg?updatedAt=1758910190729"
           python3 scripts/club-banner.py "$RUNNER_TEMP/bvb.jpg" public/brand/schnoeselmob.png "$f" 0.2 1.48 602 338
 
-      - name: Save data cache
-        if: steps.scrape.outputs.save_cache == 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            store
-            public/img
-          key: data-${{ github.run_id }}
-
       - name: Build
         if: steps.scrape.outputs.changed == 'true' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force)
         run: npm run build
@@ -106,6 +112,16 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # After the deploy, so readers get the news a few seconds sooner; also when build or deploy failed (the scrape is done).
+      - name: Save data cache
+        if: ${{ !cancelled() && steps.scrape.outputs.save_cache == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            store
+            public/img
+          key: data-${{ github.run_id }}
 
       - name: Fail if the scraper reported problems (GitHub emails you)
         if: steps.scrape.outputs.problems != '0'

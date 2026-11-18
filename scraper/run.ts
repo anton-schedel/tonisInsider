@@ -44,6 +44,12 @@ const GRADES_READS = 40;
 /** Article pages read per run for the crest of a club outside the Bundesliga (articles stored before it was read). */
 const CREST_READS = 10;
 
+/**
+ * A listed article whose page answers 404 is read again on every run for this long (LigaInsider lists a new article
+ * before its page is out); after that it counts as gone and is skipped until its headline changes.
+ */
+const UNAVAILABLE_RETRY_MIN = 60;
+
 /** "Vor 2 Std." means 2–3 h ago, so a listing time up to ~1 h after our date is normal. */
 const REPUBLISH_TOLERANCE_MIN = 90;
 
@@ -51,6 +57,8 @@ export type RunOptions = {
   store: Store; fetcher: Fetcher; publicDir: string; now: Date; codeVersion?: string;
   /** The Odds API key; without it, win chances are skipped. Never log it: it is part of the request URL. */
   oddsApiKey?: string;
+  /** A new article whose page answers 404 is read once more in the same run after this pause; without it, only in the next run. */
+  goneRetryMs?: number;
 };
 export type RunResult = {
   /** Content changed: rebuild and deploy the site. */
@@ -84,7 +92,7 @@ function mediumCrest(url: string): string {
   return url.replace("/teams/small/", "/teams/medium/");
 }
 
-export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApiKey }: RunOptions): Promise<RunResult> {
+export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApiKey, goneRetryMs }: RunOptions): Promise<RunResult> {
   const result: RunResult = {
     changed: false, lineupsChecked: false, stateChanged: false, newArticles: 0, lineupsUpdated: 0, problems: [],
   };
@@ -145,9 +153,11 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
 
   // 2. Fetch new or re-titled articles.
   const unavailable: Record<string, string> = {};
+  const unavailableSince: Record<string, string> = {};
   const invalid: Record<string, string> = {};
   const cutoff = now.getTime() - RETENTION_DAYS * 24 * 60 * MINUTE;
-  for (const { ref, category } of refs.values()) {
+  /** Reads one listed article if it is new or changed; true when its page answered 404 for the first time. */
+  const readRef = async ({ ref, category }: { ref: ArticleRef; category: Category }): Promise<boolean> => {
     const existing = store.getArticle(ref.id);
     // Re-read when the headline changed, when it was stored before banners existed (banner undefined), or when
     // LigaInsider republished it: the listing time ("Vor 46 Min.") is clearly newer than our date.
@@ -161,14 +171,18 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       && !NON_PLAYER_SLUGS.has(playerOfArticleUrl(ref.url)!.slug);
     // Match reports stored before their grades were read have the grades as loose text: re-read once.
     const missingRatings = existing && !existing.ratings && /PARADEN|DEFENSIVE/.test(existing.bodyHtml);
-    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished && !missingPlayer && !missingRatings) continue;
-    if (state.unavailable?.[ref.id] === ref.headline) {
+    if (existing && existing.listHeadline === ref.headline && existing.banner !== undefined && !republished && !missingPlayer && !missingRatings) return false;
+    const goneSince = state.unavailable?.[ref.id] === ref.headline ? state.unavailableSince?.[ref.id] : undefined;
+    // Gone for a while (or since before the time was kept): leave it alone.
+    if (state.unavailable?.[ref.id] === ref.headline
+      && !(goneSince && now.getTime() - Date.parse(goneSince) < UNAVAILABLE_RETRY_MIN * MINUTE)) {
       unavailable[ref.id] = ref.headline;
-      continue;
+      if (goneSince) unavailableSince[ref.id] = goneSince;
+      return false;
     }
     if (state.invalid?.[ref.id] === ref.headline) {
       invalid[ref.id] = ref.headline;
-      continue;
+      return false;
     }
     try {
       const html = await fetcher.text(ref.url);
@@ -178,7 +192,7 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       if (problems.length) {
         result.problems.push(`article ${ref.id}: ${problems.join(", ")}`);
         invalid[ref.id] = ref.headline;
-        continue;
+        return false;
       }
       if (article.player) {
         article.player.photo = await ensureImage(fetcher, publicDir, "players", article.player.id, ref.playerPhotoUrl);
@@ -194,20 +208,33 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
           club ? mediumCrest(club.crestUrl) : parseClubCrest(html, article.club));
       }
       store.putArticle(article);
+      delete unavailable[ref.id];
+      delete unavailableSince[ref.id];
       result.changed = true;
       if (!existing) result.newArticles++;
       // Its grades aren't in yet: read again in half an hour (step 2b).
       if (pendingGrades(article)) gradesTried[article.id] = now.toISOString();
     } catch (err) {
       if (err instanceof HttpError && err.status === 404) {
-        console.log(`article ${ref.id} is listed but gone (404), skipping`);
+        console.log(`article ${ref.id} is listed but gone (404), ${goneSince ? "still" : `reading it again for ${UNAVAILABLE_RETRY_MIN} min`}`);
         unavailable[ref.id] = ref.headline;
+        unavailableSince[ref.id] = goneSince ?? now.toISOString();
+        return !goneSince;
       } else {
         result.problems.push(`download article ${ref.id}: ${(err as Error).message}`);
       }
     }
+    return false;
+  };
+  const justGone: { ref: ArticleRef; category: Category }[] = [];
+  for (const entry of refs.values()) if (await readRef(entry)) justGone.push(entry);
+  // LigaInsider lists a new article a moment before its page is out: one more try in this run, not only in the next.
+  if (justGone.length && goneRetryMs !== undefined) {
+    await new Promise((r) => setTimeout(r, goneRetryMs));
+    for (const entry of justGone) await readRef(entry);
   }
   state.unavailable = unavailable;
+  state.unavailableSince = unavailableSince;
   state.invalid = invalid;
 
   // 2b. Match reports stored before LigaInsider filled in their grades: read again from their own URL (a report drops

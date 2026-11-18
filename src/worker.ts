@@ -22,9 +22,9 @@ export default {
   },
   async scheduled(controller: { scheduledTime: number }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
     // Every minute (wrangler.jsonc): the full run every 5 minutes as before; in between only a look whether
-    // LigaInsider has a new article, which starts the run right away.
+    // LigaInsider has a new article, which starts the run right away — three looks a minute (WATCH_AT_MS).
     if (new Date(controller.scheduledTime).getUTCMinutes() % 5 !== 0) {
-      ctx.waitUntil(watchNews(env).catch((err: Error) => console.error(`news watch: ${err.message}`)));
+      ctx.waitUntil(watchNewsThroughMinute(env, controller.scheduledTime));
       return;
     }
     ctx.waitUntil(
@@ -37,17 +37,32 @@ export default {
   },
 };
 
-async function watchNews(env: Env): Promise<void> {
+/** When in the minute the looks happen: a cron comes once a minute at best, so the two more wait in the same call. */
+const WATCH_AT_MS = [0, 20_000, 40_000];
+
+/** The minute's looks, until one starts a run. A look that fails doesn't stop the next. */
+async function watchNewsThroughMinute(env: Env, scheduledTime: number): Promise<void> {
+  for (const at of WATCH_AT_MS) {
+    const wait = scheduledTime + at - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    const started = await watchNews(env).catch((err: Error) => (console.error(`news watch: ${err.message}`), false));
+    if (started) return;
+  }
+}
+
+/** True when it started a run. */
+async function watchNews(env: Env): Promise<boolean> {
   const [html, version] = await Promise.all([
     fetchOverview(fetch),
     env.ASSETS.fetch("https://assets.local/data/version.json")
       .then((r): Promise<{ seen?: number }> => (r.ok ? (r.json() as Promise<{ seen?: number }>) : Promise.resolve({})))
       .catch((): { seen?: number } => ({})),
   ]);
-  if (!html || !newsWaiting(newestListed(html), version.seen)) return;
+  if (!html || !newsWaiting(newestListed(html), version.seen)) return false;
   // Not while a run is on its way, and at most 3 starts in 10 minutes (lib/newsWatch.ts runRecently);
   // unknown (GitHub not reachable): no early start, the 5-minute run comes anyway.
   const runs = await latestRuns(fetch, env.GH_DISPATCH_TOKEN);
-  if (!runs || runRecently(runs, Date.now())) return;
+  if (!runs || runRecently(runs, Date.now())) return false;
   await dispatchScrape(fetch, env.GH_DISPATCH_TOKEN);
+  return true;
 }

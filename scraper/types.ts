@@ -88,8 +88,10 @@ export type Lineup = {
 export type State = {
   lineupsFetchedAt?: string;
   lastChangeAt?: string;
-  /** Articles that are listed but 404 on LigaInsider: id → list headline. Skipped until the headline changes. */
+  /** Articles that are listed but 404 on LigaInsider: id → list headline. Read again for an hour, then skipped until the headline changes. */
   unavailable?: Record<string, string>;
+  /** When each of them first answered 404 (scraper/run.ts UNAVAILABLE_RETRY_MIN). */
+  unavailableSince?: Record<string, string>;
   /** Articles that failed validation: id → list headline. Reported once, skipped until the headline or code changes. */
   invalid?: Record<string, string>;
   /** Git SHA of the code that last ran; a change forces a rebuild and retries invalid articles. */

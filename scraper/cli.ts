@@ -78,7 +78,7 @@ if (command === "scrape") {
   const now = new Date();
   const result = await run({
     store, fetcher: createFetcher(), publicDir, now, codeVersion: process.env.GITHUB_SHA,
-    oddsApiKey: process.env.ODDS_API_KEY || undefined,
+    oddsApiKey: process.env.ODDS_API_KEY || undefined, goneRetryMs: 10_000,
   });
   console.log(`changed=${result.changed} new=${result.newArticles} lineups=${result.lineupsUpdated}`);
   // Only problems that last fail the run (GitHub emails); one-off glitches are just logged.
