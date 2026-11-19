@@ -454,6 +454,28 @@ describe("run", () => {
     expect(store.state().unavailable?.[418776]).toBeUndefined();
   });
 
+  it("keeps what it remembers as gone when the overview can't be read", async () => {
+    const gone = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
+    await run({ store, fetcher: fakeFetcher({ [gone]: 404 }).fetcher, publicDir, now: NOW });
+    const before = { unavailable: store.state().unavailable, since: store.state().unavailableSince };
+    expect(before.unavailable?.[418776]).toBeDefined();
+    await run({ store, fetcher: fakeFetcher({ "https://www.ligainsider.de/bundesliga-news/uebersicht/": 500 }).fetcher, publicDir, now: new Date(NOW.getTime() + 60_000) });
+    expect({ unavailable: store.state().unavailable, since: store.state().unavailableSince }).toEqual(before);
+  });
+
+  it("remembers every article id linked on the overview, and a new one is a change even when its article can't be stored", async () => {
+    const gone = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
+    await run({ store, fetcher: fakeFetcher({ [gone]: 404 }).fetcher, publicDir, now: NOW });
+    expect(store.state().listedIds).toContain(418776);
+    const same = await run({ store, fetcher: fakeFetcher({ [gone]: 404 }).fetcher, publicDir, now: new Date(NOW.getTime() + 61 * 60_000) });
+    expect(same.newArticles).toBe(0);
+    // Forget one id, as if it had just come onto the page: the site must get the new list.
+    store.putState({ ...store.state(), listedIds: store.state().listedIds!.filter((id) => id !== 418776) });
+    const res = await run({ store, fetcher: fakeFetcher({ [gone]: 404 }).fetcher, publicDir, now: new Date(NOW.getTime() + 62 * 60_000) });
+    expect(res.changed).toBe(true);
+    expect(store.state().listedIds).toContain(418776);
+  });
+
   it("reads an article whose page 404s once more in the same run after a pause", async () => {
     const url = "https://www.ligainsider.de/emre-can_1812/can-muss-sich-bis-ins-neue-jahr-gedulden-418776/";
     const { fetcher: base, calls } = fakeFetcher();

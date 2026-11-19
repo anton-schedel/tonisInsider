@@ -24,6 +24,20 @@ export function parseClubHref(href: string): { slug: string; id: number } | unde
   return m ? { slug: m[1], id: Number(m[2]) } : undefined;
 }
 
+/** Article links end in "-<id>/" ("/gregor-kobel_9357/kobel-kann-…-418778/"). */
+const ARTICLE_HREF = /href="[^"]*-(\d{6,9})\/"/g;
+
+/**
+ * Every article id linked on a page, found by a plain text search (the Worker's minute check has ~10 ms of CPU, not
+ * enough to parse the page). More than the news list (the page links a few older articles too), so it is only ever
+ * compared with the same search over the page the scraper read.
+ */
+export function articleIdsIn(html: string): number[] {
+  const ids = new Set<number>();
+  for (const m of html.matchAll(ARTICLE_HREF)) ids.add(Number(m[1]));
+  return [...ids];
+}
+
 /** "/gregor-kobel_9357/kobel-kann-...-418778/" → 418778 */
 export function parseArticleId(href: string): number | undefined {
   const m = href.match(/^\/[a-z0-9-]+_\d+\/[a-z0-9-]+-(\d+)\/$/i)

@@ -20,14 +20,25 @@ describe("newestListed", () => {
 });
 
 describe("newsWaiting", () => {
-  it("only an article newer than the highest id the scraper knows", () => {
-    expect(newsWaiting(420290, 420288)).toBe(true);
-    expect(newsWaiting(420288, 420288)).toBe(false);
-    // Today's loop: the site's newest by time (420283) is below its highest id (420288); seen compares right.
-    expect(newsWaiting(420288, 420288)).toBe(false);
-    expect(newsWaiting(undefined, 420288)).toBe(false);
-    // A site without `seen` yet (deployed before it): no early runs.
-    expect(newsWaiting(420290, undefined)).toBe(false);
+  const page = (...ids: number[]) => ids.map((id) => `<a href="/x_1/titel-${id}/">x</a>`).join("");
+
+  it("an article that wasn't on the overview at the scraper's last read, also one with a lower id (they come out of order)", () => {
+    const listed = [420911, 420907, 420876];
+    expect(newsWaiting(page(420911, 420907, 420876), { seen: 420911, listed })).toBe(false);
+    expect(newsWaiting(page(420913, 420911, 420907), { seen: 420911, listed })).toBe(true);
+    // 19 Nov: 420888 came out after 420911 and waited for the 5-minute run.
+    expect(newsWaiting(page(420888, 420911, 420907), { seen: 420911, listed })).toBe(true);
+    // One that left the page is no news.
+    expect(newsWaiting(page(420911, 420907), { seen: 420911, listed })).toBe(false);
+    expect(newsWaiting("<html></html>", { seen: 420911, listed })).toBe(false);
+  });
+
+  it("a site without `listed` yet: only an article newer than the highest id the scraper knows", () => {
+    expect(newsWaiting(page(420290), { seen: 420288 })).toBe(true);
+    expect(newsWaiting(page(420288, 420283), { seen: 420288 })).toBe(false);
+    expect(newsWaiting("<html></html>", { seen: 420288 })).toBe(false);
+    // A site without `seen` either (deployed before it): no early runs.
+    expect(newsWaiting(page(420290), {})).toBe(false);
   });
 });
 

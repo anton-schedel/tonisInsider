@@ -4,7 +4,7 @@ import { dispatchScrape, latestRuns } from "./lib/dispatch.ts";
 import { runDueJobs } from "./lib/coachBotJob.ts";
 import { modelFromEnv } from "./lib/coachBots.ts";
 import { fromCookieResponse, isAppRequest, toCookieRequest } from "./lib/appSession.ts";
-import { fetchOverview, newestListed, newsWaiting, runRecently } from "./lib/newsWatch.ts";
+import { fetchOverview, newsWaiting, runRecently } from "./lib/newsWatch.ts";
 import type { D1 } from "cloudflare:workers";
 
 type Env = {
@@ -50,15 +50,17 @@ async function watchNewsThroughMinute(env: Env, scheduledTime: number): Promise<
   }
 }
 
+type Seen = { seen?: number; listed?: number[] };
+
 /** True when it started a run. */
 async function watchNews(env: Env): Promise<boolean> {
   const [html, version] = await Promise.all([
     fetchOverview(fetch),
     env.ASSETS.fetch("https://assets.local/data/version.json")
-      .then((r): Promise<{ seen?: number }> => (r.ok ? (r.json() as Promise<{ seen?: number }>) : Promise.resolve({})))
-      .catch((): { seen?: number } => ({})),
+      .then((r): Promise<Seen> => (r.ok ? (r.json() as Promise<Seen>) : Promise.resolve({})))
+      .catch((): Seen => ({})),
   ]);
-  if (!html || !newsWaiting(newestListed(html), version.seen)) return false;
+  if (!html || !newsWaiting(html, version)) return false;
   // Not while a run is on its way, and at most 3 starts in 10 minutes (lib/newsWatch.ts runRecently);
   // unknown (GitHub not reachable): no early start, the 5-minute run comes anyway.
   const runs = await latestRuns(fetch, env.GH_DISPATCH_TOKEN);

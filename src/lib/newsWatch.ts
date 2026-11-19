@@ -1,25 +1,28 @@
-// The minute check for new LigaInsider articles (Worker cron, src/worker.ts): only the overview's newest article
-// id, found by a plain text search (a Worker on the free plan has ~10 ms of CPU, not enough to parse the page).
-// A newer one than the site has starts the scrape run right away instead of at the next 5-minute slot.
+// The minute check for new LigaInsider articles (Worker cron, src/worker.ts): only the overview's article ids,
+// found by a plain text search (a Worker on the free plan has ~10 ms of CPU, not enough to parse the page).
+// One the scraper hasn't seen there starts the scrape run right away instead of at the next 5-minute slot.
 import { USER_AGENT } from "../../scraper/fetch.ts";
+import { articleIdsIn } from "../../scraper/text.ts";
 import { COUNTS_URL } from "./comments.ts";
-
-/** Article links end in "-<id>/" ("/gregor-kobel_9357/kobel-kann-…-418778/"). */
-const ARTICLE_HREF = /href="[^"]*-(\d{6,9})\/"/g;
 
 /** The newest article id on LigaInsider's news overview. */
 export function newestListed(html: string): number | undefined {
-  let newest: number | undefined;
-  for (const m of html.matchAll(ARTICLE_HREF)) {
-    const id = Number(m[1]);
-    if (newest === undefined || id > newest) newest = id;
-  }
-  return newest;
+  const ids = articleIdsIn(html);
+  return ids.length ? Math.max(...ids) : undefined;
 }
 
-/** A run is worth starting: LigaInsider lists an article newer than the highest id the scraper knows (version.json seen). */
-export function newsWaiting(listed: number | undefined, seen: number | undefined): boolean {
-  return listed !== undefined && seen !== undefined && listed > seen;
+/**
+ * A run is worth starting: the overview links an article that wasn't on it at the scraper's last read
+ * (version.json listed) — whatever its id, they come out of order. A site without `listed` yet: an id above the
+ * highest the scraper knows (seen), as before.
+ */
+export function newsWaiting(html: string, version: { seen?: number; listed?: number[] }): boolean {
+  const ids = articleIdsIn(html);
+  if (version.listed?.length) {
+    const had = new Set(version.listed);
+    return ids.some((id) => !had.has(id));
+  }
+  return ids.length > 0 && version.seen !== undefined && Math.max(...ids) > version.seen;
 }
 
 /**

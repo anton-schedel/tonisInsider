@@ -90,6 +90,8 @@ export type State = {
   lastChangeAt?: string;
   /** Articles that are listed but 404 on LigaInsider: id → list headline. Read again for an hour, then skipped until the headline changes. */
   unavailable?: Record<string, string>;
+  /** Every article id linked on the overview when it was last read (scraper/text.ts articleIdsIn): what the Worker's minute check compares with. */
+  listedIds?: number[];
   /** When each of them first answered 404 (scraper/run.ts UNAVAILABLE_RETRY_MIN). */
   unavailableSince?: Record<string, string>;
   /** Articles that failed validation: id → list headline. Reported once, skipped until the headline or code changes. */

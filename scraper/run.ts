@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { HttpError, type Fetcher } from "./fetch.ts";
 import type { Store } from "./store.ts";
 import type { Article, ArticleRef, Category, ClubRef, Lineup } from "./types.ts";
-import { BASE_URL, playerOfArticleUrl } from "./text.ts";
+import { BASE_URL, articleIdsIn, playerOfArticleUrl } from "./text.ts";
 import { parseCommentCounts } from "./parse/commentCounts.ts";
 import { pinnedIds } from "./pinned.ts";
 import { mergeOdds, oddsDue, oddsUrl, parseOdds, sameOdds } from "./odds.ts";
@@ -119,7 +119,15 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
         const html = await fetcher.text(overview.url(page));
         const list = parseNewsList(html);
         for (const [id, count] of Object.entries(parseCommentCounts(html))) counts[id] = count;
-        if (overview.category === "bundesliga" && page === 1) firstPage = list.map((r) => r.id);
+        if (overview.category === "bundesliga" && page === 1) {
+          firstPage = list.map((r) => r.id);
+          // What the Worker's minute check compares the overview with (version.json): an id it hasn't got starts a
+          // run, so a new one must reach the site even when its article can't be stored (404) — else it starts runs on.
+          const ids = articleIdsIn(html);
+          const had = new Set(state.listedIds ?? []);
+          if (ids.some((id) => !had.has(id))) result.changed = true;
+          state.listedIds = ids;
+        }
         if (page === 1 && list.length === 0) result.problems.push(`${overview.category}: overview returned 0 articles`);
         if (overview.category === "bundesliga" && page === 1) {
           clubs = parseClubs(html);
@@ -233,9 +241,12 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
     await new Promise((r) => setTimeout(r, goneRetryMs));
     for (const entry of justGone) await readRef(entry);
   }
-  state.unavailable = unavailable;
-  state.unavailableSince = unavailableSince;
-  state.invalid = invalid;
+  // Not when the overview couldn't be read: nothing was listed, and what is remembered would be forgotten.
+  if (firstPage) {
+    state.unavailable = unavailable;
+    state.unavailableSince = unavailableSince;
+    state.invalid = invalid;
+  }
 
   // 2b. Match reports stored before LigaInsider filled in their grades: read again from their own URL (a report drops
   // off the list's first page within hours), every half hour while young; older ones get one first try (catch-up).
