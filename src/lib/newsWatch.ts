@@ -26,13 +26,14 @@ export function newsWaiting(html: string, version: { seen?: number; listed?: num
 }
 
 /**
- * The brake: none while a run waits or runs or right after one started, and no more than 3 starts in 10 minutes
- * (the 5-minute slots make 2): one early run fits between the slots, and a check that goes wrong costs at most
- * one extra run per 10 minutes — never one per minute.
+ * The brake: none while a run waits or runs or right after one started, and no more than 6 starts in 10 minutes
+ * (the 5-minute slots make 2): four early runs fit in, so a burst of posts (press conferences) doesn't wait for the
+ * slots, and a check that goes wrong costs at most four extra runs per 10 minutes — never one per minute.
+ * It was 3 while the check compared only the highest id; it compares the whole list now (newsWaiting).
  */
 const JUST_STARTED_MS = 90_000;
 const WINDOW_MS = 10 * 60_000;
-const MAX_IN_WINDOW = 3;
+const MAX_IN_WINDOW = 6;
 export type WorkflowRun = { status: string; created_at: string };
 
 export function runRecently(runs: WorkflowRun[], now: number): boolean {

@@ -55,7 +55,11 @@ describe("runRecently", () => {
     expect(runRecently([run("2026-11-04T12:35:06Z"), run("2026-11-04T12:30:06Z"), run("2026-11-04T12:25:38Z")], now)).toBe(false);
   });
 
-  it("no more than 3 runs in 10 minutes: a check that's wrong costs at most one extra run", () => {
-    expect(runRecently([run("2026-11-04T12:35:06Z"), run("2026-11-04T12:32:00Z"), run("2026-11-04T12:30:06Z")], now)).toBe(true);
+  it("several early runs between the slots: a burst of posts doesn't wait for the 5-minute run", () => {
+    expect(runRecently([run("2026-11-04T12:35:06Z"), run("2026-11-04T12:33:25Z"), run("2026-11-04T12:31:45Z"), run("2026-11-04T12:30:06Z"), run("2026-11-04T12:28:00Z")], now)).toBe(false);
+  });
+
+  it("no more than 6 runs in 10 minutes: a check that's wrong costs at most four extra runs", () => {
+    expect(runRecently([run("2026-11-04T12:35:06Z"), run("2026-11-04T12:33:25Z"), run("2026-11-04T12:31:45Z"), run("2026-11-04T12:30:06Z"), run("2026-11-04T12:28:45Z"), run("2026-11-04T12:27:25Z")], now)).toBe(true);
   });
 });

@@ -61,7 +61,7 @@ async function watchNews(env: Env): Promise<boolean> {
       .catch((): Seen => ({})),
   ]);
   if (!html || !newsWaiting(html, version)) return false;
-  // Not while a run is on its way, and at most 3 starts in 10 minutes (lib/newsWatch.ts runRecently);
+  // Not while a run is on its way, and at most 6 starts in 10 minutes (lib/newsWatch.ts runRecently);
   // unknown (GitHub not reachable): no early start, the 5-minute run comes anyway.
   const runs = await latestRuns(fetch, env.GH_DISPATCH_TOKEN);
   if (!runs || runRecently(runs, Date.now())) return false;
