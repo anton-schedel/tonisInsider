@@ -68,8 +68,9 @@ let index = 0;
   {!error && starterCount === 0 && <TeamSummary view={summary} class="mb-8" />}
 
   {starterCount > 0 ? (
-    <>
-      <section>
+    // Wide screens (global.css "Wide screens"): the pitch on the left, what is written about the team beside it.
+    <div class="team-cols">
+      <section class="team-pitch">
         <SectionHead title="Aufstellung" class="mb-3">
           <span class="flex items-baseline gap-2">
             {pitch.formation}
@@ -78,16 +79,18 @@ let index = 0;
         </SectionHead>
         <MyPitch lines={pitch.lines} cards={cards} fresh={fresh} />
       </section>
-      <TeamSummary view={summary} class="mt-8" />
-      {benchPlayers.length > 0 && (
-        <section class="mt-5">
-          <SectionHead title="Bank" class="mb-1" />
-          <div class="divide-y divide-hairline">
-            {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} fresh={fresh.has(p.kickbase.id)} />)}
-          </div>
-        </section>
-      )}
-    </>
+      <div class="team-side">
+        <TeamSummary view={summary} class="mt-8" />
+        {benchPlayers.length > 0 && (
+          <section class="mt-5">
+            <SectionHead title="Bank" class="mb-1" />
+            <div class="divide-y divide-hairline">
+              {benchPlayers.map((p) => <MyPlayerRow player={p} index={index++} card={cards.get(p.kickbase.id)} fresh={fresh.has(p.kickbase.id)} />)}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
   ) : (
     // No Kickbase lineup set (or not available): the squad by position.
     GROUPS.map((group) => {

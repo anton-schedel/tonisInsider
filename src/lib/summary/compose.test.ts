@@ -60,6 +60,16 @@ describe("summaryView", () => {
     expect(summaryView(input(players))!.text).toEqual(["2 deiner 4 Starter spielen bei Favoriten, 1 bei einem klaren Außenseiter."]);
   });
 
+  it("a team with a quarter chance to win is no clear outsider: with the draw, its opponent is no favourite either", () => {
+    const players = [
+      xi("Nmecha", outlook("Dortmund", "Elversberg", true, 74)),
+      xi("Schick", outlook("Leverkusen", "Köln", false, 25)),
+      xi("Friedl", outlook("Bremen", "Stuttgart", false, 21)),
+      xi("Burke", outlook("Union", "Bayern", true, 20)),
+    ];
+    expect(summaryView(input(players))!.text).toEqual(["1 deiner 4 Starter spielt bei einem Favoriten, 1 bei einem klaren Außenseiter."]);
+  });
+
   it("says when what a player's points depend on fits this week's game, or doesn't", () => {
     const players = [
       xi("Schick", { ...outlook("Leverkusen", "Köln", false, 55), goals: 2.3 }, { reliance: { kind: "goals", share: 0.4 } }),

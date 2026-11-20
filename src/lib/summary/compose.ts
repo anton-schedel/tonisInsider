@@ -71,7 +71,11 @@ function matchupClause(p: SummaryPlayer): string {
 const where = (home: boolean) => (home ? "zu Hause" : "auswärts");
 
 const FAVOURITE = 55;
-const OUTSIDER = 25;
+/**
+ * A clear outsider wins at most one game in five. Not one in four: a game has three ends, and with the draw's
+ * quarter the opponent of a 25 % team stands near 50 %, no favourite by our own measure; at 20 % he is one.
+ */
+const OUTSIDER = 20;
 const BENCH_HINT = "Ein Blick auf deine Bank lohnt sich.";
 const against = (o: NonNullable<SummaryPlayer["outlook"]>) => `${o.home ? "gegen" : "bei"} ${o.opponent}`;
 const decimal = (n: number) => n.toFixed(1).replace(".", ",");
