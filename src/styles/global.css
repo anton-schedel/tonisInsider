@@ -731,13 +731,15 @@ html:not([data-navigated]) .enter {
   body:has([data-desk-feed]) .page-in.page-leaving > :not([data-desk-feed]) { opacity: 0.4; transition: opacity 160ms ease-out; }
 }
 /* Mein Team with a lineup: the pitch on the left (it stays while the text scrolls), the summary and the bench
-   beside it. Nothing more on the page than on a phone, only side by side. */
+   beside it; a club's page likewise. Nothing more on the page than on a phone, only side by side. */
 @media (min-width: 1240px) {
   body:has(.team-cols) .page-in { max-width: 1120px; }
   .team-cols { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); column-gap: 56px; align-items: start; }
-  .team-pitch { position: sticky; top: 24px; }
+  /* --stick (Base.astro): 24 px from the top, or, taller than the screen, so far up that its foot is in view. */
+  .team-pitch { position: sticky; top: var(--stick, 24px); }
   /* The summary starts level with the pitch's heading. */
   .team-side > :first-child { margin-top: 0; }
+  /* A club's page the same way: match and lineup on the left, its news and the discussion beside them. */
 }
 /* Narrower: a post's page has no feed beside it. */
 @media (max-width: 1239.98px) {

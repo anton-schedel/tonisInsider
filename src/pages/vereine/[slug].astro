@@ -41,6 +41,10 @@ const NEWS_SHOWN = 5;
 const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
 ---
 <Base title={lineup.club.name} tab="aufstellungen" back={{ href: "/aufstellungen/", label: "Aufstellungen" }}>
+  {/* Wide screens (global.css "Wide screens"): the match and the lineup on the left, the club's news and the
+      discussion beside them. */}
+  <div class="team-cols club-cols">
+  <div class="team-pitch">
   {fixture && <FixtureCard fixture={fixture} size="hero" current={lineup.club.slug} matchday={lineup.matchday} chances={chances} />}
 
   <section class="mt-9">
@@ -73,7 +77,9 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       })();
     </script>
   </section>
+  </div>
 
+  <div class="team-side">
   <section class="mt-7">
     <SectionHead title="News" class="mb-1">{news.length > 0 && news.length}</SectionHead>
     {news.length === 0 && <p class="py-4 text-sm text-muted">Keine weiteren News aus den letzten 7 Tagen. Die zu den Spielern oben stehen in ihrer Karte.</p>}
@@ -92,6 +98,8 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
   </section>
   {/* LigaInsider's discussion under this lineup (for the coming match), live like under the articles. */}
   {lineup.comments && <Comments thread={lineup.comments} url={`https://www.ligainsider.de/${lineup.club.slug}/${lineup.club.id}/`} />}
+  </div>
+  </div>
   <PlayerCard />
 </Base>
 

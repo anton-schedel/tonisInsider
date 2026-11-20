@@ -529,6 +529,21 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       document.addEventListener("astro:page-load", () => void deskNews());
       desk.addEventListener("change", () => void deskNews());
 
+      // Wide screens, Mein Team and a club's page: the left side (pitch) stays while the right scrolls. Taller than
+      // the screen (the substitutes under a club's pitch), it sticks further up, so its foot can still be reached.
+      const stickSides = () => {
+        for (const el of document.querySelectorAll<HTMLElement>(".team-pitch")) {
+          el.style.setProperty("--stick", `${Math.min(24, innerHeight - el.offsetHeight - 24)}px`);
+        }
+      };
+      const sideSizes = new ResizeObserver(stickSides);
+      document.addEventListener("astro:page-load", () => {
+        sideSizes.disconnect();
+        for (const el of document.querySelectorAll(".team-pitch")) sideSizes.observe(el);
+        stickSides();
+      });
+      addEventListener("resize", stickSides);
+
       // Notice updates while the site is open: every minute while visible, and when coming back to it.
       const notice = () => document.querySelector<HTMLButtonElement>("[data-news-notice]");
       const pageVersion = (): Version => {
