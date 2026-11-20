@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { run, lineupsDue } from "./run.ts";
+import { run, lineupsDue, oldCopy } from "./run.ts";
 import { oddsUrl } from "./odds.ts";
 import { assistsUrl, propsUrl, scorerOddsUrl } from "./scorers.ts";
 import { Store } from "./store.ts";
@@ -452,6 +452,42 @@ describe("run", () => {
     expect(store.getArticle(418776)).toBeDefined();
     expect(res.newArticles).toBe(1);
     expect(store.state().unavailable?.[418776]).toBeUndefined();
+  });
+
+  it("doesn't use an old copy of the overview (LigaInsider's cache): nothing pinned, nothing read again", async () => {
+    const overview = "https://www.ligainsider.de/bundesliga-news/uebersicht/";
+    await run({ store, fetcher: fakeFetcher().fetcher, publicDir, now: NOW });
+    // Days later the list is another one.
+    const later = new Date(NOW.getTime() + 3 * 24 * 60 * 60_000);
+    const fresh = await run({ store, fetcher: fakeFetcher({ [overview]: fx("news-confirmed-lineup.html") }).fetcher, publicDir, now: later });
+    expect(fresh.problems).toEqual([]);
+    // The fixtures' article pages carry one date; today's list is from today.
+    for (const id of store.state().firstPage!) store.putArticle({ ...store.getArticle(id)!, publishedAt: later.toISOString() });
+    const before = JSON.stringify({ ...store.state(), problemStreaks: undefined });
+    const articles = JSON.stringify(store.articles());
+    // LigaInsider serves the page of three days ago: everything on it is known, nothing of today's list is there.
+    const { fetcher, calls } = fakeFetcher();
+    const res = await run({ store, fetcher, publicDir, now: new Date(later.getTime() + 5 * 60_000) });
+    expect(res.problems).toEqual(["bundesliga: the overview is an old copy (LigaInsider's cache), not used"]);
+    expect(res.newArticles).toBe(0);
+    expect(calls.filter((c) => /-\d{6}\/$/.test(c))).toEqual([]);
+    expect(JSON.stringify(store.articles())).toBe(articles);
+    expect(JSON.stringify({ ...store.state(), problemStreaks: undefined, lineupsFetchedAt: undefined }))
+      .toBe(JSON.stringify({ ...JSON.parse(before), lineupsFetchedAt: undefined }));
+  });
+
+  it("a list that is new to us is no old copy, however little it shares with the last one", () => {
+    const previous = [15, 14, 13, 12, 11];
+    // Here a post's time is its id.
+    expect(oldCopy([25, 24, 23, 22, 21], previous, () => undefined)).toBe(false);
+    // The usual run: most of the last list is still there.
+    expect(oldCopy([16, 15, 14, 13, 12], previous, (id) => (id < 16 ? id : undefined))).toBe(false);
+    expect(oldCopy([5, 4, 3, 2, 1], previous, (id) => id)).toBe(true);
+    // An old copy with a post that was gone back then (not stored).
+    expect(oldCopy([5, 4, 3, 2, 1], previous, (id) => (id !== 3 ? id : undefined))).toBe(true);
+    expect(oldCopy([5, 4, 3, 2, 1], undefined, (id) => id)).toBe(false);
+    // An old copy slipped through as the last list: the real one, all known and newer, is taken again.
+    expect(oldCopy([15, 14, 13, 12, 11], [5, 4, 3, 2, 1], (id) => id)).toBe(false);
   });
 
   it("keeps what it remembers as gone when the overview can't be read", async () => {

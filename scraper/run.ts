@@ -53,6 +53,23 @@ const UNAVAILABLE_RETRY_MIN = 60;
 /** "Vor 2 Std." means 2–3 h ago, so a listing time up to ~1 h after our date is normal. */
 const REPUBLISH_TOLERANCE_MIN = 90;
 
+/**
+ * LigaInsider now and then serves an old copy of its overview (20 Nov 2026: the page of three days before, four
+ * times in one morning). Taken at its word, the old posts on top count as pinned ("Angeheftet" over a game of last
+ * Monday) and as republished. An old copy: almost nothing of the list read last is on it (a real list keeps most
+ * of it from run to run), almost nothing on it is new to us (after a long break of ours, most of it would be), and
+ * its newest post is older than the last list's (so the real list after an old copy that slipped through is taken).
+ * `publishedAt`: the stored article's time, undefined for one we don't have.
+ */
+export function oldCopy(list: number[], previous: number[] | undefined, publishedAt: (id: number) => number | undefined): boolean {
+  if (!previous?.length || !list.length) return false;
+  const before = new Set(previous);
+  const newest = (ids: number[]) => Math.max(...ids.map((id) => publishedAt(id) ?? -Infinity));
+  return list.filter((id) => before.has(id)).length < 3
+    && list.filter((id) => publishedAt(id) === undefined).length < 3
+    && newest(list) < newest(previous);
+}
+
 export type RunOptions = {
   store: Store; fetcher: Fetcher; publicDir: string; now: Date; codeVersion?: string;
   /** The Odds API key; without it, win chances are skipped. Never log it: it is part of the request URL. */
@@ -118,9 +135,23 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
       try {
         const html = await fetcher.text(overview.url(page));
         const list = parseNewsList(html);
+        if (overview.category === "bundesliga" && page === 1) {
+          clubs = parseClubs(html);
+          clubsParsed = true;
+          const publishedAt = (id: number) => {
+            const a = store.getArticle(id);
+            return a ? Date.parse(a.publishedAt) : undefined;
+          };
+          if (oldCopy(list.map((r) => r.id), state.firstPage, publishedAt)) {
+            // Like an overview that couldn't be read: nothing of it is used, the next run reads again.
+            result.problems.push("bundesliga: the overview is an old copy (LigaInsider's cache), not used");
+            continue;
+          }
+        }
         for (const [id, count] of Object.entries(parseCommentCounts(html))) counts[id] = count;
         if (overview.category === "bundesliga" && page === 1) {
           firstPage = list.map((r) => r.id);
+          state.firstPage = firstPage;
           // What the Worker's minute check compares the overview with (version.json): an id it hasn't got starts a
           // run, so a new one must reach the site even when its article can't be stored (404) — else it starts runs on.
           const ids = articleIdsIn(html);
@@ -129,10 +160,6 @@ export async function run({ store, fetcher, publicDir, now, codeVersion, oddsApi
           state.listedIds = ids;
         }
         if (page === 1 && list.length === 0) result.problems.push(`${overview.category}: overview returned 0 articles`);
-        if (overview.category === "bundesliga" && page === 1) {
-          clubs = parseClubs(html);
-          clubsParsed = true;
-        }
         for (const ref of list) if (!refs.has(ref.id)) refs.set(ref.id, { ref, category: overview.category });
       } catch (err) {
         result.problems.push(`${overview.category} page ${page}: ${(err as Error).message}`);

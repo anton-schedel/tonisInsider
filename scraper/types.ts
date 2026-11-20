@@ -90,6 +90,8 @@ export type State = {
   lastChangeAt?: string;
   /** Articles that are listed but 404 on LigaInsider: id → list headline. Read again for an hour, then skipped until the headline changes. */
   unavailable?: Record<string, string>;
+  /** The news list (first page, in its order) at the last read: an overview sharing almost nothing with it and bringing nothing new is an old copy (scraper/run.ts oldCopy). */
+  firstPage?: number[];
   /** Every article id linked on the overview when it was last read (scraper/text.ts articleIdsIn): what the Worker's minute check compares with. */
   listedIds?: number[];
   /** When each of them first answered 404 (scraper/run.ts UNAVAILABLE_RETRY_MIN). */
