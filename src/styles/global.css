@@ -662,3 +662,79 @@ html:not([data-navigated]) .enter {
   /* No fade: the green stays for the moment, then goes at once. */
   .comment-target { animation-timing-function: step-end; }
 }
+
+/* ---------- Wide screens ----------
+   From 1024 px the tab bar is a sidebar on the left (the same element, so it still persists across pages); every
+   page keeps its one column beside it. From 1240 px News is two-sided: the feed stays in its own column and the
+   post opens to the right of it (Base.astro deskNews). Phones and tablets see none of this. */
+.side-brand, .tabbar .side-link { display: none; }
+@media (min-width: 1024px) {
+  :root { --side: 232px; }
+  body { padding-left: var(--side); }
+  .page-in { padding-bottom: 3rem; }
+  nav.tabbar {
+    inset: 0 auto 0 0; width: var(--side); max-width: none; margin: 0; border-radius: 0;
+    display: flex; flex-direction: column; gap: 28px; padding: 28px 16px 20px;
+    background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: none; border-right: 1px solid var(--hairline); transform: none;
+  }
+  nav.tabbar::before { display: none; }
+  .side-brand { display: block; padding: 0 12px; }
+  .tabbar .tab-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; padding: 0; }
+  .tabbar .tab-pill { display: none; }
+  .tabbar .tab-item, .tabbar .side-link {
+    display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
+    height: 44px; padding: 0 12px; border-radius: 12px;
+    font-size: 15px; font-weight: 500; line-height: 1.2;
+    transition: background-color 180ms var(--ease-soft), color 150ms;
+  }
+  .tabbar .tab-item svg { width: 22px; height: 22px; flex: none; }
+  .tabbar .tab-item.is-active { background: var(--surface); font-weight: 600; }
+  /* Einstellungen at the foot, Chats after the other tabs. */
+  .tabbar .tab-item[data-tab="einstellungen"] { order: 2; margin-top: auto; }
+  .tabbar .side-link { order: 1; }
+  .tabbar .tab-badge { position: static; order: 3; margin-left: auto; box-shadow: none; }
+  .nav-progress { inset: 0 0 auto; }
+  /* News: the wordmark and Chats are in the sidebar, so the page starts with the feed. */
+  body:has([data-desk-index]) .page-in > header { display: none; }
+  body:has([data-desk-index]) .page-in { padding-top: 14px; }
+  /* "Neue Meldungen": at the foot of the page, right of the sidebar. */
+  .tabbar .news-notice { bottom: 24px; left: calc(100% + 24px); translate: none; white-space: nowrap; }
+}
+@media (min-width: 1024px) and (hover: hover) {
+  .tabbar .tab-item:not(.is-active):hover, .tabbar .side-link:hover { background: color-mix(in srgb, var(--fg) 4%, transparent); opacity: 1; }
+}
+/* Typing on a tablet this wide: the sidebar stays (the bar on phones steps aside). */
+@media (min-width: 1024px) and (pointer: coarse) {
+  body:has(input:focus:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"]), textarea:focus, select:focus) nav.tabbar {
+    transform: none; opacity: 1; pointer-events: auto;
+  }
+}
+@media (min-width: 1240px) {
+  :root { --feed: 432px; }
+  body:has([data-desk-feed]) { padding-left: calc(var(--side) + var(--feed)); }
+  [data-desk-feed] {
+    position: fixed; top: 0; bottom: 0; left: var(--side); width: var(--feed);
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: 14px 26px 40px; border-right: 1px solid var(--hairline); background: var(--bg);
+  }
+  /* The post that is open: the row's soft highlight stays, in the surface grey; no hairlines against it. */
+  [data-desk-feed] a.is-open::before { opacity: 1; background: var(--surface); }
+  [data-desk-feed] a.is-open, [data-desk-feed] a.is-open + a { border-color: transparent; }
+  /* The feed is beside the post: no way back needed, and News itself shows only the feed until its newest post opens. */
+  body:has([data-desk-feed]) .back-btn { display: none; }
+  body:has([data-desk-index]) .page-in > footer { display: none; }
+  /* Page switches fade the post, not the feed beside it. */
+  body:has([data-desk-feed]) .page-in { animation: none; }
+  body:has([data-desk-feed]) .page-in.page-leaving { opacity: 1; }
+  body:has([data-desk-feed]) .page-in > :not([data-desk-feed]) { animation: page-in 220ms var(--ease-soft) backwards; }
+  body:has([data-desk-feed]) .page-in.page-leaving > :not([data-desk-feed]) { opacity: 0.4; transition: opacity 160ms ease-out; }
+}
+/* Narrower: a post's page has no feed beside it. */
+@media (max-width: 1239.98px) {
+  body:not(:has([data-desk-index])) [data-desk-feed] { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:has([data-desk-feed]) .page-in > :not([data-desk-feed]) { animation: none; }
+  body:has([data-desk-feed]) .page-in.page-leaving > :not([data-desk-feed]) { opacity: 1; }
+}

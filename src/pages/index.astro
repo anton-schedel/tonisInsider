@@ -16,5 +16,9 @@ const pinnedIds = new Set(pinned.filter((a) => !a.pinnedUntil).map((a) => a.id))
     <span class="sr-only">News</span>
   </h1>
   {/* The last few days right away; older ones load while scrolling (pages/news/aeltere.astro). */}
-  <NewsFeed articles={feedArticles(pinnedIds)} pinned={pinned} days={{ from: 0, to: FIRST_DAYS }} more="/news/aeltere/" />
+  {/* Wide screens: the feed is the left side and stays while its posts open on the right (Base.astro deskNews). */}
+  <span data-desk-index hidden></span>
+  <div data-desk-feed transition:persist="desk-feed">
+    <NewsFeed articles={feedArticles(pinnedIds)} pinned={pinned} days={{ from: 0, to: FIRST_DAYS }} more="/news/aeltere/" />
+  </div>
 </Base>

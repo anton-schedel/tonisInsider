@@ -396,7 +396,7 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
           <a
             href={back.href}
             aria-label={`Zurück zu ${back.label}`}
-            class="press flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-fg"
+            class="back-btn press flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-fg"
             onclick="if (history.state && history.state.index > 0) { history.back(); return false; }"
           >
             <svg viewBox="0 0 24 24" class="size-[22px]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
@@ -429,7 +429,12 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
         <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
         Neue Meldungen
       </button>
-      <div class="relative grid grid-cols-5 gap-1 p-1.5">
+      {/* Wide screens (global.css "Wide screens"): the bar is a sidebar, with our wordmark on top. */}
+      <a href="/" class="side-brand" aria-label="TonInsider, zu den News">
+        <img src="/brand/wordmark-light.png" alt="" width="105" height="26" class="brand-light h-[26px] w-auto" />
+        <img src="/brand/wordmark-dark.png" alt="" width="105" height="26" class="brand-dark h-[26px] w-auto" />
+      </a>
+      <div class="tab-list relative grid grid-cols-5 gap-1 p-1.5">
         <span class="tab-pill" aria-hidden="true"></span>
         {tabs.map((t) => (
           <a href={t.href} data-tab={t.id} aria-current={tab === t.id ? "page" : undefined} data-astro-prefetch={t.id === "mein-team" ? "false" : undefined} class:list={["tab-item press flex flex-col items-center gap-0.5 rounded-[24px] px-0.5 py-1.5 text-[10px] font-medium leading-tight transition-colors duration-150", tab === t.id ? "text-accent is-active" : "text-muted"]}>
@@ -439,6 +444,11 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
             <span class="text-center max-[380px]:text-[9.5px] max-[380px]:tracking-[-0.02em]">{t.label}</span>
           </a>
         ))}
+        {/* Only in the sidebar: on phones "Chats" is the pill beside the wordmark on News. */}
+        <a href="/chats/" class="side-link press text-muted">
+          <svg viewBox="0 0 24 24" class="size-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.4 7.55L3.5 20l1.05-4.3A8.5 8.5 0 1 1 20.5 11.5Z" /></svg>
+          <span>Chats</span>
+        </a>
       </div>
     </nav>}
     <script>
@@ -462,6 +472,62 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       };
       document.addEventListener("astro:page-load", () => void scoutBadge());
       window.addEventListener("scout:change", (e) => void scoutBadge((e as CustomEvent<ScoutState>).detail));
+
+      // Wide screens: News is two-sided — the feed stays on the left (global.css "Wide screens") while its posts
+      // open on the right. The feed is the same element on News and on a post's page (transition:persist), so it
+      // keeps its place; a post's page opened directly gets the feed from News. Narrower, every page is as built.
+      const desk = matchMedia("(min-width: 1240px)");
+      const deskFeed = () => document.querySelector<HTMLElement>("[data-desk-feed]");
+      let feedTop = 0;
+      const markOpen = (feed: HTMLElement) => {
+        for (const a of feed.querySelectorAll("a.is-open")) a.classList.remove("is-open");
+        const open = feed.querySelector<HTMLElement>(`a[href="${location.pathname}"]`);
+        open?.classList.add("is-open");
+        return open;
+      };
+      async function deskNews() {
+        const feed = deskFeed();
+        if (!feed || !desk.matches) return;
+        if (!feed.querySelector("a")) {
+          try {
+            const res = await fetch("/");
+            if (!res.ok || deskFeed() !== feed) return;
+            const from = new DOMParser().parseFromString(await res.text(), "text/html").querySelector("[data-desk-feed]");
+            if (!from) return;
+            // No first-load entrance for rows that come in beside a post.
+            for (const el of from.querySelectorAll(".enter")) el.classList.remove("enter");
+            feed.replaceChildren(...[...from.children].filter((c) => c.tagName !== "SCRIPT").map((c) => document.importNode(c, true)));
+            feed.removeAttribute("data-desk-shell");
+            window.__unpin?.();
+            window.__feedInit?.();
+            window.__commentCounts?.();
+            markOpen(feed)?.scrollIntoView({ block: "center" });
+          } catch {
+            // Offline: the post alone.
+          }
+          return;
+        }
+        markOpen(feed);
+        // News itself has nothing on the right: the newest post opens.
+        if (location.pathname === "/") {
+          const first = feed.querySelector('section:not([data-pinned]) a[href^="/artikel/"]:not([hidden])')
+            ?? feed.querySelector('a[href^="/artikel/"]:not([hidden])');
+          const href = first?.getAttribute("href");
+          if (href) navigate(href, { history: "replace" });
+        }
+      }
+      document.addEventListener("astro:before-swap", () => {
+        const feed = deskFeed();
+        if (!feed) return;
+        if (desk.matches && feed.querySelector("a")) feedTop = feed.scrollTop;
+        else feed.removeAttribute("data-astro-transition-persist");
+      });
+      document.addEventListener("astro:after-swap", () => {
+        const feed = deskFeed();
+        if (feed && desk.matches) feed.scrollTop = feedTop;
+      });
+      document.addEventListener("astro:page-load", () => void deskNews());
+      desk.addEventListener("change", () => void deskNews());
 
       // Notice updates while the site is open: every minute while visible, and when coming back to it.
       const notice = () => document.querySelector<HTMLButtonElement>("[data-news-notice]");

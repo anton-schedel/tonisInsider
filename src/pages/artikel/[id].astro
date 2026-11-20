@@ -6,6 +6,7 @@ import StatusPill from "../../components/StatusPill.astro";
 import Comments from "../../components/Comments.astro";
 import OwnComments from "../../components/OwnComments.astro";
 import RatingsPitch from "../../components/RatingsPitch.astro";
+import NewsFeed from "../../components/NewsFeed.astro";
 import { articles, lineups } from "../../lib/data.ts";
 import { postPicture } from "../../lib/postPicture.ts";
 import { withoutPendingHeadings } from "../../../scraper/pendingGrades.ts";
@@ -37,6 +38,10 @@ const picture = postPicture(a);
     </div>
     <span class="ml-auto shrink-0"><StatusPill type={a.newsType} /></span>
   </div>
+  {/* Wide screens: the News feed's place on the left. Coming from News it is the feed itself (kept across the
+      navigation), opened directly it is filled from News (Base.astro deskNews); NewsFeed brings the feed's scripts. */}
+  <div data-desk-feed data-desk-shell transition:persist="desk-feed"></div>
+  <NewsFeed articles={[]} shell />
   <article class="pt-3">
     <h1 class="mb-2 text-[26px] leading-[1.15] font-bold tracking-[-0.025em]">{a.headline}</h1>
     <p class="mb-6 text-xs text-muted">

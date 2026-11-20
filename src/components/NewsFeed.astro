@@ -12,8 +12,10 @@ interface Props {
   days?: { from: number; to?: number };
   /** Where the older days are (a partial page): loaded when the reader scrolls near the end. */
   more?: string;
+  /** Only the feed's scripts, no rows: a post's page on wide screens gets its feed from News. */
+  shell?: boolean;
 }
-const { pinned = [], days = { from: 0 }, more } = Astro.props;
+const { pinned = [], days = { from: 0 }, more, shell = false } = Astro.props;
 const now = new Date();
 const allGroups = groupByDay(Astro.props.articles);
 const groups = allGroups.slice(days.from, days.to);
@@ -37,7 +39,7 @@ const rowsOf = (items: Article[]) => items.reduce((n, a) => n + (confirmedLineup
     </div>
   </section>
 )}
-{allGroups.length === 0 && <p class="py-10 text-center text-muted">Noch keine News.</p>}
+{allGroups.length === 0 && !shell && <p class="py-10 text-center text-muted">Noch keine News.</p>}
 {groups.map((g) => (
   <section>
     {/* Each day opens with a slim band (global.css .day-band) that stays at the top while its posts scroll by.
@@ -89,7 +91,7 @@ const rowsOf = (items: Article[]) => items.reduce((n, a) => n + (confirmedLineup
   import { dayLabel } from "../lib/format.ts";
 
   declare global {
-    interface Window { __unpin?: () => void; __unpinTimer?: ReturnType<typeof setTimeout> }
+    interface Window { __unpin?: () => void; __unpinTimer?: ReturnType<typeof setTimeout>; __feedInit?: () => void }
   }
 
   // "Heute" / "Gestern" relative to now, not to when the page was built (it may be from yesterday).
@@ -183,7 +185,10 @@ const rowsOf = (items: Article[]) => items.reduce((n, a) => n + (confirmedLineup
     for (const band of document.querySelectorAll(".day-band.sticky")) stuck.observe(band);
   }
 
-  document.addEventListener("astro:page-load", () => {
+  // Also when the feed comes in beside a post on wide screens (Base.astro deskNews).
+  window.__feedInit = initFeed;
+  document.addEventListener("astro:page-load", initFeed);
+  function initFeed() {
     labelDays(document);
     stuck?.disconnect();
     watchBands();
@@ -199,5 +204,5 @@ const rowsOf = (items: Article[]) => items.reduce((n, a) => n + (confirmedLineup
     }, { rootMargin: "1500px 0px" });
     io.observe(marker);
     document.addEventListener("astro:before-swap", () => io.disconnect(), { once: true });
-  });
+  }
 </script>

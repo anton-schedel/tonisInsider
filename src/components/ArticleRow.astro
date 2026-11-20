@@ -87,7 +87,13 @@ const lineupPicture = postPicture({ club: a.club });
 
 <script>
   // Refresh the counts of LigaInsider's newest articles live (the built page has the counts of the last scrape).
-  document.addEventListener("astro:page-load", async () => {
+  declare global {
+    interface Window { __commentCounts?: () => void }
+  }
+  // Also when the feed comes in beside a post on wide screens (Base.astro deskNews).
+  window.__commentCounts = () => void refreshCounts();
+  document.addEventListener("astro:page-load", () => void refreshCounts());
+  async function refreshCounts() {
     const badges = document.querySelectorAll<HTMLElement>("[data-comment-count]");
     if (!badges.length) return;
     // Our own posts: their count comes from our own comments, in the same answer.
@@ -103,5 +109,5 @@ const lineupPicture = postPicture({ club: a.club });
         b.classList.toggle("hidden", n === 0);
       }
     } catch {}
-  });
+  }
 </script>
