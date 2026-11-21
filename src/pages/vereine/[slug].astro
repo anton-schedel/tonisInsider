@@ -150,7 +150,9 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     slot.dataset.sub = "1";
   }
 
-  /** One who came on, like a bench row on Mein Team: photo (yellow ring), name, "63' für …", his points. */
+  /** One who came on, like a bench row on Mein Team: photo (yellow ring), name, "63' für …", the part of the
+   * match he was on (a slim bar from his minute to the end: 158 points in 71 minutes read differently from 0 in 2),
+   * his points. Name and points keep their widths, so the bars stand under each other. */
   function subRow(sub: ClubSub, box: HTMLElement, doc: Document): HTMLElement {
     const row = doc.createElement("button");
     row.type = "button";
@@ -169,7 +171,7 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
       pic.append(img);
     }
     const text = doc.createElement("span");
-    text.className = "min-w-0 flex-1";
+    text.className = "w-[9.25rem] min-w-0 shrink-0";
     const name = doc.createElement("span");
     name.className = "block truncate text-[15px] font-semibold tracking-[-0.01em]";
     name.textContent = sub.name;
@@ -183,7 +185,15 @@ const shown = news.length <= NEWS_SHOWN + 1 ? news.length : NEWS_SHOWN;
     chip.dataset.kbPlayer = sub.kb;
     chip.hidden = true;
     chip.innerHTML = '<span class="kb-points-dot" aria-hidden="true"></span><span data-kb-text></span>';
-    row.append(pic, text, chip);
+    const played = doc.createElement("span");
+    played.className = "sub-played";
+    played.setAttribute("aria-hidden", "true");
+    played.style.setProperty("--from", `${Math.min(98, Math.max(0, (sub.minute / 90) * 100))}%`);
+    played.append(doc.createElement("i"));
+    const points = doc.createElement("span");
+    points.className = "flex w-[3.4rem] shrink-0 justify-end";
+    points.append(chip);
+    row.append(pic, text, played, points);
     return row;
   }
 

@@ -577,6 +577,10 @@ html:not([data-navigated]) .enter {
 .pitch .kb-points { background: rgba(10, 12, 16, 0.78); }
 .pitch .kb-points[class*="pts-"] { color: var(--pts); }
 .kb-points.is-row[class*="pts-"] { color: var(--pts-ink); }
+/* One who came on (club pages, under the pitch): the match as a slim line between his name and his points, the
+   part he played filled in — from his minute (--from) to the end. */
+.sub-played { flex: 1 1 0; min-width: 2.5rem; height: 4px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+.sub-played i { display: block; height: 100%; margin-left: var(--from, 0%); border-radius: inherit; background: var(--muted); opacity: 0.55; }
 /* Before the points arrive: a placeholder of the chip's size in its place (club pages). */
 .kb-points.is-loading { min-width: 34px; height: 18px; color: transparent; background: var(--surface); opacity: 0.55; animation: kb-wait 1.3s ease-in-out infinite; }
 @keyframes kb-wait { 50% { opacity: 0.3; } }
@@ -718,8 +722,11 @@ html:not([data-navigated]) .enter {
     overflow-y: auto; overscroll-behavior: contain;
     padding: 14px 26px 40px; border-right: 1px solid var(--hairline); background: var(--bg);
   }
-  /* The post that is open: the row's soft highlight stays, in the surface grey; no hairlines against it. */
-  [data-desk-feed] a.is-open::before { opacity: 1; background: var(--surface); }
+  /* The post that is open: the row's soft highlight stays, as light as the surface grey; no hairlines against it.
+     Only its opacity differs from a row at rest (not its colour): leaving a post, the highlight fades out — with
+     another colour it flashed dark on the way, like a press on the post just left. */
+  [data-desk-feed] a.is-open::before { opacity: 0.055; }
+  :root[data-theme="dark"] [data-desk-feed] a.is-open::before { opacity: 0.11; }
   [data-desk-feed] a.is-open, [data-desk-feed] a.is-open + a { border-color: transparent; }
   /* The feed is beside the post: no way back needed, and News itself shows only the feed until its newest post opens. */
   body:has([data-desk-feed]) .back-btn { display: none; }

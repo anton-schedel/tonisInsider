@@ -479,9 +479,9 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       const desk = matchMedia("(min-width: 1240px)");
       const deskFeed = () => document.querySelector<HTMLElement>("[data-desk-feed]");
       let feedTop = 0;
-      const markOpen = (feed: HTMLElement) => {
-        for (const a of feed.querySelectorAll("a.is-open")) a.classList.remove("is-open");
-        const open = feed.querySelector<HTMLElement>(`a[href="${location.pathname}"]`);
+      const markOpen = (feed: HTMLElement, path = location.pathname) => {
+        const open = feed.querySelector<HTMLElement>(`a[href="${path}"]`);
+        for (const a of feed.querySelectorAll("a.is-open")) if (a !== open) a.classList.remove("is-open");
         open?.classList.add("is-open");
         return open;
       };
@@ -528,6 +528,11 @@ const tabbarId = `tabbar-${tabs.map((t) => t.id).join("-")}`;
       });
       document.addEventListener("astro:page-load", () => void deskNews());
       desk.addEventListener("change", () => void deskNews());
+      // The highlight moves to the post at the click, not when its page has arrived.
+      document.addEventListener("astro:before-preparation", (e) => {
+        const feed = deskFeed();
+        if (feed && desk.matches && feed.querySelector(`a[href="${e.to.pathname}"]`)) markOpen(feed, e.to.pathname);
+      });
 
       // Wide screens, Mein Team and a club's page: the left side (pitch) stays while the right scrolls. Taller than
       // the screen (the substitutes under a club's pitch), it sticks further up, so its foot can still be reached.
