@@ -23,3 +23,4 @@ photos/
 ios/Config/Local.xcconfig
 ios/*.xcodeproj
 ios/build/
+ios/Config/TestFlight.env
