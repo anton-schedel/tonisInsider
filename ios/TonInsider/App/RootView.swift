@@ -51,11 +51,19 @@ struct RootView: View {
 
 /// The lineups tab's stack; in DEBUG, -TIClub <slug> opens a club right away (screenshots).
 private struct LineupsStack: View {
-    @State private var path: [ClubRoute] = {
+    // A club's page pushes its news' articles, an article its club: every route of withSiteRoutes, not only clubs
+    // (a path typed [ClubRoute] takes nothing else, and the links to articles did nothing).
+    @State private var path: NavigationPath = {
+        var path = NavigationPath()
         #if DEBUG
-        if let slug = UserDefaults.standard.string(forKey: "TIClub") { return [ClubRoute(slug: slug)] }
+        if let slug = UserDefaults.standard.string(forKey: "TIClub") {
+            path.append(ClubRoute(slug: slug))
+            // -TIClubArticle <id>: an article on top of the club, as a tap on one of its news.
+            let article = UserDefaults.standard.integer(forKey: "TIClubArticle")
+            if article > 0 { path.append(ArticleRoute(id: article)) }
+        }
         #endif
-        return []
+        return path
     }()
 
     var body: some View {

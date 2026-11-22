@@ -109,6 +109,8 @@ extension NetworkTests {
             await store.refresh()
             let sent = Box<String?>(nil)
             StubProtocol.handler = { request in
+                // The feed's own request: the comment counts are asked for beside it.
+                guard request.url!.path().hasSuffix("app-feed.json") else { return (response(502), Data()) }
                 sent.value = request.value(forHTTPHeaderField: "If-None-Match")
                 return (response(304), Data())
             }
