@@ -26,7 +26,8 @@ struct TonInsiderApp: App {
                 .environment(account)
                 .environment(scout)
                 .environment(chats)
-                .onChange(of: account.kickbase || account.ligaInsider) { Task { await scout.load() } }
+                // Either login coming or going can change whose list it is (the Kickbase account's if there is one).
+                .onChange(of: [account.kickbase, account.ligaInsider]) { Task { await scout.load() } }
                 .onChange(of: account.ligaInsider) { Task { await chats.check(force: true) } }
                 .task {
                     // The bubble's red number: a look every few minutes while the app is open (ChatsModel.checkEvery).

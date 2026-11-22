@@ -5,22 +5,33 @@ import Observation
 /// the website keeps in readable cookies. Mein Team corrects the Kickbase part whenever it loads.
 @Observable @MainActor
 final class Account {
-    var kickbase: Bool { didSet { save() } }
+    var kickbase: Bool {
+        didSet {
+            // Mein Team's stored teams are this Kickbase account's: they go with every login and logout, wherever it
+            // happens (also in Einstellungen, before Mein Team was ever opened), so the next account never sees them.
+            if kickbase != oldValue { MyTeamModel.forget(teamCache) }
+            save()
+        }
+    }
     var kickbaseName: String? { didSet { save() } }
     var ligaInsider: Bool { didSet { save() } }
     var ligaInsiderName: String? { didSet { save() } }
 
     private let defaults: UserDefaults
+    private let teamCache: URL
     let api: API
 
-    init(api: API = .shared, defaults: UserDefaults = .standard) {
+    init(api: API = .shared, defaults: UserDefaults = .standard, teamCache: URL = MyTeamModel.cacheDirectory) {
         self.api = api
         self.defaults = defaults
+        self.teamCache = teamCache
         kickbase = defaults.bool(forKey: "kb")
         kickbaseName = defaults.string(forKey: "kbName")
         ligaInsider = defaults.bool(forKey: "li")
         ligaInsiderName = defaults.string(forKey: "liName")
-        // Every answer of the site says which logins the session holds: the flags follow it.
+        // Every answer of the site says which logins the session holds: the flags follow it. Only answers to the
+        // session as it is now, though: one to a request sent before the last login or logout (its token has been
+        // replaced since) never gets here (API.send), so it can't flip the flags back or wipe the names.
         api.onSession { [weak self] flags in await self?.follow(flags) }
     }
 

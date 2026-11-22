@@ -88,8 +88,10 @@ final class API: Sendable {
             throw APIError.offline
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.offline }
-        if let fresh = http.value(forHTTPHeaderField: "X-App-Token") { tokens.replace(old: sent, new: fresh) }
-        if let flags = http.value(forHTTPHeaderField: "X-App-Session"), let listener = sessionListener.value {
+        // An answer to a request sent with a token that has been replaced since (a login or a logout landed in
+        // between) tells an older session's logins: the listener doesn't hear it, as its token isn't stored.
+        let current = http.value(forHTTPHeaderField: "X-App-Token").map { tokens.replace(old: sent, new: $0) } ?? (tokens.token == sent)
+        if current, let flags = http.value(forHTTPHeaderField: "X-App-Session"), let listener = sessionListener.value {
             await listener(Set(flags.split(separator: ",").map(String.init)))
         }
         return (data, http)
