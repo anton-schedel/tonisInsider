@@ -214,74 +214,15 @@ private struct MyPitchLegend: View {
     let news: Bool
 
     var body: some View {
-        CentredFlow(spacing: 16, lineSpacing: 4) {
-            if confirmed {
-                item("Startelf bestätigt") {
-                    Text("S11").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
-                        .padding(.horizontal, 4).frame(height: 13).background(PitchColor.green, in: Capsule())
-                }
-            }
-            item("Startelf") { dot(PitchColor.green) }
-            item("Fraglich oder Alternative") { dot(PitchColor.yellow) }
-            item("Nicht in der Startelf") { dot(Color.tiRed) }
-            item("Keine Infos") { dot(Color.tiMuted) }
-            if news {
-                item("Neue News") {
-                    Image(systemName: "newspaper.fill").font(.system(size: 9)).foregroundStyle(Color.tiForeground)
-                        .frame(width: 18, height: 18).background(Color.tiSurface, in: Circle())
-                }
-            }
-            Text("Tippen für Prognose")
-        }
-        .font(.system(size: 11))
-        .foregroundStyle(Color.tiMuted)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-    }
-
-    private func dot(_ color: Color) -> some View { Circle().fill(color).frame(width: 8, height: 8) }
-
-    private func item(_ text: String, @ViewBuilder mark: () -> some View) -> some View {
-        HStack(spacing: 4) {
-            mark().accessibilityHidden(true)
-            Text(text)
-        }
-    }
-}
-
-/// Items side by side, onto the next line when the width runs out, each line centred (the legend's flex-wrap).
-private struct CentredFlow: Layout {
-    var spacing: CGFloat
-    var lineSpacing: CGFloat
-
-    private func lines(_ subviews: Subviews, width: CGFloat) -> [(items: [(index: Int, size: CGSize)], width: CGFloat, height: CGFloat)] {
-        var lines: [(items: [(index: Int, size: CGSize)], width: CGFloat, height: CGFloat)] = []
-        for (index, subview) in subviews.enumerated() {
-            let size = subview.sizeThatFits(.unspecified)
-            if let last = lines.last, last.width + spacing + size.width <= width {
-                lines[lines.count - 1] = (last.items + [(index, size)], last.width + spacing + size.width, max(last.height, size.height))
-            } else {
-                lines.append(([(index, size)], size.width, size.height))
-            }
-        }
-        return lines
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let lines = lines(subviews, width: proposal.width ?? .infinity)
-        return CGSize(width: lines.map(\.width).max() ?? 0,
-                      height: lines.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(0, lines.count - 1)))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var y = bounds.minY
-        for line in lines(subviews, width: bounds.width) {
-            var x = bounds.midX - line.width / 2
-            for item in line.items {
-                subviews[item.index].place(at: CGPoint(x: x, y: y + (line.height - item.size.height) / 2), proposal: ProposedViewSize(item.size))
-                x += item.size.width + spacing
-            }
-            y += line.height + lineSpacing
-        }
+        // The one legend of every pitch (Design/Pitch.swift), with Mein Team's marks.
+        PitchLegend(items: [
+            confirmed ? .init("Startelf bestätigt", mark: .s11) : nil,
+            .init("Startelf", mark: .dot(.green)),
+            .init("Fraglich oder Alternative", mark: .dot(.yellow)),
+            .init("Nicht in der Startelf", mark: .dot(.red)),
+            .init("Keine Infos", mark: .dot(.muted)),
+            news ? .init("Neue News", mark: .news) : nil,
+            .init("Tippen für Prognose"),
+        ].compactMap { $0 })
     }
 }

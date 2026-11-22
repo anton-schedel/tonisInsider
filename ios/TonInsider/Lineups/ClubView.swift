@@ -201,7 +201,8 @@ struct LineupPitch: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.press)
+            // From kickoff his card shows his points: their breakdown is asked for while the finger is still down.
+            .buttonStyle(CardPressStyle(kickbaseId: points?.ids?[String(shown.id)]))
         }
     }
 

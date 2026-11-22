@@ -102,9 +102,12 @@ struct PitchFace<Badges: View>: View {
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.55), radius: 1, y: 1)
             if let note {
+                // One line, as on the website (.pitch-note): a second one ("bis 88' · Codjo-Evora") ran into the
+                // row of players below.
                 Text(note)
                     .font(.system(size: 11, weight: .medium))
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(noteColor)
                     .shadow(color: .black.opacity(0.55), radius: 1, y: 1)
