@@ -47,6 +47,11 @@ struct SettingsView: View {
                             await account.logInLigaInsider(username: user, password: password)
                         }
                     }
+                    // The website's note, as it is true for the app: a login's answer is a session token the site
+                    // sealed with its own key (src/lib/appSession.ts; the password is inside, readable only there),
+                    // and the app keeps that token in the Keychain, for this device only (Data/Keychain.swift).
+                    Text("Passwörter bleiben verschlüsselt nur auf diesem iPhone, im Schlüsselbund. Auf dem Server werden sie nicht gespeichert. Die beiden Konten sind unabhängig.")
+                        .font(.system(size: 12)).foregroundStyle(Color.tiMuted)
                 }
             }
             .padding(.horizontal, 16)

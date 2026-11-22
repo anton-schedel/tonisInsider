@@ -15,11 +15,21 @@ final class MyTeamModel {
     private let directory: URL
     /// Only the newest load may show its answer (a late one for the league before must not).
     private var request = 0
+    /// The Kickbase session ran out. The site says so once ("expired") and clears the session in the same answer,
+    /// so every answer after it only says "none": the prompt keeps saying what happened until the next login.
+    private var expired = false
 
-    init(api: API = .shared, directory: URL = .cachesDirectory.appending(path: "my-team")) {
+    /// Where the last team per league is kept.
+    nonisolated static let cacheDirectory = URL.cachesDirectory.appending(path: "my-team")
+
+    init(api: API = .shared, directory: URL = MyTeamModel.cacheDirectory) {
         self.api = api
         self.directory = directory
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    /// The stored teams go (Account calls this at every Kickbase login and logout, whether Mein Team is open or not).
+    nonisolated static func forget(_ directory: URL) {
+        try? FileManager.default.removeItem(at: directory)
     }
 
     var showsLoginPrompt: Bool { team?.signedOut != nil }
@@ -37,13 +47,22 @@ final class MyTeamModel {
         loading = true
         defer { if mine == request { loading = false } }
         do {
-            let fresh: AppTeam = try await api.get("api/app/my-team/", query: league.map { [URLQueryItem(name: "league", value: $0)] } ?? [])
+            var fresh: AppTeam = try await api.get("api/app/my-team/", query: league.map { [URLQueryItem(name: "league", value: $0)] } ?? [])
+            // Noted even from an answer that is late by now: the logout it causes starts the next load before this
+            // one is back, and that one only hears "none".
+            if fresh.signedOut == "expired" {
+                expired = true
+                if team?.signedOut != nil { team?.signedOut = "expired" }
+            }
             guard mine == request else { return }
+            if fresh.signedOut == nil { if fresh.error == nil { expired = false } }
+            else if expired { fresh.signedOut = "expired" }
             message = fresh.error
             // Kickbase not reachable: the team on screen stays, with the message above it.
             if fresh.error != nil, fresh.signedOut == nil, team?.players.isEmpty == false { return }
             team = fresh
             if fresh.signedOut == nil, fresh.error == nil, let data = try? JSONEncoder.site.encode(fresh) {
+                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 try? data.write(to: file(league), options: .atomic)
                 if league == nil { try? data.write(to: file(fresh.leagueId), options: .atomic) }
             }
@@ -58,14 +77,21 @@ final class MyTeamModel {
         await load()
     }
 
+    /// The Kickbase login came or went (here, in Einstellungen or by the site). Signed out: the old team goes, from
+    /// the screen and the phone. Either way the answer for the session as it is now follows.
+    func accountChanged(signedIn: Bool) async {
+        if signedIn { expired = false } else { clear() }
+        await load()
+    }
+
     /// Signed out: nothing of the old account stays on screen or on the phone.
     func clear() {
         request += 1
-        team = nil
+        // The login prompt stays as it is (it may say that the session ran out); only an account's team goes.
+        if team?.signedOut == nil { team = nil }
         leagueId = nil
         message = nil
-        try? FileManager.default.removeItem(at: directory)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        Self.forget(directory)
     }
 
     /// A match runs, or one should have started (its kickoff passed): src/lib/livePoints.ts anyRunning.

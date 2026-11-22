@@ -18,7 +18,7 @@ struct PlayerCardData: Codable, Hashable, Identifiable, Sendable {
     var cleanSheet: Int?
     var win: Int?
     var news: [CardNews]?
-    /// His club's page ("/vereine/<slug>/"); Mein Team only, like the site's "Zum Verein".
+    /// His club's page ("/vereine/<slug>/") for "Zum Verein": Mein Team and Scouting (a club's own page has none).
     var href: String?
     /// From kickoff on (set by the screen that opens the card): his Kickbase id, for "Punkte am Spieltag".
     var kickbaseId: String?
@@ -66,6 +66,18 @@ struct PlayerCardView: View {
     private enum Breakdown { case loading, loaded(PlayerPoints), failed }
     @State private var breakdown: Breakdown?
     @State private var allLines = false
+    @Environment(ScoutStore.self) private var scout
+
+    /// The sheet's way in: what arrives during it waits for its end.
+    private static let opening = Duration.milliseconds(500)
+
+    init(data: PlayerCardData, openArticle: ((Int) -> Void)? = nil, openClub: ((String) -> Void)? = nil) {
+        self.data = data
+        self.openArticle = openArticle
+        self.openClub = openClub
+        // A breakdown already loaded (he was tapped before, or the press brought it in time) is there at once.
+        _breakdown = State(initialValue: data.kickbaseId.flatMap { PointsBreakdown.shared.fresh($0) }.map(Breakdown.loaded))
+    }
 
     /// A card chance from this much on is shown as a warning (PlayerCard.astro CARD_WARN).
     private static let cardWarn = 30
@@ -93,8 +105,11 @@ struct PlayerCardView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 16)
             }
+            // A star that couldn't be saved says why right above it; the card stays for that.
+            ScoutProblem().padding(.horizontal, 22).padding(.top, 10)
             HStack(spacing: 10) {
-                if let id = data.id { ScoutButton(playerId: id) }
+                // The star changes for a blink, then the card goes (PlayerCard.astro).
+                if let id = data.id { ScoutButton(playerId: id) { dismiss() } }
                 if let slug = data.clubSlug, let openClub { Button("Zum Verein") { openClub(slug) }.buttonStyle(.quiet) }
                 Button("Schließen") { dismiss() }.buttonStyle(.primary)
             }
@@ -103,10 +118,17 @@ struct PlayerCardView: View {
             .padding(.bottom, 8)
         }
         .task(id: data.kickbaseId) {
-            guard let id = data.kickbaseId else { return }
-            breakdown = .loading
-            do { breakdown = .loaded(try await PointsBreakdown.shared.load(id)) } catch { breakdown = .failed }
+            guard let id = data.kickbaseId, breakdown == nil else { return }
+            // Lines that come in while the card is still sliding in would change it under way: they wait until it
+            // stands, then fade in (so does the way back to the odds when Kickbase fails).
+            async let settled: Void? = try? Task.sleep(for: Self.opening)
+            let loaded = try? await PointsBreakdown.shared.load(id)
+            _ = await settled
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.18)) { breakdown = loaded.map(Breakdown.loaded) ?? .failed }
         }
+        // A message nobody read doesn't wait for the next card.
+        .onDisappear { scout.message = nil }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
@@ -174,6 +196,7 @@ struct PlayerCardView: View {
                     .frame(height: 37)
                 }
             }
+            .transition(.opacity)
         case .loaded(let p) where p.live.state != 0 && !p.lines.isEmpty:
             let visible = PointsBreakdown.visible(p.lines, all: allLines)
             pointsBox {
@@ -195,8 +218,9 @@ struct PlayerCardView: View {
                         .buttonStyle(.plain).padding(.top, 8)
                 }
             }
+            .transition(.opacity)
         default:
-            stats
+            stats.transition(.opacity)
         }
     }
 
@@ -244,7 +268,7 @@ struct PlayerCardView: View {
                             Text(n.title).font(.system(size: 15, weight: .semibold)).lineLimit(2).multilineTextAlignment(.leading)
                             HStack(spacing: 6) {
                                 if let pill = n.type.pill { Pill(text: pill.label, tone: pill.tone) }
-                                Text(Berlin.shortDay(n.at)).font(.system(size: 12)).foregroundStyle(Color.tiMuted).monospacedDigit()
+                                Text(Berlin.when(n.at)).font(.system(size: 12)).foregroundStyle(Color.tiMuted).monospacedDigit()
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -287,7 +311,19 @@ private struct PlayerCardPresenter: ViewModifier {
                                openArticle: { next = ArticleRoute(id: $0); card = nil },
                                openClub: { next = ClubRoute(slug: $0); card = nil })
             }
+            // His points' breakdown is asked for as soon as he is tapped, before the sheet is on its way.
+            .onChange(of: card?.kickbaseId, initial: true) { _, id in
+                if let id { PointsBreakdown.shared.warm(id) }
+            }
             .navigationDestination(item: $article) { ArticleDestination(id: $0.id) }
             .navigationDestination(item: $club) { ClubDestination(slug: $0.slug) }
+    }
+}
+
+extension Berlin {
+    /// "vor 3 Std." within a day, else the day ("Mi. 07.10."): when a news item came (player card, scout list;
+    /// src/lib/format.ts when).
+    static func when(_ date: Date, now: Date = .now) -> String {
+        now.timeIntervalSince(date) < 86400 ? ago(date, now: now) : shortDay(date)
     }
 }

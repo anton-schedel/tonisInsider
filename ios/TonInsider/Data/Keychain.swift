@@ -6,8 +6,8 @@ import Security
 protocol TokenStore: AnyObject, Sendable {
     var token: String? { get set }
     /// Stores `new` only while the store still holds `old` (the token the request went out with): a late answer
-    /// must not undo a logout or a login that landed in between.
-    func replace(old: String?, new: String)
+    /// must not undo a logout or a login that landed in between. True when it was stored.
+    @discardableResult func replace(old: String?, new: String) -> Bool
 }
 
 /// The iPhone's Keychain (this device only, readable after the first unlock so background refreshes work).
@@ -15,10 +15,11 @@ final class KeychainTokenStore: TokenStore, @unchecked Sendable {
     private let service = "toninsider.session"
     private let lock = NSLock()
 
-    func replace(old: String?, new: String) {
+    func replace(old: String?, new: String) -> Bool {
         lock.withLock {
-            guard read() == old else { return }
+            guard read() == old else { return false }
             write(new)
+            return true
         }
     }
 
@@ -51,8 +52,12 @@ final class MemoryTokenStore: TokenStore, @unchecked Sendable {
     private let lock = NSLock()
     private var value: String?
     init(_ token: String? = nil) { value = token }
-    func replace(old: String?, new: String) {
-        lock.withLock { if value == old { value = new } }
+    func replace(old: String?, new: String) -> Bool {
+        lock.withLock {
+            guard value == old else { return false }
+            value = new
+            return true
+        }
     }
     var token: String? {
         get { lock.withLock { value } }

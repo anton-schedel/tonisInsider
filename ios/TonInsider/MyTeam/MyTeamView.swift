@@ -36,10 +36,7 @@ struct MyTeamView: View {
             if let team = model.team { account.update(from: team) }
         }
         .task { await model.pollLive() }
-        .onChange(of: account.kickbase) { _, signedIn in
-            // Signed out (here, in Einstellungen or by the site): the old team goes, from the screen and the phone.
-            if signedIn { Task { await model.load() } } else { model.clear(); Task { await model.load() } }
-        }
+        .onChange(of: account.kickbase) { _, signedIn in Task { await model.accountChanged(signedIn: signedIn) } }
         // Back in the app: the team and its live state as they are now (points start without a pull).
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await model.load() } } }
         .playerCard($card)
@@ -90,6 +87,8 @@ struct MyTeamView: View {
                 Pitch(lines: team.lines.map { Array($0.indices) }) { i, j in
                     if let p = team.players[team.lines[i][j]] { MyPitchFace(player: p) { card = Self.card(p) } }
                 }
+                let xi = team.lines.flatMap { $0 }.compactMap { team.players[$0] }
+                MyPitchLegend(confirmed: xi.contains { $0.status == .confirmed }, news: xi.contains(where: \.freshNews))
                 if let summary = team.summary { MatchdaySummaryView(summary: summary).padding(.top, 32) }
                 let bench = team.bench.compactMap { team.players[$0] }
                 if !bench.isEmpty {
@@ -127,7 +126,8 @@ struct MyTeamView: View {
     private func rows(_ players: [AppTeam.Player], team: AppTeam) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(players.enumerated()), id: \.element.id) { index, p in
-                Button { card = Self.card(p) } label: { MyPlayerRow(player: p) }.buttonStyle(.pressRow)
+                Button { card = Self.card(p) } label: { MyPlayerRow(player: p) }
+                    .buttonStyle(CardPressStyle(scale: 0.985, kickbaseId: Self.card(p).kickbaseId))
                 if index < players.count - 1 { Divider().overlay(Color.tiHairline) }
             }
         }
@@ -158,7 +158,7 @@ private struct MyPitchFace: View {
         }
         .contentShape(Rectangle())
         }
-        .buttonStyle(.press)
+        .buttonStyle(CardPressStyle(kickbaseId: MyTeamView.card(player).kickbaseId))
     }
 
     private var dot: Color {
@@ -171,30 +171,117 @@ private struct MyPitchFace: View {
     }
 }
 
-/// A bench (or squad) row: photo, name, start status and his next match; his points once it started.
+/// A bench (or squad) row (MyPlayerRow.astro): photo with his club's crest, name, his next match; on the right
+/// whether he starts until kickoff, from then on his points instead.
 private struct MyPlayerRow: View {
     let player: AppTeam.Player
 
     var body: some View {
         HStack(spacing: 12) {
             Avatar(url: siteURL(player.card.photo ?? player.image), name: player.card.name, size: 44)
+                .overlay {
+                    if let crest = player.card.crest {
+                        Crest(url: siteURL(crest), size: 20).shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                            .pinned(.bottomTrailing, x: 6, y: 4)
+                    }
+                }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(player.card.name).font(.system(size: 16, weight: .semibold))
+                    Text(player.card.name).font(.system(size: 16, weight: .semibold)).lineLimit(1)
                     if player.freshNews { Image(systemName: "newspaper.fill").font(.system(size: 11)).foregroundStyle(Color.tiMuted) }
                 }
-                HStack(spacing: 6) {
-                    if let status = player.card.status { Pill(text: status, tone: player.card.statusTone) }
-                    if let match = player.card.match { Text(match).lineLimit(1) }
+                if let match = player.card.match {
+                    Text(match).font(.system(size: 13)).foregroundStyle(Color.tiMuted).lineLimit(1)
                 }
-                .font(.system(size: 13)).foregroundStyle(Color.tiMuted)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Before kickoff: will he start? From kickoff on: his Kickbase points.
             if let label = player.live.flatMap({ PointsLabel(state: $0.state, points: $0.points) }) {
                 PointsChip(label: label, style: .row)
+            } else if let status = player.card.status {
+                Pill(text: status, tone: player.card.statusTone).layoutPriority(1)
             }
         }
         .padding(.vertical, 10)
         .contentShape(Rectangle())
+    }
+}
+
+/// What the marks on Mein Team's pitch mean (MyPitch.astro's legend): small, muted, centred under the pitch,
+/// wrapping as the width allows. S11 and the newspaper only when the pitch shows one.
+private struct MyPitchLegend: View {
+    let confirmed: Bool
+    let news: Bool
+
+    var body: some View {
+        CentredFlow(spacing: 16, lineSpacing: 4) {
+            if confirmed {
+                item("Startelf bestätigt") {
+                    Text("S11").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                        .padding(.horizontal, 4).frame(height: 13).background(PitchColor.green, in: Capsule())
+                }
+            }
+            item("Startelf") { dot(PitchColor.green) }
+            item("Fraglich oder Alternative") { dot(PitchColor.yellow) }
+            item("Nicht in der Startelf") { dot(Color.tiRed) }
+            item("Keine Infos") { dot(Color.tiMuted) }
+            if news {
+                item("Neue News") {
+                    Image(systemName: "newspaper.fill").font(.system(size: 9)).foregroundStyle(Color.tiForeground)
+                        .frame(width: 18, height: 18).background(Color.tiSurface, in: Circle())
+                }
+            }
+            Text("Tippen für Prognose")
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Color.tiMuted)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+
+    private func dot(_ color: Color) -> some View { Circle().fill(color).frame(width: 8, height: 8) }
+
+    private func item(_ text: String, @ViewBuilder mark: () -> some View) -> some View {
+        HStack(spacing: 4) {
+            mark().accessibilityHidden(true)
+            Text(text)
+        }
+    }
+}
+
+/// Items side by side, onto the next line when the width runs out, each line centred (the legend's flex-wrap).
+private struct CentredFlow: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    private func lines(_ subviews: Subviews, width: CGFloat) -> [(items: [(index: Int, size: CGSize)], width: CGFloat, height: CGFloat)] {
+        var lines: [(items: [(index: Int, size: CGSize)], width: CGFloat, height: CGFloat)] = []
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if let last = lines.last, last.width + spacing + size.width <= width {
+                lines[lines.count - 1] = (last.items + [(index, size)], last.width + spacing + size.width, max(last.height, size.height))
+            } else {
+                lines.append(([(index, size)], size.width, size.height))
+            }
+        }
+        return lines
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = lines(subviews, width: proposal.width ?? .infinity)
+        return CGSize(width: lines.map(\.width).max() ?? 0,
+                      height: lines.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(0, lines.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for line in lines(subviews, width: bounds.width) {
+            var x = bounds.midX - line.width / 2
+            for item in line.items {
+                subviews[item.index].place(at: CGPoint(x: x, y: y + (line.height - item.size.height) / 2), proposal: ProposedViewSize(item.size))
+                x += item.size.width + spacing
+            }
+            y += line.height + lineSpacing
+        }
     }
 }
