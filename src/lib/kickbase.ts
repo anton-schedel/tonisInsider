@@ -81,8 +81,22 @@ function toPlayer(p: ApiPlayer): KbPlayer {
   };
 }
 
+/** A match counts as running for this long after kickoff when Kickbase's own state doesn't say (matchState). */
+const RUNNING_MS = 3 * 3600_000;
+
+/**
+ * The state of a match from Kickbase's number and its kickoff. Kickbase says 1 (running) and 2 (over), but a
+ * running match can come with another number while its points already count (Bremen – HSV, 22.11.2026: "not
+ * started" through the second half): from kickoff on, for three hours, anything but "over" is a running match.
+ */
+export function matchState(raw: number | undefined, kickoff: string | undefined, now = Date.now()): KbLive["state"] {
+  if (raw === 1 || raw === 2) return raw;
+  const at = Date.parse(kickoff ?? "");
+  return at <= now && now < at + RUNNING_MS ? 1 : 0;
+}
+
 function toLive(p: ApiPlayer): KbLive {
-  const state = (p.mst === 1 || p.mst === 2 ? p.mst : 0) as KbLive["state"];
+  const state = matchState(p.mst, p.md);
   return {
     state,
     ...(typeof p.p === "number" ? { points: p.p } : {}),
@@ -160,7 +174,7 @@ export async function teamCenter(fetchFn: Fetch, token: string, teamId: string):
     ma?: { mi?: string; st?: number; mt?: number; dt?: string };
     it?: { i: string; n: string; p?: number }[];
   }>(fetchFn, `/v4/competitions/1/teams/${encodeURIComponent(teamId)}/teamcenter`, { token });
-  const state = (r.ma?.st === 1 || r.ma?.st === 2 ? r.ma.st : 0) as KbLive["state"];
+  const state = matchState(r.ma?.st, r.ma?.dt);
   return {
     live: { state, ...(state === 1 && typeof r.ma?.mt === "number" ? { minute: r.ma.mt } : {}), ...(r.ma?.dt ? { kickoff: r.ma.dt } : {}) },
     ...(r.ma?.mi ? { matchId: String(r.ma.mi) } : {}),

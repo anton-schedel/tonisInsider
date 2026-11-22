@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { KickbaseAuthError, KickbaseTokenError, KickbaseUnavailableError, leagues, login, matchDetails, myEleven, squad, teamRoster } from "./kickbase.ts";
+import { KickbaseAuthError, KickbaseTokenError, KickbaseUnavailableError, leagues, login, matchDetails, matchState, myEleven, squad, teamRoster } from "./kickbase.ts";
 
 type Call = { url: string; init: RequestInit };
 
@@ -91,6 +91,29 @@ describe("myEleven", () => {
     expect(await myEleven(fakeFetch(200, {}).fn, "T", "7")).toEqual({ starters: [], bench: [] });
   });
 
+});
+
+describe("matchState", () => {
+  const kickoff = "2026-11-22T16:30:00Z";
+  const at = (minutes: number) => Date.parse(kickoff) + minutes * 60_000;
+
+  it("takes Kickbase's running and over as they are", () => {
+    expect(matchState(1, kickoff, at(-10))).toBe(1);
+    expect(matchState(2, kickoff, at(60))).toBe(2);
+  });
+
+  it("counts a match as running from kickoff for three hours when Kickbase says neither running nor over", () => {
+    expect(matchState(0, kickoff, at(-1))).toBe(0);
+    expect(matchState(0, kickoff, at(0))).toBe(1);
+    expect(matchState(undefined, kickoff, at(87))).toBe(1);
+    expect(matchState(4, kickoff, at(87))).toBe(1);
+    expect(matchState(0, kickoff, at(180))).toBe(0);
+  });
+
+  it("stays not started without a kickoff", () => {
+    expect(matchState(0, undefined, at(30))).toBe(0);
+    expect(matchState(undefined, "", at(30))).toBe(0);
+  });
 });
 
 describe("matchDetails", () => {
