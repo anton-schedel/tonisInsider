@@ -10,7 +10,7 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.1"
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
 packages:
   PostHog:
@@ -27,6 +27,9 @@ targets:
       path: TonInsider/Info.plist
       properties:
         CFBundleDisplayName: TonInsider
+        # From the build settings, so every TestFlight upload carries its own build number (scripts/testflight.sh).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         TISiteURL: $(SITE_URL)
         TIPostHogToken: $(POSTHOG_PROJECT_TOKEN)
         TIPostHogHost: $(POSTHOG_HOST)
