@@ -158,3 +158,118 @@ enum PitchBadge {
             .pinned(.bottomTrailing, x: 6, y: 2)
     }
 }
+
+/// What the marks on a pitch mean, in a centred line under it that wraps (PitchField.astro's legend): small, muted.
+/// Each pitch names its own items: a mark with its word, or words alone ("Tippen für Prognose").
+struct PitchLegend: View {
+    struct Item: Hashable {
+        var mark: Mark?
+        var text: String
+
+        init(_ text: String, mark: Mark? = nil) {
+            self.text = text
+            self.mark = mark
+        }
+    }
+
+    enum Mark: Hashable {
+        /// The dot of a photo's corner, in the page's colours (.legend-dot).
+        case dot(Dot)
+        /// The confirmed XI's badge.
+        case s11
+        /// The newspaper of fresh news.
+        case news
+        /// A match report's marks on the photo: goal, assist, card.
+        case goal, assist, card
+    }
+
+    enum Dot: Hashable {
+        case green, yellow, red, muted
+
+        var color: Color {
+            switch self {
+            case .green: PitchColor.green
+            case .yellow: Color(light: 0xFFCC00, dark: 0xFFD60A)
+            case .red: .tiRed
+            case .muted: .tiMuted
+            }
+        }
+    }
+
+    let items: [Item]
+
+    var body: some View {
+        WrappedLine(spacing: 16, lineSpacing: 4) {
+            ForEach(items, id: \.self) { item in
+                HStack(spacing: 4) {
+                    if let mark = item.mark { Self.view(mark).accessibilityHidden(true) }
+                    Text(item.text)
+                }
+            }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Color.tiMuted)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder private static func view(_ mark: Mark) -> some View {
+        switch mark {
+        case .dot(let dot):
+            Circle().fill(dot.color).frame(width: 8, height: 8)
+        case .s11:
+            Text("S11").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                .padding(.horizontal, 4).frame(height: 13).background(PitchColor.green, in: Capsule())
+        case .news:
+            Image(systemName: "newspaper.fill").font(.system(size: 9)).foregroundStyle(Color.tiForeground)
+                .frame(width: 18, height: 18).background(Color.tiSurface, in: Circle())
+        case .goal:
+            Text("⚽").font(.system(size: 10))
+        case .assist:
+            Text("A").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 13, height: 13).background(Circle().fill(.black.opacity(0.55)))
+        case .card:
+            RoundedRectangle(cornerRadius: 1.5).fill(PitchColor.yellow).frame(width: 8, height: 11)
+        }
+    }
+}
+
+/// Items side by side, centred, wrapping to a next centred line when they don't fit (the website's
+/// "flex flex-wrap justify-center").
+private struct WrappedLine: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    private func lines(_ subviews: Subviews, width: CGFloat) -> [(items: [(index: Int, size: CGSize)], width: CGFloat, height: CGFloat)] {
+        var lines: [(items: [(index: Int, size: CGSize)], width: CGFloat, height: CGFloat)] = []
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+            if let last = lines.last, last.width + spacing + size.width <= width {
+                lines[lines.count - 1].items.append((index, size))
+                lines[lines.count - 1].width = last.width + spacing + size.width
+                lines[lines.count - 1].height = max(last.height, size.height)
+            } else {
+                lines.append(([(index, size)], size.width, size.height))
+            }
+        }
+        return lines
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = lines(subviews, width: proposal.width ?? .infinity)
+        let height = lines.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(0, lines.count - 1))
+        return CGSize(width: lines.map(\.width).max() ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for line in lines(subviews, width: bounds.width) {
+            var x = bounds.midX - line.width / 2
+            for item in line.items {
+                subviews[item.index].place(at: CGPoint(x: x, y: y + (line.height - item.size.height) / 2), proposal: ProposedViewSize(item.size))
+                x += item.size.width + spacing
+            }
+            y += line.height + lineSpacing
+        }
+    }
+}

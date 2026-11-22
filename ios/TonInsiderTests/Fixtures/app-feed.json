@@ -207,7 +207,8 @@
    },
    "tip": {
     "home": 2,
-    "away": 0
+    "away": 0,
+    "percent": 14
    },
    "cleanSheet": {
     "home": 55,

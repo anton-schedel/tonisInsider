@@ -12,6 +12,8 @@ struct ClubView: View {
     @State private var allNews = false
     /// Kickbase points from kickoff on (src/pages/vereine/[slug].astro's live script).
     @State private var live = ClubPointsModel()
+    /// The match's live score for the card on top.
+    private let scores = LiveScoresModel.shared
     @Environment(\.scenePhase) private var scenePhase
 
     private var fixture: Fixture? { feed.fixtures.first { $0.home == lineup.club.slug || $0.away == lineup.club.slug } }
@@ -24,10 +26,16 @@ struct ClubView: View {
             ScrollViewReader { scroller in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if let fixture { FixtureCard(fixture: fixture, feed: feed, hero: true, current: lineup.club.slug) }
+                    if let fixture {
+                        FixtureCard(fixture: fixture, feed: feed, hero: true, current: lineup.club.slug,
+                                    live: scores.state(of: fixture, now: context.date))
+                    }
                     SectionTitle(title: "Aufstellung", detail: lineup.formation).padding(.top, 36).padding(.bottom, 12)
-                    let inWindow = ClubPointsModel.matters(kickoff: lineup.kickoff, now: context.date)
-                    LineupPitch(lineup: lineup, feed: feed, points: inWindow ? live.points : nil, inWindow: inWindow) { card = $0 }
+                    // From kickoff on: who really played, with points. Unless Kickbase has no answer for this club
+                    // (it can't be mapped, or Kickbase is down): then the pitch stays as before kickoff, without
+                    // placeholders that may never fill.
+                    let inWindow = ClubPointsModel.matters(kickoff: lineup.kickoff, now: context.date) && !live.failed
+                    LineupPitch(lineup: lineup, feed: feed, points: inWindow ? live.points : nil, inWindow: inWindow, now: context.date) { card = $0 }
                     // Everyone who came on, with his points, right under the pitch: no face to flip to find him.
                     if inWindow, let subs = live.points?.subs, !subs.isEmpty {
                         SubsList(subs: subs, points: live.points) { sub in
@@ -70,10 +78,12 @@ struct ClubView: View {
         .navigationTitle(lineup.club.name)
         .navigationBarTitleDisplayMode(.inline)
         .playerCard($card)
-        // Asked only while the app is in front (and the page open): the task stops with either.
-        .task(id: scenePhase) {
+        // Asked only while the app is in front (and the page open): the task stops with either. Anew when the feed
+        // brings a kickoff (or another one) while the page is open: the asking is for that match.
+        .task(id: ClubPointsModel.Asking(active: scenePhase == .active, kickoff: lineup.kickoff)) {
             if scenePhase == .active { await live.run(slug: lineup.club.slug, kickoff: lineup.kickoff) }
         }
+        .liveScores(of: fixture.map { [$0] } ?? [])
         #if DEBUG
         .task {
             // Screenshots: -TICard <row> opens the first player of that row's card.
@@ -118,21 +128,39 @@ struct LineupPitch: View {
     var points: ClubPoints? = nil
     /// Kickoff has passed (and the matchday isn't over): who really played, with points; no predictions.
     var inWindow = false
+    /// For the newspaper on a photo: news of the last 3 days.
+    var now: Date = .now
     let open: (PlayerCardData) -> Void
 
     private var confirmed: Bool { feed.confirmed.contains(lineup.club.id) }
 
     var body: some View {
-        Pitch(lines: lineup.lines.map { Array($0.indices) }, mirror: true) { i, j in
-            let player = lineup.lines[i][j]
-            if inWindow {
-                Played(player: player, play: points?.slots?[String(player.id)], points: points, pos: rowPosition(i, rows: lineup.lines.count),
-                       lineup: lineup, feed: feed, confirmed: confirmed, open: open)
-            } else {
-                Slot(player: player, pos: rowPosition(i, rows: lineup.lines.count), lineup: lineup, feed: feed,
-                     confirmed: confirmed, open: open)
+        let fresh = feed.freshNewsPlayers(now: now)
+        VStack(spacing: 0) {
+            Pitch(lines: lineup.lines.map { Array($0.indices) }, mirror: true) { i, j in
+                let player = lineup.lines[i][j]
+                if inWindow {
+                    Played(player: player, play: points?.slots?[String(player.id)], points: points, pos: rowPosition(i, rows: lineup.lines.count),
+                           lineup: lineup, feed: feed, confirmed: confirmed, fresh: fresh, open: open)
+                } else {
+                    Slot(player: player, pos: rowPosition(i, rows: lineup.lines.count), lineup: lineup, feed: feed,
+                         confirmed: confirmed, fresh: fresh, open: open)
+                }
             }
+            PitchLegend(items: Self.legend(lineup, confirmed: confirmed, fresh: fresh))
         }
+    }
+
+    /// What the marks mean (Pitch.astro's legend): the dots until LigaInsider confirms the XI, the newspaper only
+    /// when someone on the pitch (an alternative too) has fresh news.
+    static func legend(_ lineup: Lineup, confirmed: Bool, fresh: Set<Int>) -> [PitchLegend.Item] {
+        var items: [PitchLegend.Item] = confirmed
+            ? [.init("Startelf bestätigt", mark: .s11)]
+            : [.init("Gesetzt", mark: .dot(.green)), .init("Fraglich", mark: .dot(.yellow))]
+        let anyNews = lineup.lines.joined().contains { fresh.contains($0.id) || ($0.alternative.map { fresh.contains($0.id) } ?? false) }
+        if anyNews { items.append(.init("Neue News", mark: .news)) }
+        items.append(.init("Tippen für Prognose"))
+        return items
     }
 
     /// Who played in a predicted starter's slot: his alternative if it was him who started; the note says when the
@@ -152,6 +180,7 @@ struct LineupPitch: View {
         let lineup: Lineup
         let feed: AppFeed
         let confirmed: Bool
+        let fresh: Set<Int>
         let open: (PlayerCardData) -> Void
 
         var body: some View {
@@ -166,6 +195,7 @@ struct LineupPitch: View {
             } label: {
                 PitchFace(photo: siteURL(shown.photo), name: shown.name, note: note, noteColor: PitchColor.yellow,
                           points: label, pointsLoading: points == nil) {
+                    if fresh.contains(shown.id) { PitchBadge.news }
                     if confirmed { PitchBadge.s11 }
                     else { PitchBadge.dot(player.status == .doubtful && shown.id == player.id ? PitchColor.yellow : PitchColor.green) }
                 }
@@ -182,6 +212,7 @@ struct LineupPitch: View {
         let lineup: Lineup
         let feed: AppFeed
         let confirmed: Bool
+        let fresh: Set<Int>
         let open: (PlayerCardData) -> Void
         @State private var showAlternative = false
 
@@ -191,12 +222,14 @@ struct LineupPitch: View {
             let note: String? = showAlternative ? "statt \(player.name)"
                 : player.status == .doubtful ? (player.statusLabel ?? "Fraglich") : player.alternative.map { "Alt: \($0.name)" }
             Button {
-                let status = showAlternative ? ("Alternative für \(player.name)", Tone.yellow) : player.start(confirmed: confirmed)
+                let status = showAlternative ? (player.alternativeStatus, Tone.yellow) : player.start(confirmed: confirmed)
                 open(PlayerCardData(shown, lineup: lineup, feed: feed, pos: pos, status: status))
             } label: {
             PitchFace(photo: siteURL(shown.photo), name: shown.name, note: confirmed ? nil : note,
                       noteColor: player.status == .doubtful && !showAlternative ? PitchColor.yellow : .white.opacity(0.7),
                       alt: showAlternative) {
+                // The one shown: his own fresh news (the website's alternative face has its own badge).
+                if fresh.contains(shown.id) { PitchBadge.news }
                 if confirmed { PitchBadge.s11 }
                 else { PitchBadge.dot(player.status == .doubtful ? PitchColor.yellow : PitchColor.green) }
                 if player.alternative != nil && !confirmed {
@@ -211,7 +244,9 @@ struct LineupPitch: View {
 }
 
 /// Everyone who came on for the club, under the pitch (the website's list): photo with the yellow ring, name,
-/// "63' für Guirassy", his points; tapping opens his card.
+/// "63' für Guirassy", the part of the match he was on (a slim line filled from his minute to the end: 158 points
+/// in 71 minutes read differently from 0 in 2), his points; tapping opens his card. Name and points keep their
+/// widths, so the lines stand under each other.
 struct SubsList: View {
     let subs: [ClubPoints.ClubSub]
     let points: ClubPoints?
@@ -230,8 +265,12 @@ struct SubsList: View {
                             Text(sub.name).font(.system(size: 15, weight: .semibold)).lineLimit(1)
                             Text("\(sub.minute)' für \(sub.out)").font(.system(size: 13)).foregroundStyle(Color.tiMuted).lineLimit(1)
                         }
-                        Spacer(minLength: 0)
-                        if let label = points?.label(sub.points) { PointsChip(label: label, style: .row) }
+                        .frame(width: 148, alignment: .leading)
+                        played(from: Self.playedFrom(minute: sub.minute))
+                        HStack(spacing: 0) {
+                            if let label = points?.label(sub.points) { PointsChip(label: label, style: .row) }
+                        }
+                        .frame(width: 54, alignment: .trailing)
                     }
                     .padding(.vertical, 10)
                     .contentShape(Rectangle())
@@ -239,5 +278,38 @@ struct SubsList: View {
                 .buttonStyle(.pressRow)
             }
         }
+    }
+
+    /// Where a substitute's line starts, as a part of the 90 minutes (.sub-played's --from): one who came on in
+    /// stoppage time still shows a sliver.
+    static func playedFrom(minute: Int) -> Double {
+        min(0.98, max(0, Double(minute) / 90))
+    }
+
+    /// The match as a hairline, his part of it filled (global.css .sub-played).
+    private func played(from: Double) -> some View {
+        GeometryReader { geo in
+            RoundedRectangle(cornerRadius: 2).fill(Color.tiMuted.opacity(0.55))
+                .frame(width: geo.size.width * (1 - from))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(minWidth: 40, maxWidth: .infinity)
+        .frame(height: 4)
+        .background(Color.tiHairline, in: RoundedRectangle(cornerRadius: 2))
+        .accessibilityHidden(true)
+    }
+}
+
+extension LineupPlayer {
+    /// The line on the card of the one who may play in his place (Pitch.astro).
+    var alternativeStatus: String { "Alternative zu \(name)" }
+}
+
+extension AppFeed {
+    /// The players with news from the last 3 days that are out: they carry the newspaper on a pitch photo, older
+    /// news stay in the card only (src/lib/card.ts hasFreshNews, FRESH_NEWS_MS).
+    func freshNewsPlayers(now: Date) -> Set<Int> {
+        let since = now.addingTimeInterval(-3 * 86_400)
+        return Set(articles.lazy.filter { $0.publishedAt <= now && $0.publishedAt > since }.compactMap { $0.player?.id })
     }
 }

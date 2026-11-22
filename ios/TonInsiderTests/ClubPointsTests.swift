@@ -65,6 +65,80 @@ extension NetworkTests {
             #expect(model.points?.players["1"] == 12)
         }
 
+        /// A club Kickbase can't be asked for (503 unmapped, 502 Kickbase down, 404 unknown): no placeholders that
+        /// never fill; it keeps asking quietly, and the points show once an answer comes.
+        @Test func aFailedFirstAnswerIsKnownAndItKeepsAsking() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in
+                calls.value += 1
+                if calls.value < 3 { return (response(503), Data(#"{"error":"unavailable"}"#.utf8)) }
+                return (response(200), Data(#"{"live":{"state":1},"players":{"1":12}}"#.utf8))
+            }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(40))
+            #expect(!model.failed)
+            let run = Task { await model.run(slug: "fcb6", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(600) }) }
+            while calls.value < 1 { try await Task.sleep(for: .milliseconds(2)) }
+            try await Task.sleep(for: .milliseconds(15))
+            #expect(model.failed)
+            #expect(model.points == nil)
+            while model.points == nil { try await Task.sleep(for: .milliseconds(5)) }
+            run.cancel()
+            #expect(!model.failed)
+            #expect(model.points?.players["1"] == 12)
+        }
+
+        /// With points on the page, a failed look isn't a failure to show: they stay.
+        @Test func aFailedLookWithPointsShownIsNoFailure() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in
+                calls.value += 1
+                if calls.value > 1 { throw URLError(.timedOut) }
+                return (response(200), Data(#"{"live":{"state":1},"players":{"1":12}}"#.utf8))
+            }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
+            let run = Task { await model.run(slug: "fcb7", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(600) }) }
+            while calls.value < 3 { try await Task.sleep(for: .milliseconds(5)) }
+            run.cancel()
+            #expect(!model.failed)
+            #expect(model.points?.players["1"] == 12)
+        }
+
+        /// The page was open without a kickoff (or with another): when the feed brings one, asking starts, and the
+        /// other match's points and failure are gone.
+        @Test func aKickoffThatComesLaterStartsTheAsking() async throws {
+            let calls = Locked(0)
+            StubProtocol.handler = { _ in calls.value += 1; return (response(200), Data(#"{"live":{"state":2},"players":{"1":7}}"#.utf8)) }
+            let model = ClubPointsModel(api: API(session: StubProtocol.session(), tokens: MemoryTokenStore()), interval: .milliseconds(5))
+            await model.run(slug: "fcb8", kickoff: nil, now: { self.kickoff.addingTimeInterval(600) })
+            #expect(calls.value == 0)
+            await model.run(slug: "fcb8", kickoff: kickoff, now: { self.kickoff.addingTimeInterval(600) })
+            #expect(calls.value == 1)
+            #expect(model.points?.players["1"] == 7)
+
+            // The match was moved: its points aren't the new date's.
+            let moved = kickoff.addingTimeInterval(86_400)
+            StubProtocol.handler = { _ in calls.value += 1; return (response(502), Data(#"{"error":"unavailable"}"#.utf8)) }
+            let run = Task { await model.run(slug: "fcb8", kickoff: moved, now: { moved.addingTimeInterval(600) }) }
+            while calls.value < 2 { try await Task.sleep(for: .milliseconds(2)) }
+            try await Task.sleep(for: .milliseconds(15))
+            run.cancel()
+            #expect(model.points == nil)
+            #expect(model.failed)
+
+            // Its kickoff hasn't come: nothing to show, nothing failed.
+            let ahead = Task { await model.run(slug: "fcb8", kickoff: moved, now: { moved.addingTimeInterval(-600) }) }
+            try await Task.sleep(for: .milliseconds(20))
+            ahead.cancel()
+            #expect(!model.failed)
+        }
+
+        /// What the club page asks with: the app in front, and the kickoff the feed has now.
+        @Test func thePageAsksAnewWhenTheKickoffChanges() {
+            #expect(ClubPointsModel.Asking(active: true, kickoff: nil) != ClubPointsModel.Asking(active: true, kickoff: kickoff))
+            #expect(ClubPointsModel.Asking(active: true, kickoff: kickoff) != ClubPointsModel.Asking(active: true, kickoff: kickoff.addingTimeInterval(3_600)))
+            #expect(ClubPointsModel.Asking(active: true, kickoff: kickoff) != ClubPointsModel.Asking(active: false, kickoff: kickoff))
+        }
+
         @Test func noRequestOnceTheMatchdayIsOver() async throws {
             let calls = Locked(0)
             StubProtocol.handler = { _ in calls.value += 1; return (response(200), Data("{}".utf8)) }

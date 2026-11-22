@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { appFeed } from "./appFeed.ts";
+import { likelyScore } from "./odds.ts";
 import type { Article, Lineup } from "../../scraper/types.ts";
 
 const article = (id: number, publishedAt: string, extra: Partial<Article> = {}): Article => ({
@@ -27,6 +28,9 @@ describe("appFeed fixtures", () => {
     expect([f.home, f.away, f.homeName, f.awayName]).toEqual(["fc-bayern-muenchen", "1-fc-koeln", "FC Bayern München", "1. FC Köln"]);
     expect(f.chances).toEqual({ home: 78, draw: 13, away: 9 });
     expect(f.tip!.home).toBeGreaterThan(f.tip!.away);
+    // How likely that score is, for the club page's "Wahrscheinlichstes Ergebnis 2:0 (12 %)", as the site works it out.
+    expect(f.tip).toEqual(likelyScore(f.chances!));
+    expect(f.tip!.percent).toBeGreaterThan(0);
     expect(f.cleanSheet!.home).toBeGreaterThan(f.cleanSheet!.away);
   });
 

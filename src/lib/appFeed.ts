@@ -16,8 +16,9 @@ export type AppFixture = {
   kickoff?: string;
   matchday?: number;
   chances?: Chances;
-  /** The most likely score from the odds ("Tipp 2:0"). */
-  tip?: { home: number; away: number };
+  /** The most likely score from the odds ("Tipp 2:0") and how likely it is, in whole percent (added later: app
+   * builds from before it don't read it). */
+  tip?: { home: number; away: number; percent: number };
   /** Each team's chance to keep a clean sheet, in whole percent. */
   cleanSheet?: { home: number; away: number };
 };
@@ -68,7 +69,7 @@ export function appFeed(input: { articles: Article[]; pinned: Article[]; lineups
       ...(f.kickoff ? { kickoff: f.kickoff } : {}),
       ...((f.home ?? f.away)?.matchday !== undefined ? { matchday: (f.home ?? f.away)!.matchday } : {}),
       ...(chances ? { chances } : {}),
-      ...(tip ? { tip: { home: tip.home, away: tip.away } } : {}),
+      ...(tip ? { tip: { home: tip.home, away: tip.away, percent: tip.percent } } : {}),
       ...(mi ? { cleanSheet: mi.cleanSheet } : {}),
     };
   });

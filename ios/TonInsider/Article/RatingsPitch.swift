@@ -15,11 +15,27 @@ struct RatingsPitch: View {
                     GradeBadge(grade: average, prefix: "Ø ").font(.system(size: 14, weight: .bold))
                 }
             }
-            Pitch(lines: team.lines.map { Array($0.indices) }, mirror: true) { i, j in
-                RatedSpotView(spot: team.lines[i][j])
+            VStack(spacing: 0) {
+                Pitch(lines: team.lines.map { Array($0.indices) }, mirror: true) { i, j in
+                    RatedSpotView(spot: team.lines[i][j])
+                }
+                PitchLegend(items: Self.legend(team))
             }
         }
         .padding(.top, 32)
+    }
+
+    /// What the marks mean (RatingsPitch.astro's legend): only those this team's pitch shows, the substitutes'
+    /// included.
+    static func legend(_ team: TeamRatings) -> [PitchLegend.Item] {
+        let spots = team.lines.joined()
+        let marks = Set(spots.flatMap { $0.player.marks + ($0.sub?.marks ?? []) })
+        var items: [PitchLegend.Item] = [.init("Note 1 (top) bis 6")]
+        if marks.contains(.goal) { items.append(.init("Tor", mark: .goal)) }
+        if marks.contains(.assist) { items.append(.init("Vorlage", mark: .assist)) }
+        if !marks.isDisjoint(with: [.yellow, .yellowRed, .red]) { items.append(.init("Karte", mark: .card)) }
+        if spots.contains(where: { $0.sub != nil }) { items.append(.init("⇄ Einwechslung")) }
+        return items
     }
 }
 

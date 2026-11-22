@@ -57,7 +57,8 @@ struct Fixture: Codable, Hashable, Sendable {
     var tip: Score?
     var cleanSheet: Score?
 
-    struct Score: Codable, Hashable, Sendable { var home: Int; var away: Int }
+    /// `percent`: how likely the tip is (added later: missing in a feed stored before, and for clean sheets).
+    struct Score: Codable, Hashable, Sendable { var home: Int; var away: Int; var percent: Int? }
 }
 
 /// A player's chances from the odds, in whole percent: scores, scores or assists, gets a card.

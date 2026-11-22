@@ -44,7 +44,17 @@ struct ClubPoints: Codable, Hashable, Sendable {
 @Observable @MainActor
 final class ClubPointsModel {
     private(set) var points: ClubPoints?
+    /// No points to show and the last answer failed (503 for a club that can't be mapped to Kickbase, 502 when
+    /// Kickbase is down, 404, no network): the page shows the pitch as before kickoff instead of placeholders that
+    /// may never fill. The asking goes on quietly.
+    private(set) var failed = false
 
+    /// What the club page asks with: anew when the app comes to the front, and when the feed brings a kickoff
+    /// (or another one) while the page is open.
+    struct Asking: Equatable { var active: Bool; var kickoff: Date? }
+
+    /// The match the points and the failure belong to.
+    private var match: String?
     private let api: API
     private let interval: Duration
     /// The last answer per club and match, for an instant draw when the page opens again (the app can stay alive
@@ -66,20 +76,32 @@ final class ClubPointsModel {
     /// Asks while the points matter and the match isn't over; a failed request keeps what's shown. Opened before
     /// kickoff, it waits for it (the page shows the pitch from kickoff on; the task ends when the page closes).
     func run(slug: String, kickoff: Date?, now: @escaping () -> Date = { .now }) async {
-        guard let kickoff else { return }
+        // Another match than the last run's (the feed brought a kickoff, or moved it): its points aren't this one's.
+        let key = kickoff.map { Self.key(slug, $0) }
+        if key != match {
+            match = key
+            points = nil
+            failed = false
+        }
+        guard let kickoff, let key else { return }
         let wait = kickoff.timeIntervalSince(now())
         if wait > 0 {
+            failed = false
             // Half a second past it, so the clock surely says kickoff when the sleep ends.
             try? await Task.sleep(for: .seconds(wait + 0.5))
             if Task.isCancelled { return }
         }
         guard Self.matters(kickoff: kickoff, now: now()) else { return }
-        if points == nil, let cached = Self.last[Self.key(slug, kickoff)] { points = cached }
+        if points == nil, let cached = Self.last[key] { points = cached }
         while !Task.isCancelled {
             if let fresh: ClubPoints = try? await api.get("api/kickbase/club/\(slug)/") {
                 points = fresh
-                Self.last[Self.key(slug, kickoff)] = fresh
+                failed = false
+                Self.last[key] = fresh
                 if fresh.live.state == 2 { return }
+            } else if !Task.isCancelled {
+                // A request cut off because the page closed isn't a failed answer.
+                failed = points == nil
             }
             try? await Task.sleep(for: interval)
             guard Self.matters(kickoff: kickoff, now: now()) else { return }
