@@ -48,7 +48,7 @@ extension PlayerCardData {
             tone: "\(status.1)", pos: pos, goal: insight?.goal, scorer: insight?.scorer, card: insight?.card,
             cleanSheet: fixture?.cleanSheet.map { home ? $0.home : $0.away },
             win: fixture?.chances.map { home ? $0.home : $0.away },
-            news: (news ?? feed.newsOf(player: p.id)).prefix(3).map { CardNews(id: $0.id, title: $0.headline, type: $0.newsType, at: $0.publishedAt) }
+            news: (news ?? feed.newsOf(player: p.id)).prefix(PlayerCardView.newsAtFullSize).map { CardNews(id: $0.id, title: $0.headline, type: $0.newsType, at: $0.publishedAt) }
         )
     }
 }
@@ -66,6 +66,11 @@ struct PlayerCardView: View {
     private enum Breakdown { case loading, loaded(PlayerPoints), failed }
     @State private var breakdown: Breakdown?
     @State private var allLines = false
+    /// How far the card is pulled up: at full size there is room, so it shows all of his actions and more of his news.
+    @State private var detent: PresentationDetent = .medium
+    /// His latest news at half size, and how many the card holds for full size.
+    static let newsShown = 3
+    static let newsAtFullSize = 8
     @Environment(ScoutStore.self) private var scout
 
     /// The sheet's way in: what arrives during it waits for its end.
@@ -129,7 +134,11 @@ struct PlayerCardView: View {
         }
         // A message nobody read doesn't wait for the next card.
         .onDisappear { scout.message = nil }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
+        // Pulled up to full size: every action behind his points, without the tap on "Alle N Aktionen".
+        .onChange(of: detent) { _, now in
+            if now == .large { withAnimation(.easeOut(duration: 0.2)) { allLines = true } }
+        }
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
         // A solid sheet: through iOS's glass the pitch's green ran behind the text.
@@ -258,7 +267,9 @@ struct PlayerCardView: View {
 
     @ViewBuilder private var news: some View {
         // Posts scheduled for later appear from their minute, as everywhere else.
-        if let news = data.news?.filter({ $0.at <= .now }), !news.isEmpty {
+        if let out = data.news?.filter({ $0.at <= .now }), !out.isEmpty {
+            // The three latest; pulled up to full size, the ones before them too.
+            let news = Array(out.prefix(detent == .large ? Self.newsAtFullSize : Self.newsShown))
             VStack(alignment: .leading, spacing: 0) {
                 Text("News").font(.system(size: 13)).foregroundStyle(Color.tiMuted).padding(.bottom, 2)
                 ForEach(Array(news.enumerated()), id: \.element.id) { index, n in

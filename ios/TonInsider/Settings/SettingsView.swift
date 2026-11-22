@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Hell or Dunkel once chosen; until then the iPhone's own setting (like the website).
+/// Hell or Dunkel once chosen; until then Hell, whatever the iPhone is set to (like the website: without a choice, light).
 enum Appearance: String {
     case light, dark
     var label: String { self == .light ? "Hell" : "Dunkel" }
@@ -20,7 +20,7 @@ struct SettingsView: View {
                 PageHeader(title: "Einstellungen", logo: true).padding(.bottom, -12)
                 section("Darstellung") {
                     Picker("Darstellung", selection: Binding(
-                        get: { appearance ?? (colorScheme == .dark ? .dark : .light) },
+                        get: { appearance ?? .light },
                         set: { appearance = $0 }
                     )) {
                         Text("Hell").tag(Appearance.light)

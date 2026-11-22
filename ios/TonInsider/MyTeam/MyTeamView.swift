@@ -51,8 +51,17 @@ struct MyTeamView: View {
                     .font(.system(size: 17, weight: .semibold))
                 Text("Melde dich mit Kickbase an: Hier siehst du dann deine Spieler, ob sie spielen, und ihre Punkte live.")
                     .font(.system(size: 15)).foregroundStyle(Color.tiMuted).multilineTextAlignment(.center).frame(maxWidth: 320)
-                Button("Mit Kickbase anmelden") { tabs.selected = .settings }
-                    .buttonStyle(.borderedProminent).tint(Color.tiForeground).padding(.top, 12)
+                // The site's primary pill (.btn-primary.btn-pill): the text in the page's background colour on the
+                // text colour. Drawn by hand: the system's prominent button kept its white label on our near-white
+                // tint in dark mode.
+                Button { tabs.selected = .settings } label: {
+                    Text("Mit Kickbase anmelden")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.tiBackground)
+                        .padding(.horizontal, 22).frame(height: 44)
+                        .background(Color.tiForeground, in: Capsule())
+                }
+                .buttonStyle(.press).padding(.top, 12)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 40)

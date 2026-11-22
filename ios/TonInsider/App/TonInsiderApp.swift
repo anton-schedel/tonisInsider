@@ -38,7 +38,7 @@ struct TonInsiderApp: App {
                         try? await Task.sleep(for: .seconds(60))
                     }
                 }
-                .preferredColorScheme(appearance?.scheme)
+                .preferredColorScheme((appearance ?? .light).scheme)
                 .tint(Color.tiForeground)
                 .task { await scout.load() }
                 .task {
