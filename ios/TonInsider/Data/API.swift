@@ -44,17 +44,24 @@ final class API: Sendable {
     var isSignedIn: Bool { tokens.token != nil }
 
     func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
-        var request = URLRequest(url: url(path, query))
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        return try decode(try await send(request))
+        try await answer(path, query: query).value
     }
 
-    func post<T: Decodable>(_ path: String, json: some Encodable) async throws -> T {
+    /// A GET with the answer's headers (the comments say "x-stale" when they are an older copy).
+    func answer<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> (value: T, response: HTTPURLResponse) {
+        var request = URLRequest(url: url(path, query))
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let answer = try await send(request)
+        return (try decode(answer), answer.1)
+    }
+
+    /// `alsoAccept`: statuses whose body is an answer too, not an error (a repeated poll vote: 409 with the poll).
+    func post<T: Decodable>(_ path: String, json: some Encodable, alsoAccept: Set<Int> = []) async throws -> T {
         var request = URLRequest(url: url(path, []))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(json)
-        return try decode(try await send(request))
+        return try decode(try await send(request), alsoAccept: alsoAccept)
     }
 
     /// A form post as the site's login and logout forms send it; the answer is a redirect (status and Location).
@@ -85,6 +92,8 @@ final class API: Sendable {
         do {
             (data, response) = try await session.data(for: request, delegate: noRedirects)
         } catch {
+            // A request given up on purpose (the screen went away) is no lost connection: nobody shows it as one.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled { throw CancellationError() }
             throw APIError.offline
         }
         guard let http = response as? HTTPURLResponse else { throw APIError.offline }
@@ -95,11 +104,12 @@ final class API: Sendable {
         return (data, http)
     }
 
-    private func decode<T: Decodable>(_ answer: (Data, HTTPURLResponse)) throws -> T {
+    private func decode<T: Decodable>(_ answer: (Data, HTTPURLResponse), alsoAccept: Set<Int> = []) throws -> T {
         let (data, response) = answer
         let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error
         switch response.statusCode {
         case 200..<300: return try JSONDecoder.site.decode(T.self, from: data)
+        case let status where alsoAccept.contains(status): return try JSONDecoder.site.decode(T.self, from: data)
         case 401: throw APIError.unauthorized(message)
         default: throw APIError.server(message ?? "Etwas ist schiefgegangen. Versuch es gleich nochmal.")
         }

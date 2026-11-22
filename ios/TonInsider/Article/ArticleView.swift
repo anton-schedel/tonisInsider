@@ -15,6 +15,7 @@ struct ArticleView: View {
         blocks = articleBlocks(article.bodyHtml)
     }
     @Environment(\.openURL) private var openURL
+    @Environment(FeedStore.self) private var store
 
     var body: some View {
         ScrollViewReader { scroller in
@@ -25,7 +26,8 @@ struct ArticleView: View {
                     .font(.system(size: 26, weight: .bold))
                     .tracking(-0.6)
                     .padding(.bottom, 8)
-                Text(byline).font(.system(size: 12)).foregroundStyle(Color.tiMuted).padding(.bottom, 24)
+                // The link in the line's own grey, not the tint.
+                Text(article.byline).font(.system(size: 12)).foregroundStyle(Color.tiMuted).tint(Color.tiMuted).padding(.bottom, 24)
                 if let banner = siteURL(article.banner) {
                     let ratio = article.bannerSize.map { $0.width / $0.height } ?? 16 / 9
                     RemoteImage(url: banner, contentMode: article.bannerSize == nil ? .fill : .fit)
@@ -79,7 +81,15 @@ struct ArticleView: View {
             VStack(alignment: .leading, spacing: 1) {
                 if let player = article.player { Text(player.name).font(.system(size: 14, weight: .bold)) }
                 if article.player == nil && article.club == nil { Text("TonInsider").font(.system(size: 14, weight: .bold)) }
-                if let club = article.club { Text(club.name).font(.system(size: 12)).foregroundStyle(Color.tiMuted) }
+                if let club = article.club {
+                    let name = Text(club.name).font(.system(size: 12)).foregroundStyle(Color.tiMuted)
+                    // To the club's lineup, when it has one.
+                    if let slug = article.clubLineupSlug(in: store.feed) {
+                        NavigationLink(value: ClubRoute(slug: slug)) { name.contentShape(Rectangle()) }.buttonStyle(.press)
+                    } else {
+                        name
+                    }
+                }
             }
             .lineLimit(1)
             Spacer(minLength: 0)
@@ -87,11 +97,33 @@ struct ArticleView: View {
         }
     }
 
-    private var byline: String {
-        var s = "\(Berlin.full(article.publishedAt)) Uhr"
-        if let author = article.author, author != article.source?.name { s += " · \(author)" }
-        if let source = article.source { s += " · Quelle: \(source.name)" }
+}
+
+extension Article {
+    /// Date, author and source under the headline; the source's name opens its page when it has one (underlined,
+    /// as on the site).
+    var byline: AttributedString {
+        var s = AttributedString("\(Berlin.full(publishedAt)) Uhr")
+        if let author, author != source?.name { s += AttributedString(" · \(author)") }
+        if let source {
+            s += AttributedString(" · Quelle: ")
+            var name = AttributedString(source.name)
+            // A real address only: the feed has "https://LigaInsider" for LigaInsider's own articles, which leads nowhere.
+            if let raw = source.url, let url = URL(string: raw), url.scheme == "https" || url.scheme == "http",
+               url.host()?.contains(".") == true {
+                name.link = url
+                name.underlineStyle = .single
+            }
+            s += name
+        }
         return s
+    }
+
+    /// The club's lineup page this article's club name leads to (src/pages/artikel/[id].astro clubLineupHref): our
+    /// own posts have none, nor have the national teams (LigaInsider files their news under a club of their own).
+    func clubLineupSlug(in feed: AppFeed?) -> String? {
+        guard let club, !isOwn, feed?.lineup(slug: club.slug) != nil else { return nil }
+        return club.slug
     }
 }
 

@@ -99,6 +99,9 @@ final class ChatsModel {
                 chats = answer.chats
             }
             loadFailed = false
+        } catch is CancellationError {
+            // Given up because the list went away: not a failure, it loads again when the list is back.
+            return
         } catch {
             loadFailed = chats.isEmpty
         }
