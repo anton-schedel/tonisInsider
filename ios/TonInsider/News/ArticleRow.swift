@@ -17,11 +17,13 @@ struct ArticleRow: View {
                         VStack(alignment: .leading, spacing: 0) {
                             title
                             meta
-                            Text(lineup.xi).font(.system(size: 15)).padding(.top, 8)
+                            // Its full height, whatever the row is offered: beside the crest the feed's lazy stack
+                            // measured it wrapped but drew it in one line, cut off with "…" and a gap below.
+                            Text(lineup.xi).font(.system(size: 15)).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
                         }
                     }
                     if let bench = lineup.bench {
-                        Text("Bank: \(bench)").font(.system(size: 13)).foregroundStyle(Color.tiMuted)
+                        Text("Bank: \(bench)").font(.system(size: 13)).foregroundStyle(Color.tiMuted).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } else {
