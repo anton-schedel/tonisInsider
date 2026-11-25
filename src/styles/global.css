@@ -698,6 +698,10 @@ html:not([data-navigated]) .enter {
   .tabbar .tab-item[data-tab="einstellungen"] { order: 2; margin-top: auto; }
   .tabbar .side-link { order: 1; }
   .tabbar .tab-badge { position: static; order: 3; margin-left: auto; box-shadow: none; }
+  /* On "Deine Chats" the sidebar's Chats is the selected entry, not News (on phones the page belongs to News:
+     Chats is a button there, and News stays selected). */
+  body:has([data-chats]) .tabbar .side-link { background: var(--surface); font-weight: 600; color: var(--accent); }
+  body:has([data-chats]) .tabbar .tab-item[data-tab="news"] { background: none; font-weight: 500; color: var(--muted); }
   .nav-progress { inset: 0 0 auto; }
   /* News: the wordmark and Chats are in the sidebar, so the page starts with the feed. */
   body:has([data-desk-index]) .page-in > header { display: none; }
